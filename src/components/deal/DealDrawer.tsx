@@ -13,18 +13,32 @@ const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, bord
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
 
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
-  const [deal, setDeal] = useState<Deal | null>(null);
+  const [deal, setDeal] = useState<any | null>(null);
   const [tab, setTab] = useState<'info' | 'offers' | 'actions' | 'notes'>('info');
   const [noteText, setNote] = useState('');
   const [actionForm, setAF] = useState<Partial<Action> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editContacts, setEditContacts] = useState(false);
+  const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
-    if (res.ok) setDeal(await res.json());
+    if (res.ok) {
+      const d = await res.json();
+      setDeal(d);
+      setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '' });
+    }
     setLoading(false);
   }, [dealId]);
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
+
+  const saveContacts = async () => {
+    await fetch(`/api/deals/${dealId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contacts),
+    });
+    setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
+  };
 
   const addNote = async () => {
     if (!noteText.trim()) return;
@@ -46,8 +60,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   };
 
   const deleteAction = async (id: string) => {
-    await fetch(`/api/actions/${id}`, { method: 'DELETE' });
-    fetchDeal();
+    await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal();
   };
 
   const setPriority = async (priority: Priority) => {
@@ -62,7 +75,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ width: 480, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 500, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ color: '#94a3b8' }}>Chargement…</span>
       </div>
     </div>
@@ -72,18 +85,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const brand = store?.brand;
   const bc = brand?.color || '#6366f1';
   const col = deal.column;
-  const prevCol = deal.previousColumnId ? { title: 'colonne précédente' } : null;
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
-  const dOffers = deal.jobOffers?.sort((a, b) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()) ?? [];
-  const dActions = deal.actions?.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) ?? [];
-  const dNotes = deal.notes?.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
-  const todoCount = dActions.filter(a => a.status === 'todo').length;
+  const dOffers = deal.jobOffers?.sort((a: any, b: any) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()) ?? [];
+  const dActions = deal.actions?.sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) ?? [];
+  const dNotes = deal.notes?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
+  const todoCount = dActions.filter((a: any) => a.status === 'todo').length;
 
-  const TABS = [['info','Infos'],['offers',`Offres (${dOffers.length})`],['actions',`Actions (${todoCount})`],['notes',`Notes (${dNotes.length})`]] as const;
+  const TABS = [
+    ['info', 'Infos'],
+    ['offers', `Offres (${dOffers.length})`],
+    ['actions', `Actions (${todoCount})`],
+    ['notes', `Notes (${dNotes.length})`],
+  ] as const;
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 480, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
@@ -95,19 +112,24 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: 0 }}>×</button>
           </div>
+
           {movedBack && (
             <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>
-              <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée automatiquement en "À appeler"</div>
+              <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en "À appeler"</div>
               <div style={{ color: '#78350f' }}>Nouvelle offre détectée lors du dernier import.</div>
             </div>
           )}
+
           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 500 }}>✦ Nouvelle</span>}
             {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 500 }}>⚠ Absente</span>}
             <select value={deal.priority} onChange={e => setPriority(e.target.value as Priority)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11 }}>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
-            <div style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 500, background: `${bc}22`, color: bc }}>{col?.title}</div>
+            <select value={deal.columnId} onChange={e => moveCol(e.target.value)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11, color: bc, border: `1px solid ${bc}55` }}>
+              {/* Will be populated by column list */}
+              <option value={deal.columnId}>{col?.title}</option>
+            </select>
           </div>
         </div>
 
@@ -121,29 +143,70 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
+          {/* ── INFO ── */}
           {tab === 'info' && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
               {[['Enseigne', brand?.name], ['Nom', store?.name], ['Ville', store?.city], ['Département', store?.department], ['Adresse', store?.address], ['SIRET', store?.siret]].map(([l, v]) => v && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
-                  <span style={{ width: 100, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                  <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                   <span style={{ color: '#334155' }}>{v}</span>
                 </div>
               ))}
+
+              {/* Contacts */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>CONTACTS</div>
+                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  {editContacts ? 'Annuler' : '✎ Modifier'}
+                </button>
+              </div>
+
+              {editContacts ? (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Directeur</label>
+                    <input style={inp} placeholder="Prénom Nom" value={contacts.directeur} onChange={e => setContacts(c => ({ ...c, directeur: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Contact calling</label>
+                    <input style={inp} placeholder="Prénom Nom" value={contacts.contactCalling} onChange={e => setContacts(c => ({ ...c, contactCalling: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Email</label>
+                    <input style={inp} type="email" placeholder="contact@magasin.fr" value={contacts.dealEmail} onChange={e => setContacts(c => ({ ...c, dealEmail: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button style={btnPri} onClick={saveContacts}>Enregistrer</button>
+                    <button style={btnDef} onClick={() => setEditContacts(false)}>Annuler</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {[['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
+                    <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
+                      <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                      <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>CRM</div>
-              {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt!)], ['Colonne', col?.title], ['Priorité', deal.priority]].map(([l, v]) => v && v !== '—' && (
+              {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt)], ['Colonne', col?.title], ['Priorité', deal.priority]].map(([l, v]) => v && v !== '—' && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
-                  <span style={{ width: 100, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                  <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                   <span style={{ color: '#334155' }}>{v}</span>
                 </div>
               ))}
             </div>
           )}
 
+          {/* ── OFFRES ── */}
           {tab === 'offers' && (
             <div>
               {!dOffers.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
-              {dOffers.map(o => (
+              {dOffers.map((o: any) => (
                 <div key={o.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#f8fafc', marginBottom: 8 }}>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                     <div style={{ flex: 1 }}>
@@ -164,6 +227,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
+          {/* ── ACTIONS ── */}
           {tab === 'actions' && (
             <div>
               <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '' })}>+ Nouvelle action</button>
@@ -171,12 +235,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={actionForm.title || ''} onChange={e => setAF(f => ({ ...f, title: e.target.value }))} />
-                    <select style={inp} value={actionForm.type || 'Appeler'} onChange={e => setAF(f => ({ ...f, type: e.target.value as Action['type'] }))}>
-                      {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                    </select>
-                    <select style={inp} value={actionForm.priority || 'normale'} onChange={e => setAF(f => ({ ...f, priority: e.target.value as Priority }))}>
-                      {PRIORITIES.map(p => <option key={p}>{p}</option>)}
-                    </select>
+                    <select style={inp} value={actionForm.type || 'Appeler'} onChange={e => setAF(f => ({ ...f, type: e.target.value as Action['type'] }))}>{ACTION_TYPES.map(t => <option key={t}>{t}</option>)}</select>
+                    <select style={inp} value={actionForm.priority || 'normale'} onChange={e => setAF(f => ({ ...f, priority: e.target.value as Priority }))}>{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
                     <input type="date" style={{ ...inp, gridColumn: '1/-1' }} value={typeof actionForm.dueDate === 'string' ? actionForm.dueDate.slice(0, 10) : ''} onChange={e => setAF(f => ({ ...f, dueDate: e.target.value }))} />
                     <textarea style={{ ...inp, height: 40, resize: 'none', gridColumn: '1/-1' }} placeholder="Note…" value={actionForm.note || ''} onChange={e => setAF(f => ({ ...f, note: e.target.value }))} />
                   </div>
@@ -187,7 +247,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 </div>
               )}
               {!dActions.length && !actionForm && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune action.</p>}
-              {dActions.map(a => {
+              {dActions.map((a: any) => {
                 const late = a.status === 'todo' && isOverdue(a.dueDate) && new Date(a.dueDate).toDateString() !== new Date().toDateString();
                 return (
                   <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 11px', borderRadius: 8, border: `1px solid ${late ? '#fecaca' : '#e2e8f0'}`, background: late ? '#fef2f2' : '#f8fafc', marginBottom: 5 }}>
@@ -210,6 +270,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
+          {/* ── NOTES ── */}
           {tab === 'notes' && (
             <div>
               <textarea style={{ ...inp, height: 60, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
