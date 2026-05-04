@@ -1,4 +1,3 @@
-// src/app/pipeline/page.tsx
 import AppLayout from '@/components/layout/AppLayout';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import { prisma } from '@/lib/prisma';
@@ -19,12 +18,11 @@ export default async function PipelinePage() {
     prisma.pipelineColumn.findMany({ orderBy: { position: 'asc' } }),
   ]);
 
-  // Next.js sérialise en JSON — convertir les Dates
   const serialized = JSON.parse(JSON.stringify({ deals, columns }));
 
   return (
     <AppLayout>
-      <div className="h-full">
+      <div style={{ height: '100%' }}>
         <PipelineBoard initialDeals={serialized.deals} columns={serialized.columns} />
       </div>
     </AppLayout>
