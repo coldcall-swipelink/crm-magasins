@@ -33,25 +33,24 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
     const rowNum = i + 1;
     try {
       const mapped: MappedRow = mapCsvRow(rows[i]);
+      console.log(`[ROW ${rowNum}] directeur="${mapped.directeur}" contactCalling="${mapped.contactCalling}" dealEmail="${mapped.dealEmail}"`);
+
       if (!mapped.brand && !mapped.storeName && !mapped.city) {
         throw new Error('Ligne sans données identifiables');
       }
 
-      // Enseigne
       let brand = null;
       if (mapped.brand?.trim()) {
         brand = await prisma.brand.findFirst({ where: { name: { equals: mapped.brand.trim(), mode: 'insensitive' } } });
         if (!brand) brand = await prisma.brand.create({ data: { name: mapped.brand.trim(), color: generateBrandColor(mapped.brand) } });
       }
 
-      // Magasin
       const dedupKey = buildDeduplicationKey(mapped);
       let store = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
       let deal;
       let isNewDeal = false;
 
       if (!store) {
-        // CAS 1 : Nouveau magasin
         store = await prisma.store.create({
           data: {
             brandId: brand?.id ?? null,
@@ -87,7 +86,6 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
         createdDeals++;
         isNewDeal = true;
       } else {
-        // Magasin existant
         await prisma.store.update({
           where: { id: store.id },
           data: {
@@ -126,12 +124,10 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
 
       processedStoreIds.add(store.id);
 
-      // Offre
       const fingerprint = buildOfferFingerprint(store.id, mapped);
       const existingOffer = await prisma.jobOffer.findUnique({ where: { fingerprint } });
 
       if (!existingOffer) {
-        // CAS 2 : Nouvelle offre
         await prisma.jobOffer.create({
           data: {
             dealId: deal.id, storeId: store.id, importBatchId: batch.id,
@@ -149,7 +145,6 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
         newOffers++;
 
         if (!isNewDeal) {
-          // RÈGLE CLÉ : retour en "À appeler"
           await prisma.deal.update({
             where: { id: deal.id },
             data: {
@@ -163,7 +158,6 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
           movedToCall++;
         }
       } else {
-        // CAS 3 : Offre connue
         await prisma.jobOffer.update({
           where: { id: existingOffer.id },
           data: { lastSeenAt: new Date(), status: 'active' },
@@ -190,7 +184,6 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
     }
   }
 
-  // Offres disparues
   const disappearedResult = await prisma.jobOffer.updateMany({
     where: { status: 'active', importBatchId: { not: batch.id }, storeId: { notIn: Array.from(processedStoreIds) } },
     data: { status: 'disappeared' },
