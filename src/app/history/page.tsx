@@ -1,84 +1,49 @@
 'use client';
-// src/app/history/page.tsx
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import type { ImportBatch } from '@/types';
 import { formatDate } from '@/lib/utils';
-import { ChevronDown, ChevronRight, History } from 'lucide-react';
 
 export default function HistoryPage() {
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/import-batches').then(r => r.json()).then(setBatches);
-  }, []);
+  useEffect(() => { fetch('/api/import-batches').then(r => r.json()).then(setBatches); }, []);
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-6 py-6">
-        <div className="flex items-center gap-2 mb-6">
-          <History size={20} className="text-slate-400" />
-          <h1 className="text-xl font-bold text-slate-900">Historique des imports</h1>
-        </div>
-
-        {batches.length === 0 && (
-          <div className="text-center py-20 text-slate-400">
-            <History size={40} className="mx-auto mb-3 opacity-30" />
-            <p>Aucun import encore. Allez dans <strong>Importer CSV</strong> pour commencer.</p>
-          </div>
-        )}
-
-        <div className="space-y-3">
+      <div style={{ padding: '24px', maxWidth: 900 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Historique des imports</div>
+        {!batches.length && <div style={{ color: '#94a3b8', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>Aucun import.</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {batches.map(b => (
-            <div key={b.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              {/* Résumé */}
-              <button
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors"
-                onClick={() => setExpanded(expanded === b.id ? null : b.id)}
-              >
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-slate-800">{b.fileName}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    {formatDate(b.importedAt)} · {b.totalRows} lignes
-                  </div>
+            <div key={b.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{b.fileName}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDate(b.importedAt)} · {b.totalRows} lignes</div>
                 </div>
-                <div className="flex gap-4 text-xs">
-                  {b.createdDeals > 0 && <span className="text-emerald-600 font-medium">+{b.createdDeals} créées</span>}
-                  {b.updatedDeals > 0 && <span className="text-slate-500">⟳{b.updatedDeals} màj</span>}
-                  {b.newOffers > 0    && <span className="text-amber-600">✦{b.newOffers} offres</span>}
-                  {(b.movedToCall || 0) > 0 && <span className="text-indigo-600">↩{b.movedToCall} rappelées</span>}
-                  {b.disappearedOffers > 0 && <span className="text-red-500">✗{b.disappearedOffers} disparues</span>}
-                  {b.errorCount > 0        && <span className="text-red-500">⚠{b.errorCount} err.</span>}
+                <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                  {b.createdDeals > 0 && <span style={{ color: '#16a34a' }}>+{b.createdDeals} créées</span>}
+                  {b.updatedDeals > 0 && <span style={{ color: '#64748b' }}>⟳{b.updatedDeals} màj</span>}
+                  {b.newOffers > 0 && <span style={{ color: '#d97706' }}>✦{b.newOffers} offres</span>}
+                  {(b.movedToCall || 0) > 0 && <span style={{ color: '#6366f1' }}>↩{b.movedToCall} rappelées</span>}
+                  {b.disappearedOffers > 0 && <span style={{ color: '#dc2626' }}>✗{b.disappearedOffers} disparues</span>}
+                  {b.errorCount > 0 && <span style={{ color: '#dc2626' }}>⚠{b.errorCount} err.</span>}
                 </div>
-                {expanded === b.id ? <ChevronDown size={16} className="text-slate-400 flex-shrink-0" /> : <ChevronRight size={16} className="text-slate-400 flex-shrink-0" />}
-              </button>
-
-              {/* Détail lignes */}
+                <span style={{ color: '#94a3b8' }}>{expanded === b.id ? '▲' : '▼'}</span>
+              </div>
               {expanded === b.id && b.importRows && (
-                <div className="border-t border-slate-200 overflow-auto max-h-80">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-50 sticky top-0">
-                      <tr>
-                        {['#', 'Statut', 'Magasin', 'Message'].map(h => (
-                          <th key={h} className="px-4 py-2 text-left text-slate-500 font-medium border-b border-slate-200">{h}</th>
-                        ))}
+                <div style={{ borderTop: '1px solid #e2e8f0', maxHeight: 200, overflow: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                    <thead><tr>{['#', 'Statut', 'Magasin', 'Message'].map(h => <th key={h} style={{ padding: '6px 10px', textAlign: 'left', color: '#64748b', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 500 }}>{h}</th>)}</tr></thead>
+                    <tbody>{b.importRows.map(row => (
+                      <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '4px 10px', color: '#94a3b8', fontFamily: 'monospace' }}>{row.rowNumber}</td>
+                        <td style={{ padding: '4px 10px' }}><span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, fontWeight: 500, background: row.status === 'ok' ? '#dcfce7' : '#fee2e2', color: row.status === 'ok' ? '#15803d' : '#b91c1c' }}>{row.status}</span></td>
+                        <td style={{ padding: '4px 10px' }}>{row.store?.name || '—'}</td>
+                        <td style={{ padding: '4px 10px', color: '#94a3b8' }}>{row.errorMessage || 'OK'}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {b.importRows.map(row => (
-                        <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-2 text-slate-400 font-mono">{row.rowNumber}</td>
-                          <td className="px-4 py-2">
-                            <span className={`badge text-[10px] ${row.status === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                              {row.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 text-slate-700">{row.store?.name || '—'}</td>
-                          <td className="px-4 py-2 text-slate-400">{row.errorMessage || 'OK'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
+                    ))}</tbody>
                   </table>
                 </div>
               )}

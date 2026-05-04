@@ -1,85 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  * { box-sizing: border-box; }
-
-  html, body {
-    @apply h-full;
-    font-family: 'DM Sans', system-ui, sans-serif;
-  }
-
-  ::-webkit-scrollbar       { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
-
-  input, textarea, select { font-family: inherit; }
+/* globals.css — zero Tailwind */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: #0f172a;
+  background: #f8fafc;
 }
-
-@layer components {
-  /* Carte deal kanban */
-  .deal-card {
-    @apply bg-white border border-slate-200 rounded-xl p-3 cursor-pointer
-           transition-all duration-150 select-none;
-  }
-  .deal-card:hover {
-    @apply shadow-md -translate-y-0.5;
-  }
-  .deal-card.dragging {
-    @apply opacity-50 shadow-xl scale-105;
-  }
-
-  /* Colonne kanban survol */
-  .kanban-col.drag-over {
-    @apply outline-2 outline-dashed outline-indigo-400 bg-indigo-50/40;
-  }
-
-  /* Badges */
-  .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium;
-  }
-
-  /* Bouton primaire */
-  .btn-primary {
-    @apply bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg
-           hover:bg-indigo-700 transition-colors disabled:opacity-50;
-  }
-
-  /* Bouton secondaire */
-  .btn-secondary {
-    @apply bg-white text-slate-700 text-sm font-medium px-4 py-2 rounded-lg border
-           border-slate-200 hover:bg-slate-50 transition-colors;
-  }
-
-  /* Bouton danger */
-  .btn-danger {
-    @apply bg-red-50 text-red-700 text-sm font-medium px-4 py-2 rounded-lg border
-           border-red-200 hover:bg-red-100 transition-colors;
-  }
-
-  /* Input */
-  .form-input {
-    @apply w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm
-           text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2
-           focus:ring-indigo-500 focus:border-indigo-500 transition-shadow;
-  }
-
-  /* Sidebar nav item */
-  .nav-item {
-    @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600
-           hover:bg-slate-100 hover:text-slate-900 transition-colors w-full text-left;
-  }
-  .nav-item.active {
-    @apply bg-indigo-50 text-indigo-700 font-medium;
-  }
-}
-
-/* Toast animations */
-@keyframes slide-in {
-  from { transform: translateX(120%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-.toast-enter { animation: slide-in 0.3s ease; }
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+input, select, textarea, button { font-family: inherit; font-size: 13px; }
+a { text-decoration: none; }

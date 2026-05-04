@@ -1,35 +1,24 @@
 'use client';
-// src/components/pipeline/DealCard.tsx
 import type { Deal } from '@/types';
 import { formatRelativeDate, isOverdue } from '@/lib/utils';
-import { MapPin, Clock, AlertTriangle, GripVertical } from 'lucide-react';
 
 interface Props {
-  deal:        Deal;
-  isDragging:  boolean;
+  deal: Deal;
+  isDragging: boolean;
   onDragStart: (e: React.DragEvent) => void;
-  onDragEnd:   () => void;
-  onSelect:    () => void;
+  onDragEnd: () => void;
+  onSelect: () => void;
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  urgente: 'bg-red-500',
-  élevée:  'bg-amber-500',
-  normale: 'bg-indigo-400',
-  faible:  'bg-slate-300',
-};
-
 export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onSelect }: Props) {
-  const store  = deal.store;
-  const brand  = store?.brand;
-  const bc     = brand?.color || '#6366f1';
+  const store = deal.store;
+  const brand = store?.brand;
+  const bc = brand?.color || '#6366f1';
   const offers = deal.jobOffers?.filter(o => o.status === 'active') ?? [];
   const nextAct = deal.actions?.[0] ?? null;
-  const isLate  = nextAct && isOverdue(nextAct.dueDate);
-  const isToday = nextAct && new Date(nextAct.dueDate).toDateString() === new Date().toDateString();
-
-  // Badge retour automatique suite à nouvelle offre
-  const wasMovedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
+  const late = nextAct && isOverdue(nextAct.dueDate) && new Date(nextAct.dueDate).toDateString() !== new Date().toDateString();
+  const today = nextAct && new Date(nextAct.dueDate).toDateString() === new Date().toDateString();
+  const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
 
   return (
     <div
@@ -37,74 +26,43 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onSelect}
-      className={`deal-card border-l-[3px] group ${isDragging ? 'dragging' : ''}
-        ${wasMovedBack ? 'ring-1 ring-amber-300' : ''}`}
-      style={{ borderLeftColor: bc }}
+      style={{
+        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9,
+        padding: '9px 11px', cursor: 'pointer', userSelect: 'none',
+        borderLeft: `3px solid ${bc}`, opacity: isDragging ? 0.5 : 1,
+        boxShadow: movedBack ? '0 0 0 1.5px #f59e0b55' : undefined,
+        transition: 'transform .1s, box-shadow .1s',
+      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 3px 10px rgba(0,0,0,.1)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = movedBack ? '0 0 0 1.5px #f59e0b55' : ''; }}
     >
-      {/* En-tête */}
-      <div className="flex items-start gap-1.5 mb-2">
-        <div className="flex-1 min-w-0">
-          {brand && (
-            <div className="text-[10px] font-bold tracking-wide mb-0.5 uppercase" style={{ color: bc }}>
-              {brand.name}
-            </div>
-          )}
-          <div className="text-xs font-semibold text-slate-800 truncate">{store?.name || 'Magasin'}</div>
-          {store?.city && (
-            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-              <MapPin size={9} />
-              {store.city}{store.department ? ` (${store.department})` : ''}
-            </div>
-          )}
-        </div>
-        <div className="text-slate-300 group-hover:text-slate-400 flex-shrink-0 mt-0.5">
-          <GripVertical size={13} />
-        </div>
+      {brand && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: bc, marginBottom: 2 }}>{brand.name}</div>}
+      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#0f172a' }}>{store?.name || 'Magasin'}</div>
+      {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, margin: '5px 0' }}>
+        {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>✦ Nouvelle</span>}
+        {movedBack && <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⟳ Rappelée</span>}
+        {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⚠ Absente</span>}
       </div>
 
-      {/* Badges */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {deal.isNewFromLastImport && (
-          <span className="badge bg-emerald-100 text-emerald-700">✦ Nouvelle</span>
-        )}
-        {wasMovedBack && (
-          <span className="badge bg-amber-100 text-amber-700">⟳ Rappelée</span>
-        )}
-        {deal.hasNewOfferFromLastImport && !wasMovedBack && !deal.isNewFromLastImport && (
-          <span className="badge bg-amber-50 text-amber-600">⟳ Offre màj</span>
-        )}
-        {!deal.isPresentInLastImport && (
-          <span className="badge bg-red-100 text-red-600 flex items-center gap-1">
-            <AlertTriangle size={9} /> Absente
-          </span>
-        )}
-        <span className={`badge ${PRIORITY_DOT[deal.priority] ? '' : ''}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[deal.priority] || 'bg-slate-300'}`} />
-          {deal.priority}
-        </span>
-      </div>
-
-      {/* Postes */}
       {offers.length > 0 && (
-        <div className="text-[10px] text-slate-500 mb-2 truncate">
-          💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}
-          {offers.length > 2 && ` +${offers.length - 2}`}
+        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}{offers.length > 2 ? ` +${offers.length - 2}` : ''}
         </div>
       )}
 
-      {/* Prochaine action */}
       {nextAct ? (
-        <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md
-          ${isLate ? 'bg-red-900/80 text-red-200' :
-            isToday ? 'bg-amber-900/70 text-amber-200' : 'bg-slate-100 text-slate-500'}`}>
-          <Clock size={9} />
-          <span className="truncate">{nextAct.title}</span>
-          <span className="ml-auto font-medium whitespace-nowrap">{formatRelativeDate(nextAct.dueDate)}</span>
+        <div style={{
+          fontSize: 10, padding: '3px 6px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3,
+          background: late ? '#7f1d1d' : today ? '#451a03' : '#f1f5f9',
+          color: late ? '#fca5a5' : today ? '#fde68a' : '#64748b',
+        }}>
+          🕐 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nextAct.title}</span>
+          <span style={{ flexShrink: 0 }}>{formatRelativeDate(nextAct.dueDate)}</span>
         </div>
       ) : (
-        <div className="text-[10px] text-amber-500 flex items-center gap-1">
-          <AlertTriangle size={9} /> Aucune action prévue
-        </div>
+        <div style={{ fontSize: 10, color: '#f59e0b' }}>⚠ Aucune action</div>
       )}
     </div>
   );

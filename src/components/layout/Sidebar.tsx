@@ -1,58 +1,45 @@
 'use client';
-// src/components/layout/Sidebar.tsx
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard, KanbanSquare, Upload, History,
-  CalendarCheck, Settings, Zap,
-} from 'lucide-react';
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/pipeline',  label: 'Pipeline',        icon: KanbanSquare },
-  { href: '/import',    label: 'Importer CSV',    icon: Upload },
-  { href: '/history',   label: 'Historique',      icon: History },
-  { href: '/actions',   label: 'Actions',         icon: CalendarCheck },
-  { href: '/settings',  label: 'Paramètres',      icon: Settings },
+  { href: '/dashboard', label: 'Dashboard',    icon: '📊' },
+  { href: '/pipeline',  label: 'Pipeline',      icon: '📋' },
+  { href: '/import',    label: 'Importer CSV',  icon: '📥' },
+  { href: '/history',   label: 'Historique',    icon: '🕐' },
+  { href: '/actions',   label: 'Actions',       icon: '✅' },
+  { href: '/settings',  label: 'Paramètres',    icon: '⚙️' },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-
   return (
-    <aside className="w-52 flex-shrink-0 flex flex-col bg-white border-r border-slate-200 h-screen sticky top-0">
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-slate-200">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Zap size={16} className="text-white" />
-          </div>
-          <div>
-            <div className="font-semibold text-sm text-slate-900">CRM Magasins</div>
-            <div className="text-xs text-slate-400">v2 · Offres emploi</div>
-          </div>
+    <aside style={{ width: 192, flexShrink: 0, background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
+      <div style={{ padding: '14px 12px 10px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 30, height: 30, background: '#4f46e5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>⚡</div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>CRM Magasins</div>
+          <div style={{ fontSize: 10, color: '#94a3b8' }}>v2 · Offres emploi</div>
         </div>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
-        {NAV.map(({ href, label, icon: Icon }) => {
+      <nav style={{ flex: 1, padding: '8px 6px', overflowY: 'auto' }}>
+        {NAV.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`nav-item${active ? ' active' : ''}`}
-            >
-              <Icon size={15} className="flex-shrink-0" />
-              <span>{label}</span>
+            <Link key={href} href={href} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px', borderRadius: 7,
+              fontSize: 13, fontWeight: active ? 600 : 400,
+              background: active ? '#eef2ff' : 'transparent',
+              color: active ? '#4338ca' : '#475569',
+              marginBottom: 1, textDecoration: 'none',
+            }}>
+              <span>{icon}</span> {label}
             </Link>
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="px-3 py-3 border-t border-slate-200 text-xs text-slate-400">
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #e2e8f0', fontSize: 11, color: '#94a3b8' }}>
         Données en temps réel
       </div>
     </aside>
