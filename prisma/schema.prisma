@@ -1,0 +1,183 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Décommentez si vous utilisez le pooler Supabase en production :
+  // directUrl = env("DIRECT_URL")
+}
+
+// ─── Enseigne ─────────────────────────────────────────────────────────────────
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stores    Store[]
+}
+
+// ─── Magasin ──────────────────────────────────────────────────────────────────
+model Store {
+  id               String   @id @default(cuid())
+  brandId          String?
+  brand            Brand?   @relation(fields: [brandId], references: [id])
+
+  name             String
+  normalizedName   String
+  city             String   @default("")
+  postalCode       String   @default("")
+  department       String   @default("")
+  address          String   @default("")
+  phone            String   @default("")
+  email            String   @default("")
+  siret            String   @default("")
+  externalId       String   @default("")
+  deduplicationKey String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  deal             Deal?
+  jobOffers        JobOffer[]
+  importRows       ImportRow[]
+}
+
+// ─── Affaire (1 par magasin) ──────────────────────────────────────────────────
+model Deal {
+  id                      String   @id @default(cuid())
+  storeId                 String   @unique
+  store                   Store    @relation(fields: [storeId], references: [id])
+
+  columnId                String
+  column                  PipelineColumn @relation(fields: [columnId], references: [id])
+  previousColumnId        String?   // colonne avant retour automatique en "À appeler"
+
+  priority                String   @default("normale") // faible | normale | élevée | urgente
+  position                Int      @default(0)
+
+  isNewFromLastImport     Boolean  @default(false)
+  hasNewOfferFromLastImport Boolean @default(false)
+  isPresentInLastImport   Boolean  @default(true)
+  movedToCallAt           DateTime? // date du dernier retour auto en "À appeler"
+  lastImportAt            DateTime?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  jobOffers               JobOffer[]
+  actions                 Action[]
+  notes                   Note[]
+  importRows              ImportRow[]
+}
+
+// ─── Offre d'emploi ───────────────────────────────────────────────────────────
+model JobOffer {
+  id              String   @id @default(cuid())
+  dealId          String
+  deal            Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id])
+  importBatchId   String
+  importBatch     ImportBatch @relation(fields: [importBatchId], references: [id])
+
+  externalOfferId String   @default("")
+  title           String   @default("")   // titre de l'offre
+  jobTitle        String   @default("")   // poste / métier
+  contractType    String   @default("")
+  salary          String   @default("")
+  source          String   @default("")
+  url             String   @default("")
+  publishedAt     String   @default("")
+
+  fingerprint     String   @unique        // clé de déduplication offre
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  // active | disappeared
+  status          String   @default("active")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── Import ───────────────────────────────────────────────────────────────────
+model ImportBatch {
+  id                String   @id @default(cuid())
+  fileName          String
+  importedAt        DateTime @default(now())
+  totalRows         Int      @default(0)
+  createdDeals      Int      @default(0)
+  updatedDeals      Int      @default(0)
+  newOffers         Int      @default(0)
+  movedToCall       Int      @default(0)
+  disappearedOffers Int      @default(0)
+  errorCount        Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  importRows        ImportRow[]
+  jobOffers         JobOffer[]
+}
+
+model ImportRow {
+  id            String   @id @default(cuid())
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  rowNumber     Int
+  rawData       Json
+  // ok | error | skipped
+  status        String   @default("ok")
+  errorMessage  String   @default("")
+  storeId       String?
+  store         Store?   @relation(fields: [storeId], references: [id])
+  dealId        String?
+  deal          Deal?    @relation(fields: [dealId], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+// ─── Colonne pipeline ─────────────────────────────────────────────────────────
+model PipelineColumn {
+  id        String   @id @default(cuid())
+  title     String
+  position  Int
+  color     String   @default("#6366f1")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deals     Deal[]
+}
+
+// ─── Action / Rappel ──────────────────────────────────────────────────────────
+model Action {
+  id          String    @id @default(cuid())
+  dealId      String
+  deal        Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  title       String
+  // Appeler | Email | Relancer | Démo | Autre
+  type        String    @default("Appeler")
+  dueDate     DateTime
+  dueTime     String    @default("")
+  // todo | done | overdue
+  status      String    @default("todo")
+  // faible | normale | élevée | urgente
+  priority    String    @default("normale")
+  note        String    @default("")
+  completedAt DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ─── Note commerciale ─────────────────────────────────────────────────────────
+model Note {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

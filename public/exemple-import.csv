@@ -1,0 +1,11 @@
+enseigne;nom magasin;ville;département;adresse;poste;titre;date publication;lien;salaire;contrat;source
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Boucher;Boucher H/F CDI;2025-01-10;https://example.com/offre/1;2200€/mois;CDI;Indeed
+Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Manager Rayon;Responsable rayon frais H/F;2025-01-11;https://example.com/offre/2;2800€/mois;CDI;Indeed
+Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;Caissier;Caissier H/F mi-temps;2025-01-12;https://example.com/offre/3;1600€/mois;CDD;Pôle Emploi
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Responsable Boucherie;Resp. Boucherie H/F;2025-01-10;https://example.com/offre/4;3000€/mois;CDI;Indeed
+Carrefour;Carrefour Market Lyon 7;Lyon;69;22 rue Garibaldi;Employé libre service;Employé polyvalent H/F;2025-01-13;https://example.com/offre/5;1700€/mois;CDI;Hellowork
+Aldi;Aldi Marseille Centre;Marseille;13;5 rue Paradis;Employé commercial;Employé commercial H/F;2025-02-01;https://example.com/offre/6;1800€/mois;CDI;Hellowork
+Monoprix;Monoprix Paris 11;Paris;75;42 av Parmentier;Conseiller vente;Conseiller de vente prêt-à-porter;2025-02-01;;2000€/mois;CDI;Indeed
+Casino;Casino Grenoble Centre;Grenoble;38;15 rue Félix Poulat;Chef de secteur;Chef de secteur GMS H/F;2025-02-03;https://example.com/offre/8;2400€/mois;CDI;Monster
+Netto;Netto Strasbourg Est;Strasbourg;67;8 route du Rhin;Employé polyvalent;Employé polyvalent H/F CDI;2025-02-04;;1680€/mois;CDI;Pôle Emploi
+Leclerc;E.Leclerc Nantes Atlantis;Nantes;44;Route de Vannes;Chef de rayon;Chef de rayon PGC H/F;2025-02-05;https://example.com/offre/10;2600€/mois;CDI;Indeed
