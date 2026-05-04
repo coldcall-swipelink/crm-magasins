@@ -63,7 +63,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   source:         ['source', 'origine', 'site'],
   externalOfferId:['id offre', 'offer id', 'job id', 'id_offre', 'ref_offre', 'external_offer_id'],
   directeur:      ['directeur', 'director', 'responsable'],
-  contactCalling: ['contact calling', 'contact', 'interlocuteur'],
+  contactCalling: ['contact calling', 'interlocuteur'],
   dealEmail:      ['email', 'mail', 'e-mail', 'courriel'],
 };
 
