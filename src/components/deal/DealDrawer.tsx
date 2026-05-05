@@ -100,7 +100,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -124,30 +123,29 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             <select value={deal.priority} onChange={e => setPriority(e.target.value as Priority)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11 }}>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
-            {/* Select colonne — change l'étape directement */}
-            <select
-              value={deal.columnId}
-              onChange={async e => {
-                await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: e.target.value }) });
-                fetchDeal(); onUpdated(); toast('Étape mise à jour');
-              }}
-              style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: `${bc}22`, color: bc, border: `1px solid ${bc}44`, cursor: 'pointer', outline: 'none' }}
-            >
-              {[...columns].sort((a, b) => a.position - b.position).map(c => (
-                <option key={c.id} value={c.id}>{c.title}</option>
-              ))}
-            </select>
+            {columns.length > 0 && (
+              <select
+                value={deal.columnId}
+                onChange={async e => {
+                  await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: e.target.value }) });
+                  fetchDeal(); onUpdated(); toast('Étape mise à jour');
+                }}
+                style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: `${bc}22`, color: bc, border: `1px solid ${bc}44`, cursor: 'pointer', outline: 'none' }}
+              >
+                {[...columns].sort((a, b) => a.position - b.position).map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
           {TABS.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id as typeof tab)} style={{ flex: 1, padding: '9px 4px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: tab === id ? '2px solid #6366f1' : '2px solid transparent', color: tab === id ? '#4338ca' : '#64748b', fontWeight: tab === id ? 600 : 400 }}>{label}</button>
           ))}
         </div>
 
-        {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
           {tab === 'info' && (
