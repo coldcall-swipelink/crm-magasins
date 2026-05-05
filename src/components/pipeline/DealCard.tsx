@@ -20,10 +20,6 @@ function getBrandBorderColor(brandName?: string): string {
   return '#' + Math.abs(h).toString(16).slice(0, 6).padEnd(6, '0');
 }
 
-function isRecentlyNew(createdAt: string): boolean {
-  return (new Date().getTime() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24) < 3;
-}
-
 function initials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
@@ -34,7 +30,6 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
   const borderColor = getBrandBorderColor(brand?.name);
   const offers = deal.jobOffers?.filter(o => o.status === 'active') ?? [];
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
-  const showNew = deal.isNewFromLastImport && isRecentlyNew(deal.createdAt);
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;
 
@@ -53,14 +48,8 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
         boxShadow: movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)',
         transition: 'transform .1s, box-shadow .1s',
       }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 3px 10px rgba(0,0,0,.1)';
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLDivElement).style.transform = '';
-        (e.currentTarget as HTMLDivElement).style.boxShadow = movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)';
-      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 3px 10px rgba(0,0,0,.1)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)'; }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -79,11 +68,11 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
         <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 2, fontWeight: 500 }}>📞 {(deal as any).contactCalling}</div>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, margin: '5px 0' }}>
-        {showNew && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>✦ Nouvelle</span>}
-        {movedBack && <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⟳ Rappelée</span>}
-        {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⚠ Absente</span>}
-      </div>
+      {movedBack && (
+        <div style={{ margin: '5px 0' }}>
+          <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⟳ Rappelée</span>
+        </div>
+      )}
 
       {offers.length > 0 && (
         <div style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
