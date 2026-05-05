@@ -33,7 +33,6 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
     const rowNum = i + 1;
     try {
       const mapped: MappedRow = mapCsvRow(rows[i]);
-      console.log(`[ROW ${rowNum}] directeur="${mapped.directeur}" contactCalling="${mapped.contactCalling}" dealEmail="${mapped.dealEmail}"`);
 
       if (!mapped.brand && !mapped.storeName && !mapped.city) {
         throw new Error('Ligne sans données identifiables');
@@ -184,8 +183,14 @@ export async function runCsvImport(csvText: string, fileName: string): Promise<I
     }
   }
 
+  // Marquer comme disparues uniquement les offres des magasins
+  // présents dans CE CSV mais dont l'offre n'a pas été retrouvée
   const disappearedResult = await prisma.jobOffer.updateMany({
-    where: { status: 'active', importBatchId: { not: batch.id }, storeId: { notIn: Array.from(processedStoreIds) } },
+    where: {
+      status: 'active',
+      importBatchId: { not: batch.id },
+      storeId: { in: Array.from(processedStoreIds) },
+    },
     data: { status: 'disappeared' },
   });
 
