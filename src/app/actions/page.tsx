@@ -84,7 +84,7 @@ export default function ActionsPage() {
       <div style={{ padding: '24px', maxWidth: 860 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           <span style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Actions & Rappels</span>
-          <button style={btnPri} onClick={() => setForm({ title: '', type: 'Appeler', dueDate: now.toISOString().slice(0, 10), priority: 'normale', dealId: '', note: '' })}>+ Nouvelle action</button>
+          <button style={btnPri} onClick={() => setForm({ title: '', type: 'Appeler', dueDate: now.toISOString().slice(0, 10), priority: 'normale', dealId: '', note: '', dueTime: '' } as any)}>+ Nouvelle action</button>
         </div>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -108,6 +108,7 @@ export default function ActionsPage() {
               <select style={inp} value={form.type || 'Appeler'} onChange={e => setForm(f => ({ ...f, type: e.target.value as Action['type'] }))}>{ACTION_TYPES.map(t => <option key={t}>{t}</option>)}</select>
               <select style={inp} value={form.priority || 'normale'} onChange={e => setForm(f => ({ ...f, priority: e.target.value as Priority }))}>{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
               <input type="date" style={inp} value={typeof form.dueDate === 'string' ? form.dueDate.slice(0, 10) : ''} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+              <input type="time" style={inp} value={(form as any).dueTime || ''} onChange={e => setForm(f => ({ ...f, dueTime: e.target.value } as any))} />
               <select style={inp} value={form.dealId || ''} onChange={e => setForm(f => ({ ...f, dealId: e.target.value }))}>
                 <option value="">— Affaire liée * —</option>
                 {deals.map(d => <option key={d.id} value={d.id}>{d.store?.name || d.id}</option>)}
@@ -139,21 +140,21 @@ export default function ActionsPage() {
                   <div style={{ fontSize: 13, fontWeight: 500, textDecoration: a.status === 'done' ? 'line-through' : 'none', color: a.status === 'done' ? '#94a3b8' : '#0f172a' }}>{a.title}</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ background: '#eef2ff', color: '#4338ca', padding: '1px 5px', borderRadius: 3 }}>{a.type}</span>
-                    <span style={{ color: '#4f46e5', fontWeight: 500, textDecoration: 'underline' }}>
-                      {deal?.store?.name || 'Affaire'}
-                    </span>
+                    <span style={{ color: '#4f46e5', fontWeight: 500, textDecoration: 'underline' }}>{deal?.store?.name || 'Affaire'}</span>
                     {collab && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         <span style={{ width: 16, height: 16, borderRadius: '50%', background: collab.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials(collab.name)}</span>
-                        <span style={{ color: '#64748b' }}>{collab.name}</span>
+                        <span>{collab.name}</span>
                       </span>
                     )}
                     {a.note && <span style={{ color: '#94a3b8' }}>{a.note.slice(0, 50)}</span>}
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12, color: late ? '#dc2626' : '#64748b', fontWeight: late ? 600 : 400, whiteSpace: 'nowrap' }}>🕐 {formatRelativeDate(a.dueDate)}</div>
-                <button onClick={() => setForm({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : new Date(a.dueDate).toISOString().slice(0, 10) })} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>✎</button>
+                <div style={{ fontSize: 12, color: late ? '#dc2626' : '#64748b', fontWeight: late ? 600 : 400, whiteSpace: 'nowrap' }}>
+                  🕐 {formatRelativeDate(a.dueDate)}{(a as any).dueTime ? ` à ${(a as any).dueTime}` : ''}
+                </div>
+                <button onClick={() => setForm({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : new Date(a.dueDate).toISOString().slice(0, 10) } as any)} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>✎</button>
                 <button onClick={() => deleteAction(a.id)} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>🗑</button>
               </div>
             );
