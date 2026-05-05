@@ -9,18 +9,24 @@ const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
+interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
+
 export default function SettingsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [newBrand, setNewBrand] = useState({ name: '', color: '#6366f1' });
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [newColTitle, setNewColTitle] = useState('');
   const [newColColor, setNewColColor] = useState('#6366f1');
+  const [newCollab, setNewCollab] = useState({ name: '', email: '', color: '#6366f1' });
+  const [editCollab, setEditCollab] = useState<Collaborator | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [bRes, cRes] = await Promise.all([fetch('/api/brands'), fetch('/api/columns')]);
+    const [bRes, cRes, collRes] = await Promise.all([fetch('/api/brands'), fetch('/api/columns'), fetch('/api/collaborators')]);
     if (bRes.ok) setBrands(await bRes.json());
     if (cRes.ok) setColumns(await cRes.json());
+    if (collRes.ok) setCollaborators(await collRes.json());
   }, []);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -52,13 +58,60 @@ export default function SettingsPage() {
   const updateColColor = async (id: string, color: string) => {
     await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color }) });
   };
+  const addCollab = async () => {
+    if (!newCollab.name.trim()) return;
+    await fetch('/api/collaborators', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCollab) });
+    setNewCollab({ name: '', email: '', color: '#6366f1' }); fetchAll(); toast('Collaborateur ajouté');
+  };
+  const saveCollab = async () => {
+    if (!editCollab) return;
+    await fetch(`/api/collaborators/${editCollab.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editCollab.name, email: editCollab.email, color: editCollab.color }) });
+    setEditCollab(null); fetchAll(); toast('Collaborateur mis à jour');
+  };
+  const deleteCollab = async (id: string) => {
+    if (!confirm('Supprimer ce collaborateur ?')) return;
+    await fetch(`/api/collaborators/${id}`, { method: 'DELETE' }); fetchAll(); toast('Supprimé');
+  };
 
-  const row = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 } as React.CSSProperties;
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
 
   return (
     <AppLayout>
       <div style={{ padding: '24px', maxWidth: 700 }}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Paramètres</div>
+
+        {/* Collaborateurs */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Collaborateurs</div>
+          {collaborators.map(c => editCollab?.id === c.id ? (
+            <div key={c.id} style={row}>
+              <input style={{ ...inp, flex: 1 }} placeholder="Nom" value={editCollab.name} onChange={e => setEditCollab(x => x ? { ...x, name: e.target.value } : null)} />
+              <input style={{ ...inp, flex: 1 }} placeholder="Email" value={editCollab.email} onChange={e => setEditCollab(x => x ? { ...x, email: e.target.value } : null)} />
+              <input type="color" value={editCollab.color} onChange={e => setEditCollab(x => x ? { ...x, color: e.target.value } : null)} style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+              <button style={btnPri} onClick={saveCollab}>✓</button>
+              <button style={btnDef} onClick={() => setEditCollab(null)}>✕</button>
+            </div>
+          ) : (
+            <div key={c.id} style={row}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {c.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
+                {c.email && <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.email}</div>}
+              </div>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
+              <button style={btnXs} onClick={() => setEditCollab({ ...c })}>✎</button>
+              <button style={btnXs} onClick={() => deleteCollab(c.id)}>🗑</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input style={{ ...inp, flex: 1 }} placeholder="Nom du collaborateur" value={newCollab.name} onChange={e => setNewCollab(c => ({ ...c, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addCollab()} />
+            <input style={{ ...inp, flex: 1 }} placeholder="Email (optionnel)" value={newCollab.email} onChange={e => setNewCollab(c => ({ ...c, email: e.target.value }))} />
+            <input type="color" value={newCollab.color} onChange={e => setNewCollab(c => ({ ...c, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+            <button style={btnPri} onClick={addCollab}>+ Ajouter</button>
+          </div>
+        </div>
 
         {/* Enseignes */}
         <div style={{ marginBottom: 28 }}>
@@ -108,8 +161,8 @@ export default function SettingsPage() {
         {/* Reset */}
         <div style={{ border: '1px solid #fecaca', borderRadius: 10, padding: 16, background: '#fef2f2' }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: '#b91c1c', marginBottom: 6 }}>Réinitialisation</div>
-          <p style={{ fontSize: 12, color: '#b91c1c', marginBottom: 10 }}>Supprime toutes les affaires, offres et imports. Enseignes et colonnes conservées.</p>
-          <button style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 500, cursor: 'pointer', fontSize: 13 }} onClick={() => toast('Pour réinitialiser, lancez : npx prisma migrate reset', 'error')}>⚠ Réinitialiser</button>
+          <p style={{ fontSize: 12, color: '#b91c1c', marginBottom: 10 }}>Supprime toutes les affaires, offres et imports.</p>
+          <button style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 500, cursor: 'pointer', fontSize: 13 }} onClick={() => toast('Pour réinitialiser : SQL DELETE FROM "Deal"; DELETE FROM "Store";', 'error')}>⚠ Réinitialiser</button>
         </div>
       </div>
     </AppLayout>
