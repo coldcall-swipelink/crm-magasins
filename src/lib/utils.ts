@@ -56,25 +56,30 @@ export function formatDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-/** Retourne un texte relatif à la date (Aujourd'hui, Dans 2j, Retard 1j…) */
+/** Retourne un texte relatif à la date en comparant uniquement les jours (sans heure) */
 export function formatRelativeDate(date: Date | string | null | undefined): string {
   if (!date) return '';
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
-  const diffMs = d.getTime() - now.getTime();
-  const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  if (days === 0) return "Aujourd'hui";
-  if (days === 1) return 'Demain';
-  if (days === -1) return 'Hier';
-  if (days > 0) return `Dans ${days}j`;
-  return `Retard ${Math.abs(days)}j`;
+  // Comparer uniquement les dates sans l'heure pour éviter les décalages UTC
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((dDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return 'Demain';
+  if (diffDays === -1) return 'Hier';
+  if (diffDays > 0) return `Dans ${diffDays}j`;
+  return `Retard ${Math.abs(diffDays)}j`;
 }
 
-/** Vérifie si une date est dépassée */
+/** Vérifie si une date est dépassée (comparaison par jour, sans heure) */
 export function isOverdue(date: Date | string | null | undefined): boolean {
   if (!date) return false;
   const d = typeof date === 'string' ? new Date(date) : date;
-  return d < new Date();
+  const now = new Date();
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return dDay < today;
 }
 
 /** Classes CSS selon la priorité */
