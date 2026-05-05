@@ -86,6 +86,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const store = deal.store;
   const brand = store?.brand;
   const bc = brand?.color || '#6366f1';
+  const isWhite = bc === '#ffffff';
   const col = deal.column;
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const dOffers = deal.jobOffers?.sort((a: any, b: any) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()) ?? [];
@@ -103,7 +104,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {brand && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: bc, marginBottom: 2 }}>{brand.name}</div>}
+              {brand && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 2 }}>{brand.name}</div>}
               <div style={{ fontSize: 15, fontWeight: 700 }}>{store?.name}</div>
               {store?.city && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>📍 {store.city}{store.department ? `, ${store.department}` : ''}</div>}
             </div>
@@ -130,7 +131,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: e.target.value }) });
                   fetchDeal(); onUpdated(); toast('Étape mise à jour');
                 }}
-                style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: `${bc}22`, color: bc, border: `1px solid ${bc}44`, cursor: 'pointer', outline: 'none' }}
+                style={{
+                  padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                  background: isWhite ? '#f1f5f9' : `${bc}22`,
+                  color: isWhite ? '#475569' : bc,
+                  border: `1px solid ${isWhite ? '#e2e8f0' : bc + '44'}`,
+                  cursor: 'pointer', outline: 'none',
+                }}
               >
                 {[...columns].sort((a, b) => a.position - b.position).map(c => (
                   <option key={c.id} value={c.id}>{c.title}</option>
