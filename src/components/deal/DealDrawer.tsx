@@ -24,6 +24,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [editContacts, setEditContacts] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [columns, setColumns] = useState<any[]>([]);
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -37,6 +38,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
 
   const saveContacts = async () => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contacts) });
@@ -98,6 +100,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
+        {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -107,28 +110,44 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: 0 }}>×</button>
           </div>
+
           {movedBack && (
             <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>
               <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en "À appeler"</div>
               <div style={{ color: '#78350f' }}>Nouvelle offre détectée lors du dernier import.</div>
             </div>
           )}
+
           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 500 }}>✦ Nouvelle</span>}
             {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 500 }}>⚠ Absente</span>}
             <select value={deal.priority} onChange={e => setPriority(e.target.value as Priority)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11 }}>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
-            <div style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 500, background: `${bc}22`, color: bc }}>{col?.title}</div>
+            {/* Select colonne — change l'étape directement */}
+            <select
+              value={deal.columnId}
+              onChange={async e => {
+                await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: e.target.value }) });
+                fetchDeal(); onUpdated(); toast('Étape mise à jour');
+              }}
+              style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: `${bc}22`, color: bc, border: `1px solid ${bc}44`, cursor: 'pointer', outline: 'none' }}
+            >
+              {[...columns].sort((a, b) => a.position - b.position).map(c => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
+            </select>
           </div>
         </div>
 
+        {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
           {TABS.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id as typeof tab)} style={{ flex: 1, padding: '9px 4px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: tab === id ? '2px solid #6366f1' : '2px solid transparent', color: tab === id ? '#4338ca' : '#64748b', fontWeight: tab === id ? 600 : 400 }}>{label}</button>
           ))}
         </div>
 
+        {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
           {tab === 'info' && (
@@ -186,7 +205,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               )}
 
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>CRM</div>
-              {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt)], ['Colonne', col?.title], ['Priorité', deal.priority]].map(([l, v]) => v && v !== '—' && (
+              {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt)], ['Priorité', deal.priority]].map(([l, v]) => v && v !== '—' && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
                   <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                   <span style={{ color: '#334155' }}>{v}</span>
