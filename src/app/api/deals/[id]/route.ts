@@ -1,4 +1,3 @@
-// src/app/api/deals/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -9,6 +8,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       include: {
         store: { include: { brand: true } },
         column: true,
+        collaborator: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { orderBy: { dueDate: 'asc' } },
         notes: { orderBy: { createdAt: 'desc' } },
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const body = await req.json();
     const allowed = ['columnId', 'priority', 'position', 'previousColumnId',
-                     'directeur', 'contactCalling', 'dealEmail'];
+                     'directeur', 'contactCalling', 'dealEmail', 'collaboratorId'];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
