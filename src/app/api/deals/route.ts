@@ -1,4 +1,3 @@
-// src/app/api/deals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBrandColor, normalizeText } from '@/lib/utils';
@@ -6,19 +5,21 @@ import { generateBrandColor, normalizeText } from '@/lib/utils';
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const columnId = searchParams.get('columnId');
-    const search   = searchParams.get('search');
-    const brandId  = searchParams.get('brandId');
-    const priority = searchParams.get('priority');
-    const newOnly  = searchParams.get('newOnly') === 'true';
-    const newOffer = searchParams.get('newOffer') === 'true';
-    const noAction = searchParams.get('noAction') === 'true';
+    const columnId       = searchParams.get('columnId');
+    const search         = searchParams.get('search');
+    const brandId        = searchParams.get('brandId');
+    const collaboratorId = searchParams.get('collaboratorId');
+    const priority       = searchParams.get('priority');
+    const newOnly        = searchParams.get('newOnly') === 'true';
+    const newOffer       = searchParams.get('newOffer') === 'true';
+    const noAction       = searchParams.get('noAction') === 'true';
 
     const where: Record<string, unknown> = {};
-    if (columnId)  where.columnId = columnId;
-    if (priority)  where.priority = priority;
-    if (newOnly)   where.isNewFromLastImport = true;
-    if (newOffer)  where.hasNewOfferFromLastImport = true;
+    if (columnId)       where.columnId = columnId;
+    if (priority)       where.priority = priority;
+    if (newOnly)        where.isNewFromLastImport = true;
+    if (newOffer)       where.hasNewOfferFromLastImport = true;
+    if (collaboratorId) where.collaboratorId = collaboratorId;
 
     if (search) {
       where.store = { OR: [
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
       include: {
         store: { include: { brand: true } },
         column: true,
+        collaborator: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { where: { status: 'todo' }, orderBy: { dueDate: 'asc' }, take: 1 },
         _count: { select: { jobOffers: true, actions: true } },
@@ -55,13 +57,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { brandId, storeName, city, department, address, siret,
-            columnId, priority, directeur, contactCalling, email } = body;
+            columnId, priority, directeur, contactCalling, email, collaboratorId } = body;
 
     if (!storeName?.trim()) {
       return NextResponse.json({ error: 'Le nom du magasin est requis' }, { status: 400 });
     }
 
-    // Trouver la colonne par défaut si non spécifiée
     let targetColumnId = columnId;
     if (!targetColumnId) {
       const defaultCol = await prisma.pipelineColumn.findFirst({ where: { position: 0 } });
@@ -69,10 +70,8 @@ export async function POST(req: NextRequest) {
       if (!targetColumnId) return NextResponse.json({ error: 'Aucune colonne trouvée' }, { status: 400 });
     }
 
-    // Construire la clé de déduplication
     const deduplicationKey = `manual:${normalizeText(storeName)}:${normalizeText(city || '')}:${Date.now()}`;
 
-    // Créer le magasin
     const store = await prisma.store.create({
       data: {
         brandId: brandId || null,
@@ -86,10 +85,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Compter les affaires dans la colonne pour le positionnement
     const positionInCol = await prisma.deal.count({ where: { columnId: targetColumnId } });
 
-    // Créer l'affaire avec les nouveaux champs
     const deal = await prisma.deal.create({
       data: {
         storeId: store.id,
@@ -102,10 +99,12 @@ export async function POST(req: NextRequest) {
         directeur: directeur || '',
         contactCalling: contactCalling || '',
         dealEmail: email || '',
+        collaboratorId: collaboratorId || null,
       },
       include: {
         store: { include: { brand: true } },
         column: true,
+        collaborator: true,
       },
     });
 
