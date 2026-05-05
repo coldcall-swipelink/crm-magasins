@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import type { Deal, Action, Note, Priority } from '@/types';
+import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 
@@ -10,7 +10,10 @@ const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRad
 const btnPri: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 
+interface Collaborator { id: string; name: string; color: string; email: string; }
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
+
+function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [deal, setDeal] = useState<any | null>(null);
@@ -20,6 +23,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -30,14 +34,18 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     }
     setLoading(false);
   }, [dealId]);
+
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
+  useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
 
   const saveContacts = async () => {
-    await fetch(`/api/deals/${dealId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(contacts),
-    });
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contacts) });
     setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
+  };
+
+  const assignCollaborator = async (collaboratorId: string | null) => {
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collaboratorId }) });
+    fetchDeal(); onUpdated(); toast('Assignation mise à jour');
   };
 
   const addNote = async () => {
@@ -49,8 +57,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const saveAction = async () => {
     if (!actionForm?.title || !actionForm.dueDate) return;
     const url = actionForm.id ? `/api/actions/${actionForm.id}` : '/api/actions';
-    const meth = actionForm.id ? 'PATCH' : 'POST';
-    await fetch(url, { method: meth, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...actionForm, dealId }) });
+    await fetch(url, { method: actionForm.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...actionForm, dealId }) });
     setAF(null); fetchDeal(); toast('Action enregistrée');
   };
 
@@ -59,17 +66,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal();
   };
 
-  const deleteAction = async (id: string) => {
-    await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal();
-  };
+  const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal(); };
 
   const setPriority = async (priority: Priority) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority }) });
-    fetchDeal(); onUpdated();
-  };
-
-  const moveCol = async (columnId: string) => {
-    await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
     fetchDeal(); onUpdated();
   };
 
@@ -90,13 +90,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const dActions = deal.actions?.sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) ?? [];
   const dNotes = deal.notes?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
   const todoCount = dActions.filter((a: any) => a.status === 'todo').length;
+  const currentCollab = deal.collaborator as Collaborator | null;
 
-  const TABS = [
-    ['info', 'Infos'],
-    ['offers', `Offres (${dOffers.length})`],
-    ['actions', `Actions (${todoCount})`],
-    ['notes', `Notes (${dNotes.length})`],
-  ] as const;
+  const TABS = [['info','Infos'],['offers',`Offres (${dOffers.length})`],['actions',`Actions (${todoCount})`],['notes',`Notes (${dNotes.length})`]] as const;
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
@@ -126,10 +122,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             <select value={deal.priority} onChange={e => setPriority(e.target.value as Priority)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11 }}>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
-            <select value={deal.columnId} onChange={e => moveCol(e.target.value)} style={{ ...inp, width: 'auto', padding: '3px 8px', fontSize: 11, color: bc, border: `1px solid ${bc}55` }}>
-              {/* Will be populated by column list */}
-              <option value={deal.columnId}>{col?.title}</option>
-            </select>
+            <div style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, fontWeight: 500, background: `${bc}22`, color: bc }}>{col?.title}</div>
           </div>
         </div>
 
@@ -143,7 +136,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
-          {/* ── INFO ── */}
           {tab === 'info' && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
@@ -153,6 +145,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   <span style={{ color: '#334155' }}>{v}</span>
                 </div>
               ))}
+
+              {/* Assigné à */}
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>ASSIGNÉ À</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                <button onClick={() => assignCollaborator(null)}
+                  style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>
+                  Non assigné
+                </button>
+                {collaborators.map(c => (
+                  <button key={c.id} onClick={() => assignCollaborator(c.id)}
+                    style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 5, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
 
               {/* Contacts */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 8 }}>
@@ -164,34 +172,27 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               {editContacts ? (
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Directeur</label>
-                    <input style={inp} placeholder="Prénom Nom" value={contacts.directeur} onChange={e => setContacts(c => ({ ...c, directeur: e.target.value }))} />
-                  </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Contact calling</label>
-                    <input style={inp} placeholder="Prénom Nom" value={contacts.contactCalling} onChange={e => setContacts(c => ({ ...c, contactCalling: e.target.value }))} />
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Email</label>
-                    <input style={inp} type="email" placeholder="contact@magasin.fr" value={contacts.dealEmail} onChange={e => setContacts(c => ({ ...c, dealEmail: e.target.value }))} />
-                  </div>
+                  {[['Directeur', 'directeur', 'Prénom Nom'], ['Contact calling', 'contactCalling', 'Prénom Nom'], ['Email', 'dealEmail', 'contact@magasin.fr']].map(([label, key, ph]) => (
+                    <div key={key} style={{ marginBottom: 8 }}>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>{label}</label>
+                      <input style={inp} placeholder={ph} value={(contacts as any)[key]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button style={btnPri} onClick={saveContacts}>Enregistrer</button>
                     <button style={btnDef} onClick={() => setEditContacts(false)}>Annuler</button>
                   </div>
                 </div>
               ) : (
-                <div>
-                  {[['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
-                    <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
-                      <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
-                      <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
-                    </div>
-                  ))}
-                </div>
+                [['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
+                  <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
+                    <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                    <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
+                  </div>
+                ))
               )}
 
+              {/* CRM */}
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>CRM</div>
               {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt)], ['Colonne', col?.title], ['Priorité', deal.priority]].map(([l, v]) => v && v !== '—' && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
@@ -202,7 +203,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── OFFRES ── */}
           {tab === 'offers' && (
             <div>
               {!dOffers.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
@@ -227,7 +227,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── ACTIONS ── */}
           {tab === 'actions' && (
             <div>
               <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '' })}>+ Nouvelle action</button>
@@ -270,7 +269,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── NOTES ── */}
           {tab === 'notes' && (
             <div>
               <textarea style={{ ...inp, height: 60, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
