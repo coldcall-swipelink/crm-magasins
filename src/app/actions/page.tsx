@@ -54,7 +54,14 @@ export default function ActionsPage() {
       if ((deal as any)?.collaboratorId !== filterCollab) return false;
     }
     return true;
-  }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  }).sort((a, b) => {
+    const dateA = new Date(a.dueDate);
+    const dateB = new Date(b.dueDate);
+    if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
+    const timeA = (a as any).dueTime || '23:59';
+    const timeB = (b as any).dueTime || '23:59';
+    return timeA.localeCompare(timeB);
+  });
 
   const overdue = actions.filter(a => a.status === 'todo' && new Date(a.dueDate) < startDay).length;
 
@@ -144,7 +151,7 @@ export default function ActionsPage() {
                     {collab && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         <span style={{ width: 16, height: 16, borderRadius: '50%', background: collab.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials(collab.name)}</span>
-                        <span>{collab.name}</span>
+                        <span style={{ color: '#64748b' }}>{collab.name}</span>
                       </span>
                     )}
                     {a.note && <span style={{ color: '#94a3b8' }}>{a.note.slice(0, 50)}</span>}
