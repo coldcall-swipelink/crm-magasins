@@ -38,7 +38,12 @@ export default function ActionsPage() {
     if (dRes.ok) setDeals(await dRes.json());
     if (cRes.ok) setCollaborators(await cRes.json());
   }, []);
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
 
   const getDeal = (dealId: string) => deals.find(x => x.id === dealId);
 
