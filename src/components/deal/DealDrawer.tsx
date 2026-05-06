@@ -53,22 +53,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const addNote = async () => {
     if (!noteText.trim()) return;
     await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, content: noteText }) });
-    setNote(''); fetchDeal();
+    setNote(''); fetchDeal(); onUpdated();
   };
 
   const saveAction = async () => {
     if (!actionForm?.title || !actionForm.dueDate) return;
     const url = actionForm.id ? `/api/actions/${actionForm.id}` : '/api/actions';
     await fetch(url, { method: actionForm.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...actionForm, dealId }) });
-    setAF(null); fetchDeal(); toast('Action enregistrée');
+    setAF(null); fetchDeal(); onUpdated(); toast('Action enregistrée');
   };
 
   const doneAction = async (id: string) => {
     await fetch(`/api/actions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }) });
-    fetchDeal();
+    fetchDeal(); onUpdated();
   };
 
-  const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal(); };
+  const deleteAction = async (id: string) => {
+    await fetch(`/api/actions/${id}`, { method: 'DELETE' });
+    fetchDeal(); onUpdated();
+  };
 
   const setPriority = async (priority: Priority) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority }) });
