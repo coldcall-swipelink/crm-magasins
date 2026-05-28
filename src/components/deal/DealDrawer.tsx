@@ -11,13 +11,19 @@ const btnPri: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
+interface EmailTemplate { id: string; name: string; subject: string; body: string; }
+interface EmailLog { id: string; to: string; subject: string; sentAt: string; status: string; template?: { name: string }; }
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 
+function replaceVars(text: string, vars: Record<string, string>) {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || '');
+}
+
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [deal, setDeal] = useState<any | null>(null);
-  const [tab, setTab] = useState<'info' | 'offers' | 'actions' | 'notes'>('info');
+  const [tab, setTab] = useState<'info' | 'offers' | 'actions' | 'notes' | 'email'>('info');
   const [noteText, setNote] = useState('');
   const [actionForm, setAF] = useState<Partial<Action> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +31,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [civilite, setCivilite] = useState('Monsieur');
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -32,13 +46,59 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       const d = await res.json();
       setDeal(d);
       setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '' });
+      setEmailTo(d.dealEmail || '');
     }
     setLoading(false);
+  }, [dealId]);
+
+  const fetchEmailLogs = useCallback(async () => {
+    const res = await fetch(`/api/emails?dealId=${dealId}`);
+    if (res.ok) setEmailLogs(await res.json());
   }, [dealId]);
 
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
+  useEffect(() => { if (tab === 'email') fetchEmailLogs(); }, [tab, fetchEmailLogs]);
+
+  const getVars = (d: any) => ({
+    civilite,
+    enseigne: d?.store?.brand?.name || '',
+    nom_magasin: d?.store?.name || '',
+    ville: d?.store?.city || '',
+    directeur: d?.directeur || '',
+    contact_calling: d?.contactCalling || '',
+    poste: d?.jobOffers?.[0]?.jobTitle || '',
+    prenom_expediteur: '',
+  });
+
+  const applyTemplate = (templateId: string) => {
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl || !deal) return;
+    const vars = getVars(deal);
+    setEmailSubject(replaceVars(tpl.subject, vars));
+    setEmailBody(replaceVars(tpl.body, vars));
+    setSelectedTemplate(templateId);
+  };
+
+  const sendEmail = async () => {
+    if (!emailTo || !emailSubject || !emailBody) { toast('Destinataire, sujet et corps requis', 'error'); return; }
+    setSendingEmail(true);
+    try {
+      const res = await fetch('/api/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, to: emailTo, subject: emailSubject, body: emailBody }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast('✓ Email envoyé !');
+      setEmailSubject(''); setEmailBody(''); setSelectedTemplate('');
+      fetchEmailLogs();
+    } catch (e) {
+      toast((e as Error).message || 'Erreur envoi', 'error');
+    } finally { setSendingEmail(false); }
+  };
 
   const saveContacts = async () => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contacts) });
@@ -68,10 +128,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated();
   };
 
-  const deleteAction = async (id: string) => {
-    await fetch(`/api/actions/${id}`, { method: 'DELETE' });
-    fetchDeal(); onUpdated();
-  };
+  const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal(); onUpdated(); };
 
   const setPriority = async (priority: Priority) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority }) });
@@ -90,7 +147,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const brand = store?.brand;
   const bc = brand?.color || '#6366f1';
   const isWhite = bc === '#ffffff';
-  const col = deal.column;
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const dOffers = deal.jobOffers?.sort((a: any, b: any) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()) ?? [];
   const dActions = deal.actions?.sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) ?? [];
@@ -98,12 +154,19 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const todoCount = dActions.filter((a: any) => a.status === 'todo').length;
   const currentCollab = deal.collaborator as Collaborator | null;
 
-  const TABS = [['info','Infos'],['offers',`Offres (${dOffers.length})`],['actions',`Actions (${todoCount})`],['notes',`Notes (${dNotes.length})`]] as const;
+  const TABS = [
+    ['info', 'Infos'],
+    ['offers', `Offres (${dOffers.length})`],
+    ['actions', `Actions (${todoCount})`],
+    ['notes', `Notes (${dNotes.length})`],
+    ['email', `Email (${emailLogs.length})`],
+  ] as const;
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
+        {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -128,36 +191,29 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
             {columns.length > 0 && (
-              <select
-                value={deal.columnId}
+              <select value={deal.columnId}
                 onChange={async e => {
                   await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: e.target.value }) });
                   fetchDeal(); onUpdated(); toast('Étape mise à jour');
                 }}
-                style={{
-                  padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500,
-                  background: isWhite ? '#f1f5f9' : `${bc}22`,
-                  color: isWhite ? '#475569' : bc,
-                  border: `1px solid ${isWhite ? '#e2e8f0' : bc + '44'}`,
-                  cursor: 'pointer', outline: 'none',
-                }}
-              >
-                {[...columns].sort((a, b) => a.position - b.position).map(c => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
+                style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 500, background: isWhite ? '#f1f5f9' : `${bc}22`, color: isWhite ? '#475569' : bc, border: `1px solid ${isWhite ? '#e2e8f0' : bc + '44'}`, cursor: 'pointer', outline: 'none' }}>
+                {[...columns].sort((a, b) => a.position - b.position).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, overflowX: 'auto' }}>
           {TABS.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id as typeof tab)} style={{ flex: 1, padding: '9px 4px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: tab === id ? '2px solid #6366f1' : '2px solid transparent', color: tab === id ? '#4338ca' : '#64748b', fontWeight: tab === id ? 600 : 400 }}>{label}</button>
+            <button key={id} onClick={() => setTab(id as typeof tab)} style={{ flex: 1, padding: '9px 4px', fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: tab === id ? '2px solid #6366f1' : '2px solid transparent', color: tab === id ? '#4338ca' : '#64748b', fontWeight: tab === id ? 600 : 400, whiteSpace: 'nowrap' }}>{label}</button>
           ))}
         </div>
 
+        {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
+          {/* ── INFO ── */}
           {tab === 'info' && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
@@ -170,13 +226,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>ASSIGNÉ À</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                <button onClick={() => assignCollaborator(null)}
-                  style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>
-                  Non assigné
-                </button>
+                <button onClick={() => assignCollaborator(null)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non assigné</button>
                 {collaborators.map(c => (
-                  <button key={c.id} onClick={() => assignCollaborator(c.id)}
-                    style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 5, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
+                  <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 5, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
                     <span style={{ width: 18, height: 18, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
                     {c.name}
                   </button>
@@ -185,9 +237,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>CONTACTS</div>
-                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                  {editContacts ? 'Annuler' : '✎ Modifier'}
-                </button>
+                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{editContacts ? 'Annuler' : '✎ Modifier'}</button>
               </div>
 
               {editContacts ? (
@@ -222,6 +272,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
+          {/* ── OFFRES ── */}
           {tab === 'offers' && (
             <div>
               {!dOffers.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
@@ -246,6 +297,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
+          {/* ── ACTIONS ── */}
           {tab === 'actions' && (
             <div>
               <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '', dueTime: '' } as any)}>+ Nouvelle action</button>
@@ -290,6 +342,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
+          {/* ── NOTES ── */}
           {tab === 'notes' && (
             <div>
               <textarea style={{ ...inp, height: 60, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
@@ -299,6 +352,75 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <div key={n.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#fff', marginBottom: 8 }}>
                   <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 5 }}>{n.content}</p>
                   <p style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(n.createdAt)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── EMAIL ── */}
+          {tab === 'email' && (
+            <div>
+              {/* Composer */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>Composer un email</div>
+
+                {/* Template + civilité */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Template</label>
+                    <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
+                      <option value="">— Choisir un template —</option>
+                      {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Civilité</label>
+                    <select style={inp} value={civilite} onChange={e => { setCivilite(e.target.value); if (selectedTemplate) applyTemplate(selectedTemplate); }}>
+                      <option>Monsieur</option>
+                      <option>Madame</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Destinataire */}
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Destinataire *</label>
+                  <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+                </div>
+
+                {/* Sujet */}
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet *</label>
+                  <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+                </div>
+
+                {/* Corps */}
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Message *</label>
+                  <textarea style={{ ...inp, height: 180, resize: 'vertical', fontSize: 12 }} placeholder="Corps de l'email…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
+                </div>
+
+                <button
+                  onClick={sendEmail}
+                  disabled={sendingEmail}
+                  style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}
+                >
+                  {sendingEmail ? '⟳ Envoi…' : '📧 Envoyer'}
+                </button>
+              </div>
+
+              {/* Historique */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.5px' }}>Historique des emails</div>
+              {!emailLogs.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun email envoyé.</p>}
+              {emailLogs.map(log => (
+                <div key={log.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', background: '#fff', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.subject}</span>
+                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>✓ envoyé</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
+                  {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}</div>
                 </div>
               ))}
             </div>
