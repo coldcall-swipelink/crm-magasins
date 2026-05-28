@@ -5,7 +5,8 @@ import nodemailer from 'nodemailer';
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
-  secure: true,
+  secure: false,
+  requireTLS: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(log, { status: 201 });
   } catch (err) {
     console.error('[POST /api/emails]', err);
-    return NextResponse.json({ error: 'Erreur envoi email' }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
 
