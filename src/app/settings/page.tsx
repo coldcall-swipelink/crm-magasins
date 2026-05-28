@@ -10,23 +10,34 @@ const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
+interface EmailTemplate { id: string; name: string; subject: string; body: string; }
+
+const VARIABLES = ['{{civilite}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
 
 export default function SettingsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [newBrand, setNewBrand] = useState({ name: '', color: '#6366f1' });
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [newColTitle, setNewColTitle] = useState('');
   const [newColColor, setNewColColor] = useState('#6366f1');
   const [newCollab, setNewCollab] = useState({ name: '', email: '', color: '#6366f1' });
   const [editCollab, setEditCollab] = useState<Collaborator | null>(null);
+  const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
+  const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
+  const [showNewTemplate, setShowNewTemplate] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    const [bRes, cRes, collRes] = await Promise.all([fetch('/api/brands'), fetch('/api/columns'), fetch('/api/collaborators')]);
+    const [bRes, cRes, collRes, tRes] = await Promise.all([
+      fetch('/api/brands'), fetch('/api/columns'),
+      fetch('/api/collaborators'), fetch('/api/email-templates'),
+    ]);
     if (bRes.ok) setBrands(await bRes.json());
     if (cRes.ok) setColumns(await cRes.json());
     if (collRes.ok) setCollaborators(await collRes.json());
+    if (tRes.ok) setTemplates(await tRes.json());
   }, []);
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -72,13 +83,91 @@ export default function SettingsPage() {
     if (!confirm('Supprimer ce collaborateur ?')) return;
     await fetch(`/api/collaborators/${id}`, { method: 'DELETE' }); fetchAll(); toast('Supprimé');
   };
+  const addTemplate = async () => {
+    if (!newTemplate.name.trim()) return;
+    await fetch('/api/email-templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newTemplate) });
+    setNewTemplate({ name: '', subject: '', body: '' }); setShowNewTemplate(false); fetchAll(); toast('Template ajouté');
+  };
+  const saveTemplate = async () => {
+    if (!editTemplate) return;
+    await fetch(`/api/email-templates/${editTemplate.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editTemplate) });
+    setEditTemplate(null); fetchAll(); toast('Template mis à jour');
+  };
+  const deleteTemplate = async (id: string) => {
+    if (!confirm('Supprimer ce template ?')) return;
+    await fetch(`/api/email-templates/${id}`, { method: 'DELETE' }); fetchAll(); toast('Supprimé');
+  };
+
+  const insertVar = (v: string, field: 'subject' | 'body', isEdit: boolean) => {
+    if (isEdit && editTemplate) setEditTemplate(t => t ? { ...t, [field]: (t[field] || '') + v } : null);
+    else setNewTemplate(t => ({ ...t, [field]: (t[field] || '') + v }));
+  };
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
+
+  const TemplateForm = ({ t, isEdit }: { t: EmailTemplate | typeof newTemplate, isEdit: boolean }) => (
+    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 10 }}>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du template</label>
+        <input style={inp} placeholder="Ex: Première prise de contact" value={t.name}
+          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, name: e.target.value } : null) : setNewTemplate(x => ({ ...x, name: e.target.value }))} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet</label>
+        <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={t.subject}
+          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, subject: e.target.value } : null) : setNewTemplate(x => ({ ...x, subject: e.target.value }))} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Corps du message</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {VARIABLES.map(v => (
+            <button key={v} onClick={() => insertVar(v, 'body', isEdit)}
+              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
+              {v}
+            </button>
+          ))}
+        </div>
+        <textarea style={{ ...inp, height: 160, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+          placeholder="Bonjour {{civilite}},&#10;&#10;Je me permets de vous contacter concernant votre offre..."
+          value={t.body}
+          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, body: e.target.value } : null) : setNewTemplate(x => ({ ...x, body: e.target.value }))} />
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+        Variables disponibles : {VARIABLES.join(' ')}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button style={btnPri} onClick={isEdit ? saveTemplate : addTemplate}>Enregistrer</button>
+        <button style={btnDef} onClick={() => isEdit ? setEditTemplate(null) : setShowNewTemplate(false)}>Annuler</button>
+      </div>
+    </div>
+  );
 
   return (
     <AppLayout>
       <div style={{ padding: '24px', maxWidth: 700 }}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Paramètres</div>
+
+        {/* Templates email */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Templates email</div>
+            <button style={{ ...btnPri, padding: '4px 10px', fontSize: 12 }} onClick={() => setShowNewTemplate(true)}>+ Nouveau</button>
+          </div>
+          {showNewTemplate && <TemplateForm t={newTemplate} isEdit={false} />}
+          {templates.map(t => editTemplate?.id === t.id ? (
+            <TemplateForm key={t.id} t={editTemplate} isEdit={true} />
+          ) : (
+            <div key={t.id} style={row}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>📧 {t.name}</div>
+                {t.subject && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{t.subject.slice(0, 60)}{t.subject.length > 60 ? '…' : ''}</div>}
+              </div>
+              <button style={btnXs} onClick={() => setEditTemplate({ ...t })}>✎</button>
+              <button style={btnXs} onClick={() => deleteTemplate(t.id)}>🗑</button>
+            </div>
+          ))}
+          {!templates.length && !showNewTemplate && <div style={{ fontSize: 13, color: '#94a3b8' }}>Aucun template. Créez-en un !</div>}
+        </div>
 
         {/* Collaborateurs */}
         <div style={{ marginBottom: 28 }}>
