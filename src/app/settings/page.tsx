@@ -14,6 +14,55 @@ interface EmailTemplate { id: string; name: string; subject: string; body: strin
 
 const VARIABLES = ['{{civilite}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
 
+// ← EN DEHORS de SettingsPage pour éviter le bug de focus
+interface TemplateFormProps {
+  value: EmailTemplate | { name: string; subject: string; body: string };
+  onChange: (field: string, val: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) {
+  return (
+    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 10 }}>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du template</label>
+        <input style={inp} placeholder="Ex: Première prise de contact" value={value.name}
+          onChange={e => onChange('name', e.target.value)} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet</label>
+        <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={value.subject}
+          onChange={e => onChange('subject', e.target.value)} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Corps du message</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {VARIABLES.map(v => (
+            <button key={v} onClick={() => onChange('body', (value.body || '') + v)}
+              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
+              {v}
+            </button>
+          ))}
+        </div>
+        <textarea
+          style={{ ...inp, height: 160, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+          placeholder={"Bonjour {{civilite}},\n\nJe me permets de vous contacter concernant votre offre..."}
+          value={value.body}
+          onChange={e => onChange('body', e.target.value)}
+        />
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+        Variables disponibles : {VARIABLES.join(' ')}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button style={btnPri} onClick={onSave}>Enregistrer</button>
+        <button style={btnDef} onClick={onCancel}>Annuler</button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [columns, setColumns] = useState<PipelineColumn[]>([]);
@@ -98,49 +147,7 @@ export default function SettingsPage() {
     await fetch(`/api/email-templates/${id}`, { method: 'DELETE' }); fetchAll(); toast('Supprimé');
   };
 
-  const insertVar = (v: string, field: 'subject' | 'body', isEdit: boolean) => {
-    if (isEdit && editTemplate) setEditTemplate(t => t ? { ...t, [field]: (t[field] || '') + v } : null);
-    else setNewTemplate(t => ({ ...t, [field]: (t[field] || '') + v }));
-  };
-
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
-
-  const TemplateForm = ({ t, isEdit }: { t: EmailTemplate | typeof newTemplate, isEdit: boolean }) => (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 10 }}>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du template</label>
-        <input style={inp} placeholder="Ex: Première prise de contact" value={t.name}
-          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, name: e.target.value } : null) : setNewTemplate(x => ({ ...x, name: e.target.value }))} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet</label>
-        <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={t.subject}
-          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, subject: e.target.value } : null) : setNewTemplate(x => ({ ...x, subject: e.target.value }))} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Corps du message</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-          {VARIABLES.map(v => (
-            <button key={v} onClick={() => insertVar(v, 'body', isEdit)}
-              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
-              {v}
-            </button>
-          ))}
-        </div>
-        <textarea style={{ ...inp, height: 160, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-          placeholder="Bonjour {{civilite}},&#10;&#10;Je me permets de vous contacter concernant votre offre..."
-          value={t.body}
-          onChange={e => isEdit ? setEditTemplate(x => x ? { ...x, body: e.target.value } : null) : setNewTemplate(x => ({ ...x, body: e.target.value }))} />
-      </div>
-      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
-        Variables disponibles : {VARIABLES.join(' ')}
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button style={btnPri} onClick={isEdit ? saveTemplate : addTemplate}>Enregistrer</button>
-        <button style={btnDef} onClick={() => isEdit ? setEditTemplate(null) : setShowNewTemplate(false)}>Annuler</button>
-      </div>
-    </div>
-  );
 
   return (
     <AppLayout>
@@ -151,18 +158,33 @@ export default function SettingsPage() {
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>Templates email</div>
-            <button style={{ ...btnPri, padding: '4px 10px', fontSize: 12 }} onClick={() => setShowNewTemplate(true)}>+ Nouveau</button>
+            <button style={{ ...btnPri, padding: '4px 10px', fontSize: 12 }} onClick={() => { setShowNewTemplate(true); setEditTemplate(null); }}>+ Nouveau</button>
           </div>
-          {showNewTemplate && <TemplateForm t={newTemplate} isEdit={false} />}
+
+          {showNewTemplate && (
+            <TemplateForm
+              value={newTemplate}
+              onChange={(field, val) => setNewTemplate(t => ({ ...t, [field]: val }))}
+              onSave={addTemplate}
+              onCancel={() => { setShowNewTemplate(false); setNewTemplate({ name: '', subject: '', body: '' }); }}
+            />
+          )}
+
           {templates.map(t => editTemplate?.id === t.id ? (
-            <TemplateForm key={t.id} t={editTemplate} isEdit={true} />
+            <TemplateForm
+              key={t.id}
+              value={editTemplate}
+              onChange={(field, val) => setEditTemplate(x => x ? { ...x, [field]: val } : null)}
+              onSave={saveTemplate}
+              onCancel={() => setEditTemplate(null)}
+            />
           ) : (
             <div key={t.id} style={row}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>📧 {t.name}</div>
                 {t.subject && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{t.subject.slice(0, 60)}{t.subject.length > 60 ? '…' : ''}</div>}
               </div>
-              <button style={btnXs} onClick={() => setEditTemplate({ ...t })}>✎</button>
+              <button style={btnXs} onClick={() => { setEditTemplate({ ...t }); setShowNewTemplate(false); }}>✎</button>
               <button style={btnXs} onClick={() => deleteTemplate(t.id)}>🗑</button>
             </div>
           ))}
