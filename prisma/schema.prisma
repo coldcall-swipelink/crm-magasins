@@ -73,6 +73,7 @@ model Deal {
   actions                   Action[]
   notes                     Note[]
   importRows                ImportRow[]
+  emailLogs                 EmailLog[]
 }
 
 model JobOffer {
@@ -164,4 +165,28 @@ model Note {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String     @id @default(cuid())
+  name      String
+  subject   String     @default("")
+  body      String     @default("")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  emailLogs EmailLog[]
+}
+
+model EmailLog {
+  id         String         @id @default(cuid())
+  dealId     String
+  deal       Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  templateId String?
+  template   EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  to         String
+  subject    String
+  body       String
+  status     String         @default("sent")
+  sentAt     DateTime       @default(now())
+  createdAt  DateTime       @default(now())
 }
