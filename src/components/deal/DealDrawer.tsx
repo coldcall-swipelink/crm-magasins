@@ -12,7 +12,7 @@ const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, bord
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
-interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; template?: { name: string }; }
+interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
@@ -27,11 +27,15 @@ function EmailLogItem({ log }: { log: EmailLog }) {
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', background: '#fff', marginBottom: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.subject}</span>
-        <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>✓ envoyé</span>
+        {log.status === 'opened'
+          ? <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>👁 Ouvert</span>
+          : <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>✓ Envoyé</span>
+        }
       </div>
       <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
       {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}</div>
+      {log.openedAt && <div style={{ fontSize: 10, color: '#1d4ed8', marginTop: 2 }}>👁 Ouvert le {formatDate(log.openedAt)}</div>}
       <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
         {expanded ? 'Masquer' : 'Voir le contenu'}
       </button>
@@ -189,7 +193,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -226,17 +229,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, overflowX: 'auto' }}>
           {TABS.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id as typeof tab)} style={{ flex: 1, padding: '9px 4px', fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', borderBottom: tab === id ? '2px solid #6366f1' : '2px solid transparent', color: tab === id ? '#4338ca' : '#64748b', fontWeight: tab === id ? 600 : 400, whiteSpace: 'nowrap' }}>{label}</button>
           ))}
         </div>
 
-        {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
 
-          {/* ── INFO ── */}
           {tab === 'info' && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
@@ -295,7 +295,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── OFFRES ── */}
           {tab === 'offers' && (
             <div>
               {!dOffers.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
@@ -320,7 +319,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── ACTIONS ── */}
           {tab === 'actions' && (
             <div>
               <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '', dueTime: '' } as any)}>+ Nouvelle action</button>
@@ -365,7 +363,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── NOTES ── */}
           {tab === 'notes' && (
             <div>
               <textarea style={{ ...inp, height: 60, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
@@ -380,7 +377,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* ── EMAIL ── */}
           {tab === 'email' && (
             <div>
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 16 }}>
