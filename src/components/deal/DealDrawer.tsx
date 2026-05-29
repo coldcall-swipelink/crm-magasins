@@ -12,13 +12,36 @@ const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, bord
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
-interface EmailLog { id: string; to: string; subject: string; sentAt: string; status: string; template?: { name: string }; }
+interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; template?: { name: string }; }
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 
 function replaceVars(text: string, vars: Record<string, string>) {
   return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || '');
+}
+
+function EmailLogItem({ log }: { log: EmailLog }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', background: '#fff', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.subject}</span>
+        <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>✓ envoyé</span>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
+      {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
+      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}</div>
+      <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
+        {expanded ? 'Masquer' : 'Voir le contenu'}
+      </button>
+      {expanded && (
+        <div style={{ marginTop: 8, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>
+          {log.body}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
@@ -360,11 +383,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           {/* ── EMAIL ── */}
           {tab === 'email' && (
             <div>
-              {/* Composer */}
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>Composer un email</div>
 
-                {/* Template + civilité */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <div>
                     <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Template</label>
@@ -382,47 +403,30 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   </div>
                 </div>
 
-                {/* Destinataire */}
                 <div style={{ marginBottom: 8 }}>
                   <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Destinataire *</label>
                   <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
                 </div>
 
-                {/* Sujet */}
                 <div style={{ marginBottom: 8 }}>
                   <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet *</label>
                   <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
                 </div>
 
-                {/* Corps */}
                 <div style={{ marginBottom: 10 }}>
                   <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Message *</label>
                   <textarea style={{ ...inp, height: 180, resize: 'vertical', fontSize: 12 }} placeholder="Corps de l'email…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
                 </div>
 
-                <button
-                  onClick={sendEmail}
-                  disabled={sendingEmail}
-                  style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}
-                >
+                <button onClick={sendEmail} disabled={sendingEmail}
+                  style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>
                   {sendingEmail ? '⟳ Envoi…' : '📧 Envoyer'}
                 </button>
               </div>
 
-              {/* Historique */}
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.5px' }}>Historique des emails</div>
               {!emailLogs.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun email envoyé.</p>}
-              {emailLogs.map(log => (
-                <div key={log.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', background: '#fff', marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.subject}</span>
-                    <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>✓ envoyé</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
-                  {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
-                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}</div>
-                </div>
-              ))}
+              {emailLogs.map(log => <EmailLogItem key={log.id} log={log} />)}
             </div>
           )}
         </div>
