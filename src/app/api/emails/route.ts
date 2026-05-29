@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
 
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: process.env.SMTP_FROM as string,
       to,
       subject,
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
         subject,
         body,
         status: 'sent',
+        resendId: data?.id || null,
       },
     });
 
