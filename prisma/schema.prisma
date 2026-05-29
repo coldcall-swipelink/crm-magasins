@@ -187,6 +187,8 @@ model EmailLog {
   subject    String
   body       String
   status     String         @default("sent")
+  resendId   String?
+  openedAt   DateTime?
   sentAt     DateTime       @default(now())
   createdAt  DateTime       @default(now())
 }
