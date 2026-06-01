@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   try {
-    const { dealId, templateId, to, subject, body } = await req.json();
+    const { dealId, templateId, to, subject, body, attachments } = await req.json();
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
       to,
       subject,
       html: body.replace(/\n/g, '<br>'),
+      attachments: attachments?.map((a: { name: string; content: string }) => ({
+        filename: a.name,
+        content: Buffer.from(a.content, 'base64'),
+      })) || [],
     });
 
     if (error) throw new Error(error.message);
