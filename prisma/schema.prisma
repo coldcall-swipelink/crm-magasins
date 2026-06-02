@@ -57,6 +57,7 @@ model Pipeline {
   updatedAt DateTime @updatedAt
   
   columns   PipelineColumn[]
+  deals     Deal[]
 }
 
 model PipelineColumn {
