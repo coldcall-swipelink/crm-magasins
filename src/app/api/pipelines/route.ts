@@ -9,7 +9,7 @@ export async function GET() {
           orderBy: { position: 'asc' },
         },
       },
-      orderBy: { order: 'asc' },
+      orderBy: { position: 'asc' },
     });
     return NextResponse.json({ pipelines });
   } catch (err) {
