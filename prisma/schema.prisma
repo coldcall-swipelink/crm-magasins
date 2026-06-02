@@ -51,7 +51,7 @@ model Collaborator {
 model Pipeline {
   id        String   @id @default(cuid())
   name      String   @unique
-  order     Int      @default(0)
+  position  Int      @default(0)
   color     String   @default("#6366f1")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
