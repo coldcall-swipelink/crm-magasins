@@ -32,7 +32,7 @@ async function main() {
     update: {},
     create: {
       name: 'Prospection',
-      order: 0,
+      position: 0,
       color: '#6366f1',
     },
   });
