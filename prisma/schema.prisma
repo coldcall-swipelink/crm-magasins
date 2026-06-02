@@ -75,6 +75,8 @@ model PipelineColumn {
 
 model Deal {
   id                        String   @id @default(cuid())
+  pipelineId                String
+  pipeline                  Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   storeId                   String   @unique
   store                     Store    @relation(fields: [storeId], references: [id])
   columnId                  String
