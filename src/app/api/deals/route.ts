@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const columnId       = searchParams.get('columnId');
+    const pipelineId     = searchParams.get('pipelineId');
     const search         = searchParams.get('search');
     const brandId        = searchParams.get('brandId');
     const collaboratorId = searchParams.get('collaboratorId');
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (columnId)       where.columnId = columnId;
+    if (pipelineId)     where.pipelineId = pipelineId;
     if (priority)       where.priority = priority;
     if (newOnly)        where.isNewFromLastImport = true;
     if (newOffer)       where.hasNewOfferFromLastImport = true;
