@@ -25,16 +25,29 @@ const BRANDS = [
 async function main() {
   console.log('🌱 Seeding database…');
 
+  // 0. Pipeline
+  console.log('  → Création du pipeline Prospection');
+  const pipeline = await prisma.pipeline.upsert({
+    where: { name: 'Prospection' },
+    update: {},
+    create: {
+      name: 'Prospection',
+      order: 0,
+      color: '#6366f1',
+    },
+  });
+
   // 1. Colonnes pipeline
   console.log('  → Création des colonnes pipeline');
   const columns: Record<string, string> = {};
   for (const col of DEFAULT_COLUMNS) {
-    const created = await prisma.pipelineColumn.upsert({
-      where: { id: col.title.toLowerCase().replace(/\s+/g, '-') },
-      update: { color: col.color, position: col.position },
-      create: {
-        id: col.title.toLowerCase().replace(/\s+/g, '-').replace(/[àâä]/g, 'a').replace(/[éèêë]/g, 'e'),
-        ...col,
+    const created = await prisma.pipelineColumn.create({
+      data: {
+        pipelineId: pipeline.id,
+        title: col.title,
+        position: col.position,
+        color: col.color,
+        isDefault: col.isDefault,
       },
     });
     columns[col.title] = created.id;
@@ -213,6 +226,7 @@ async function main() {
   }
 
   console.log('✅ Seed terminé avec succès !');
+  console.log(`   - 1 pipeline (Prospection)`);
   console.log(`   - ${DEFAULT_COLUMNS.length} colonnes pipeline`);
   console.log(`   - ${BRANDS.length} enseignes`);
   console.log(`   - ${demoDeals.length} affaires avec offres`);
