@@ -28,13 +28,12 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
-  // Load pipeline selection from localStorage FIRST
+  // Save pipeline selection to localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('selectedPipelineId');
-    if (saved) {
-      setSelectedPipelineId(saved);
+    if (selectedPipelineId) {
+      localStorage.setItem('selectedPipelineId', selectedPipelineId);
     }
-  }, []);
+  }, [selectedPipelineId]);
 
   // Load pipelines on mount
   useEffect(() => {
@@ -68,8 +67,15 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     } finally { setLoading(false); }
   }, [search, filterNew, filterOffer, filterBrand, filterCollab, selectedPipelineId]);
 
+  // Recharger les affaires quand le pipeline change
   useEffect(() => {
-    fetchDeals();
+    if (selectedPipelineId) {
+      fetchDeals();
+    }
+  }, [selectedPipelineId, fetchDeals]);
+
+  // Recharger périodiquement
+  useEffect(() => {
     const interval = setInterval(fetchDeals, 30000);
     return () => clearInterval(interval);
   }, [fetchDeals]);
