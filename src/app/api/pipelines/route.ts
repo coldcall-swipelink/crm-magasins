@@ -8,13 +8,9 @@ export async function GET() {
         columns: {
           orderBy: { position: 'asc' },
         },
-        _count: {
-          select: { deals: true },
-        },
       },
       orderBy: { order: 'asc' },
     });
-
     return NextResponse.json({ pipelines });
   } catch (err) {
     console.error('[GET /api/pipelines]', err);
