@@ -19,13 +19,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: {
         columnId,
         position: position ?? 0,
-        // On efface le flag de déplacement automatique puisque l'utilisateur
-        // prend en main le placement manuellement
         hasNewOfferFromLastImport: false,
         previousColumnId: null,
         movedToCallAt: null,
       },
+      include: {
+        store: { include: { brand: true } },
+        collaborator: true,
+        jobOffers: true,
+      },
     });
+
+    // Envoyer webhook à n8n si colonne = "DEMO FAITE"
+    if (column.title === 'DEMO FAITE') {
+      try {
+        await fetch('https://swipelink.app.n8n.cloud/webhook-test/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'deal_moved_to_demo_faite',
+            dealId: deal.id,
+            storeName: deal.store.name,
+            brandName: deal.store.brand?.name,
+            contactCivilite: deal.contactCivilite,
+            contactLastName: deal.contactLastName,
+            dealEmail: deal.dealEmail,
+            contactCalling: deal.contactCalling,
+            directeur: deal.directeur,
+            dealValue: deal.dealValue,
+            demoDate: deal.demoDate,
+          }),
+        });
+      } catch (webhookErr) {
+        console.error('Webhook error:', webhookErr);
+      }
+    }
 
     return NextResponse.json(deal);
   } catch (err) {
