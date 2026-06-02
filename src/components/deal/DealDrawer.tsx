@@ -154,53 +154,53 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
         {/* LEFT: INFO (1/3) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0' }}>
-          <div style={{ padding: '16px 14px' }}>
+          <div style={{ padding: '20px 16px' }}>
 
             {/* HEADER */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {brand && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 2 }}>{brand.name}</div>}
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{store?.name}</div>
+                {brand && <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 3 }}>{brand.name}</div>}
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{store?.name}</div>
               </div>
-              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#94a3b8', padding: 0 }}>×</button>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: 0 }}>×</button>
             </div>
 
             {/* MAGASIN */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, background: '#f8fafc' }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>📍 MAGASIN</div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
                 {[['Enseigne', brand?.name], ['Ville', store?.city], ['Département', store?.department]].map(([l, v]) => v && (
-                  <div key={l} style={{ display: 'flex', gap: 6, fontSize: 11, marginBottom: 4, alignItems: 'center' }}>
-                    <span style={{ width: 70, flexShrink: 0, color: '#64748b', fontWeight: 500 }}>{l}</span>
-                    <span style={{ color: '#334155', flex: 1, fontSize: 10 }}>{v}</span>
+                  <div key={l} style={{ display: 'flex', gap: 8, fontSize: 13, marginBottom: 6, alignItems: 'center' }}>
+                    <span style={{ width: 80, flexShrink: 0, color: '#64748b', fontWeight: 600 }}>{l}</span>
+                    <span style={{ color: '#334155', flex: 1 }}>{v}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* CONTACTS */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>CONTACTS</div>
-                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 9, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{editContacts ? '✕' : '✎'}</button>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>👤 CONTACTS</div>
+                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{editContacts ? '✕' : '✎'}</button>
               </div>
               
               {editContacts ? (
-                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10 }}>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
                   {[['Directeur', 'directeur'], ['Contact calling', 'contactCalling'], ['Email', 'dealEmail']].map(([label, key]) => (
-                    <div key={key} style={{ marginBottom: 8 }}>
-                      <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2, fontWeight: 500 }}>{label}</label>
-                      <input style={{ ...inp, padding: '5px 8px', fontSize: 11 }} placeholder="" value={(contacts as any)[key]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
+                    <div key={key} style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>{label}</label>
+                      <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} placeholder="" value={(contacts as any)[key]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
                     </div>
                   ))}
-                  <button style={{ ...btnPri, width: '100%', fontSize: 10, padding: '5px 8px' }} onClick={saveContacts}>Enregistrer</button>
+                  <button style={{ ...btnPri, width: '100%', fontSize: 11, padding: '7px 10px' }} onClick={saveContacts}>Enregistrer</button>
                 </div>
               ) : (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, background: '#f8fafc' }}>
-                  {[['Directeur', deal.directeur], ['Contact', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
-                    <div key={l} style={{ fontSize: 10, marginBottom: 4 }}>
-                      <div style={{ color: '#94a3b8', fontWeight: 500, marginBottom: 1 }}>{l}</div>
-                      <div style={{ color: v ? '#334155' : '#cbd5e1', fontSize: 9 }}>{v || '—'}</div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
+                  {[['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
+                    <div key={l} style={{ fontSize: 12, marginBottom: 7 }}>
+                      <div style={{ color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>{l}</div>
+                      <div style={{ color: v ? '#334155' : '#cbd5e1', fontSize: 12 }}>{v || '—'}</div>
                     </div>
                   ))}
                 </div>
@@ -208,18 +208,18 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
 
             {/* COMMERCIAL */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>COMMERCIAL</div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, background: '#f8fafc' }}>
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, marginBottom: 2 }}>Valeur</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: deal.dealValue ? '#059669' : '#cbd5e1' }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>💰 COMMERCIAL</div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Valeur</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: deal.dealValue ? '#059669' : '#cbd5e1' }}>
                     {deal.dealValue ? `€${deal.dealValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, marginBottom: 2 }}>Date DEMO</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: deal.demoDate ? '#3b82f6' : '#cbd5e1' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Date DEMO</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: deal.demoDate ? '#3b82f6' : '#cbd5e1' }}>
                     {deal.demoDate ? formatDate(deal.demoDate) : '—'}
                   </div>
                 </div>
@@ -228,24 +228,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* OFFRE */}
             {dOffers.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>OFFRE</div>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, background: '#f8fafc' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#334155', marginBottom: 4 }}>{dOffers[0].jobTitle || dOffers[0].title}</div>
-                  {dOffers[0].contractType && <div style={{ fontSize: 9, color: '#64748b', marginBottom: 2 }}>📄 {dOffers[0].contractType}</div>}
-                  {dOffers[0].salary && <div style={{ fontSize: 9, color: '#64748b' }}>💰 {dOffers[0].salary}</div>}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>💼 OFFRE</div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 6 }}>{dOffers[0].jobTitle || dOffers[0].title}</div>
+                  {dOffers[0].contractType && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 3 }}>📄 {dOffers[0].contractType}</div>}
+                  {dOffers[0].salary && <div style={{ fontSize: 12, color: '#64748b' }}>💵 {dOffers[0].salary}</div>}
                 </div>
               </div>
             )}
 
             {/* ASSIGNÉ */}
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>ASSIGNÉ À</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                <button onClick={() => assignCollaborator(null)} style={{ padding: '4px 8px', borderRadius: 16, fontSize: 9, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non</button>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>👥 ASSIGNÉ À</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <button onClick={() => assignCollaborator(null)} style={{ padding: '6px 10px', borderRadius: 18, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non assigné</button>
                 {collaborators.map(c => (
-                  <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '4px 8px', borderRadius: 16, fontSize: 9, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 3, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 7, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
+                  <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '6px 10px', borderRadius: 18, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 4, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
+                    <span style={{ width: 16, height: 16, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
+                    <span style={{ fontSize: 11 }}>{c.name}</span>
                   </button>
                 ))}
               </div>
