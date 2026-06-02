@@ -143,7 +143,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const dNotes = deal.notes?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
   const currentCollab = deal.collaborator as Collaborator | null;
 
-  // Timeline: mélanger notes et emails triés par date
   const timeline = [
     ...dNotes.map((n: Note) => ({ type: 'note', data: n, date: new Date(n.createdAt) })),
     ...emailLogs.map((e: EmailLog) => ({ type: 'email', data: e, date: new Date(e.sentAt) })),
@@ -153,130 +152,18 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 'calc(100vw * 2 / 3)', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
 
-        {/* LEFT: FEED (2/3) */}
-        <div style={{ flex: 2, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0' }}>
-          {/* HEADER */}
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {brand && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 2 }}>{brand.name}</div>}
-                <div style={{ fontSize: 15, fontWeight: 700 }}>{store?.name}</div>
-              </div>
-              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: 0 }}>×</button>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowNoteForm(!showNoteForm)} style={{ ...btnPri, flex: 1 }}>+ Ajouter une note</button>
-              <button onClick={() => setShowEmailForm(!showEmailForm)} style={{ ...btnPri, flex: 1 }}>📧 Envoyer email</button>
-            </div>
-          </div>
-
-          {/* NOTE FORM */}
-          {showNoteForm && (
-            <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-              <textarea style={{ ...inp, height: 80, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button style={btnPri} onClick={addNote}>Enregistrer</button>
-                <button style={btnDef} onClick={() => { setShowNoteForm(false); setNote(''); }}>Annuler</button>
-              </div>
-            </div>
-          )}
-
-          {/* EMAIL FORM */}
-          {showEmailForm && (
-            <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', maxHeight: 400, overflowY: 'auto' }}>
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Template</label>
-                <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
-                  <option value="">— Choisir un template —</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Civilité</label>
-                <select style={inp} value={civilite} onChange={e => { setCivilite(e.target.value); if (selectedTemplate) applyTemplate(selectedTemplate); }}>
-                  <option>Monsieur</option>
-                  <option>Madame</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Destinataire *</label>
-                <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
-              </div>
-
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Sujet *</label>
-                <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
-              </div>
-
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Message *</label>
-                <textarea style={{ ...inp, height: 100, resize: 'none' }} placeholder="Corps de l'email…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
-              </div>
-
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, flex: 1, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>
-                  {sendingEmail ? '⟳ Envoi…' : '✓ Envoyer'}
-                </button>
-                <button style={{ ...btnDef, flex: 1 }} onClick={() => { setShowEmailForm(false); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); }}>Annuler</button>
-              </div>
-            </div>
-          )}
-
-          {/* TIMELINE */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
-            {timeline.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#94a3b8', paddingTop: 40 }}>
-                <p style={{ fontSize: 13 }}>Aucune note ou email pour le moment.</p>
-                <p style={{ fontSize: 12, marginTop: 8 }}>Commencez par ajouter une note ou envoyer un email.</p>
-              </div>
-            )}
-
-            {timeline.map((item, idx) => (
-              <div key={`${item.type}-${item.data.id}`} style={{ marginBottom: 16 }}>
-                {item.type === 'note' ? (
-                  // NOTE
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fafbfc' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>📝 NOTE</div>
-                    <p style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap', marginBottom: 6 }}>{item.data.content}</p>
-                    <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(item.data.createdAt)}</div>
-                  </div>
-                ) : (
-                  // EMAIL
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#f0f4ff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', marginBottom: 2 }}>📧 EMAIL</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{item.data.subject}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>→ {item.data.to}</div>
-                      </div>
-                      {item.data.status === 'opened' && (
-                        <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '3px 7px', borderRadius: 4, flexShrink: 0, fontWeight: 500 }}>👁 Ouvert</span>
-                      )}
-                      {item.data.status === 'sent' && (
-                        <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '3px 7px', borderRadius: 4, flexShrink: 0, fontWeight: 500 }}>✓ Envoyé</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6 }}>
-                      Envoyé le {formatDate(item.data.sentAt)}
-                      {item.data.openedAt && <span> • Ouvert le {formatDate(item.data.openedAt)}</span>}
-                    </div>
-                    <button onClick={() => setEmailBody(item.data.body); setShowEmailForm(false)} style={{ fontSize: 10, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-                      Voir le contenu
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* RIGHT: INFO SIDEBAR (1/3) */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        {/* LEFT: INFO (1/3) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0' }}>
           <div style={{ padding: '16px 14px' }}>
+
+            {/* HEADER */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {brand && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 2 }}>{brand.name}</div>}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{store?.name}</div>
+              </div>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#94a3b8', padding: 0 }}>×</button>
+            </div>
 
             {/* MAGASIN */}
             <div style={{ marginBottom: 14 }}>
@@ -364,6 +251,113 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               </div>
             </div>
 
+          </div>
+        </div>
+
+        {/* RIGHT: FEED (2/3) */}
+        <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
+          {/* HEADER */}
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowNoteForm(!showNoteForm)} style={{ ...btnPri, flex: 1 }}>+ Ajouter une note</button>
+              <button onClick={() => setShowEmailForm(!showEmailForm)} style={{ ...btnPri, flex: 1 }}>📧 Envoyer email</button>
+            </div>
+          </div>
+
+          {/* NOTE FORM */}
+          {showNoteForm && (
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <textarea style={{ ...inp, height: 80, resize: 'none', marginBottom: 8 }} placeholder="Ajouter une note…" value={noteText} onChange={e => setNote(e.target.value)} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button style={btnPri} onClick={addNote}>Enregistrer</button>
+                <button style={btnDef} onClick={() => { setShowNoteForm(false); setNote(''); }}>Annuler</button>
+              </div>
+            </div>
+          )}
+
+          {/* EMAIL FORM */}
+          {showEmailForm && (
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', maxHeight: 400, overflowY: 'auto' }}>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Template</label>
+                <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
+                  <option value="">— Choisir un template —</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Civilité</label>
+                <select style={inp} value={civilite} onChange={e => { setCivilite(e.target.value); if (selectedTemplate) applyTemplate(selectedTemplate); }}>
+                  <option>Monsieur</option>
+                  <option>Madame</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Destinataire *</label>
+                <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Sujet *</label>
+                <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Message *</label>
+                <textarea style={{ ...inp, height: 100, resize: 'none' }} placeholder="Corps de l'email…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, flex: 1, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>
+                  {sendingEmail ? '⟳ Envoi…' : '✓ Envoyer'}
+                </button>
+                <button style={{ ...btnDef, flex: 1 }} onClick={() => { setShowEmailForm(false); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); }}>Annuler</button>
+              </div>
+            </div>
+          )}
+
+          {/* TIMELINE */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
+            {timeline.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#94a3b8', paddingTop: 40 }}>
+                <p style={{ fontSize: 13 }}>Aucune note ou email pour le moment.</p>
+                <p style={{ fontSize: 12, marginTop: 8 }}>Commencez par ajouter une note ou envoyer un email.</p>
+              </div>
+            )}
+
+            {timeline.map((item) => (
+              <div key={`${item.type}-${item.data.id}`} style={{ marginBottom: 16 }}>
+                {item.type === 'note' ? (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fafbfc' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 4 }}>📝 NOTE</div>
+                    <p style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-wrap', marginBottom: 6 }}>{item.data.content}</p>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(item.data.createdAt)}</div>
+                  </div>
+                ) : (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#f0f4ff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', marginBottom: 2 }}>📧 EMAIL</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{item.data.subject}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>→ {item.data.to}</div>
+                      </div>
+                      {item.data.status === 'opened' && (
+                        <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '3px 7px', borderRadius: 4, flexShrink: 0, fontWeight: 500 }}>👁 Ouvert</span>
+                      )}
+                      {item.data.status === 'sent' && (
+                        <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '3px 7px', borderRadius: 4, flexShrink: 0, fontWeight: 500 }}>✓ Envoyé</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6 }}>
+                      Envoyé le {formatDate(item.data.sentAt)}
+                      {item.data.openedAt && <span> • Ouvert le {formatDate(item.data.openedAt)}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
