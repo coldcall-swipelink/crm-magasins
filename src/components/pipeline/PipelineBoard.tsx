@@ -7,9 +7,10 @@ import CreateDealModal from './CreateDealModal';
 import { toast } from '@/components/ui/Toast';
 
 interface Collaborator { id: string; name: string; color: string; }
-interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
+interface Pipeline { id: string; name: string; color: string; columns: PipelineColumn[]; }
+interface Props { initialDeals: Deal[]; pipelines: Pipeline[]; }
 
-export default function PipelineBoard({ initialDeals, columns }: Props) {
+export default function PipelineBoard({ initialDeals, pipelines }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -23,6 +24,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [loading, setLoading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline>(pipelines[0] || { id: '', name: '', color: '#6366f1', columns: [] });
   const dragDeal = useRef<Deal | null>(null);
 
   const fetchDeals = useCallback(async () => {
@@ -65,6 +67,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
   };
 
+  const columns = selectedPipeline.columns || [];
   const sortedCols = [...columns].sort((a, b) => a.position - b.position);
   const dealsForCol = (colId: string) => deals.filter(d => d.columnId === colId).sort((a, b) => a.position - b.position);
 
@@ -78,6 +81,27 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, marginRight: 4 }}>Pipeline</span>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          {pipelines.map(pipe => (
+            <button
+              key={pipe.id}
+              onClick={() => setSelectedPipeline(pipe)}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 6,
+                border: selectedPipeline.id === pipe.id ? `2px solid ${pipe.color}` : '1px solid #e2e8f0',
+                background: selectedPipeline.id === pipe.id ? '#eef2ff' : '#fff',
+                color: selectedPipeline.id === pipe.id ? pipe.color : '#475569',
+                fontSize: 12,
+                fontWeight: selectedPipeline.id === pipe.id ? 600 : 500,
+                cursor: 'pointer',
+              }}
+            >
+              {pipe.name}
+            </button>
+          ))}
+        </div>
 
         <input style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, width: 160, outline: 'none' }}
           placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)} />
