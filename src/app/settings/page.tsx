@@ -181,9 +181,20 @@ export default function SettingsPage() {
       return;
     }
     
-    const temp = draggedCol.position;
-    await updateColPosition(draggedCol.id, targetCol.position);
-    await updateColPosition(targetCol.id, temp);
+    // Créer une copie des colonnes triées
+    const sorted = [...columns].sort((a, b) => a.position - b.position);
+    const draggedIndex = sorted.findIndex(c => c.id === draggedCol.id);
+    const targetIndex = sorted.findIndex(c => c.id === targetCol.id);
+    
+    // Réarranger le tableau
+    const reordered = [...sorted];
+    const [movedCol] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, movedCol);
+    
+    // Mettre à jour TOUTES les positions
+    for (let i = 0; i < reordered.length; i++) {
+      await updateColPosition(reordered[i].id, i);
+    }
     
     setDraggedCol(null);
     setDragOverId(null);
