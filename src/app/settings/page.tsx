@@ -79,6 +79,7 @@ export default function SettingsPage() {
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
   const [draggedCol, setDraggedCol] = useState<PipelineColumn | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const [bRes, pRes, collRes, tRes] = await Promise.all([
@@ -153,27 +154,36 @@ export default function SettingsPage() {
 
   const updateColPosition = async (id: string, newPosition: number) => {
     await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: newPosition }) });
-    await fetchAll();
   };
 
   const handleDragStart = (col: PipelineColumn) => {
     setDraggedCol(col);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, colId: string) => {
     e.preventDefault();
+    setDragOverId(colId);
   };
 
-  const handleDrop = async (targetCol: PipelineColumn) => {
+  const handleDragLeave = () => {
+    setDragOverId(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetCol: PipelineColumn) => {
+    e.preventDefault();
     if (!draggedCol || draggedCol.id === targetCol.id) {
       setDraggedCol(null);
+      setDragOverId(null);
       return;
     }
     
-    const newPos = targetCol.position;
-    await updateColPosition(draggedCol.id, newPos);
-    await updateColPosition(targetCol.id, draggedCol.position);
+    const temp = draggedCol.position;
+    await updateColPosition(draggedCol.id, targetCol.position);
+    await updateColPosition(targetCol.id, temp);
+    
     setDraggedCol(null);
+    setDragOverId(null);
+    await fetchAll();
   };
 
   const addCollab = async () => {
@@ -351,13 +361,16 @@ export default function SettingsPage() {
               style={{
                 ...row,
                 cursor: 'grab',
-                opacity: draggedCol?.id === c.id ? 0.5 : 1,
-                transition: 'opacity 0.2s'
+                background: dragOverId === c.id ? '#f0f4ff' : '#fff',
+                borderColor: dragOverId === c.id ? '#4f46e5' : '#e2e8f0',
+                opacity: draggedCol?.id === c.id ? 0.4 : 1,
+                transition: 'all 0.2s'
               }}
               draggable
               onDragStart={() => handleDragStart(c)}
-              onDragOver={handleDragOver}
-              onDrop={() => handleDrop(c)}
+              onDragOver={(e) => handleDragOver(e, c.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, c)}
             >
               <span style={{ fontSize: 20, cursor: 'grab' }}>⋮⋮</span>
               <input type="color" value={c.color} onChange={e => updateColColor(c.id, e.target.value)} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
