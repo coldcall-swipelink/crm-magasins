@@ -174,23 +174,22 @@ export default function SettingsPage() {
   };
 
   const moveColumn = async (colId: string, direction: 'up' | 'down') => {
-    console.log('moveColumn called', colId, direction);
-    
-    const sorted = [...columns];
+    const sorted = [...columns].map(c => ({ ...c })); // Deep copy
     const idx = sorted.findIndex(c => c.id === colId);
     
-    console.log('current index:', idx, 'total:', sorted.length);
-    
     if (direction === 'up' && idx > 0) {
+      const tempPos = sorted[idx].position;
+      sorted[idx].position = sorted[idx - 1].position;
+      sorted[idx - 1].position = tempPos;
       [sorted[idx], sorted[idx - 1]] = [sorted[idx - 1], sorted[idx]];
     } else if (direction === 'down' && idx < sorted.length - 1) {
+      const tempPos = sorted[idx].position;
+      sorted[idx].position = sorted[idx + 1].position;
+      sorted[idx + 1].position = tempPos;
       [sorted[idx], sorted[idx + 1]] = [sorted[idx + 1], sorted[idx]];
     } else {
-      console.log('no move possible');
       return;
     }
-    
-    console.log('new order:', sorted.map(c => c.title));
     
     // Update UI instantly
     const updated = pipelines.map(p => 
@@ -200,10 +199,8 @@ export default function SettingsPage() {
     
     // Save to API
     for (let i = 0; i < sorted.length; i++) {
-      await updateColPosition(sorted[i].id, i);
+      await updateColPosition(sorted[i].id, sorted[i].position);
     }
-    
-    console.log('save complete');
   };
 
   const addCollab = async () => {
