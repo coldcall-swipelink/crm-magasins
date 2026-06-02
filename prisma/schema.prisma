@@ -93,6 +93,8 @@ model Deal {
   directeur                 String   @default("")
   contactCalling            String   @default("")
   dealEmail                 String   @default("")
+  contactCivilite           String   @default("Monsieur")
+  contactLastName           String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
   collaboratorId            String?
