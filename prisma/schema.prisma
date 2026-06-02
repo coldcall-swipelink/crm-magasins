@@ -48,6 +48,31 @@ model Collaborator {
   deals     Deal[]
 }
 
+model Pipeline {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  order     Int      @default(0)
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  columns   PipelineColumn[]
+}
+
+model PipelineColumn {
+  id         String   @id @default(cuid())
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  title      String
+  position   Int
+  color      String   @default("#6366f1")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  deals      Deal[]
+}
+
 model Deal {
   id                        String   @id @default(cuid())
   storeId                   String   @unique
@@ -129,17 +154,6 @@ model ImportRow {
   dealId        String?
   deal          Deal?    @relation(fields: [dealId], references: [id])
   createdAt     DateTime @default(now())
-}
-
-model PipelineColumn {
-  id        String   @id @default(cuid())
-  title     String
-  position  Int
-  color     String   @default("#6366f1")
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deals     Deal[]
 }
 
 model Action {
