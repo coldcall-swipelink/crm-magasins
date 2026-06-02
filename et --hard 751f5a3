@@ -1,0 +1,60 @@
+[33mc43db61[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m remove seed.ts - incompatible with new schema
+[33m1d74970[m Update schema.prisma
+[33m751f5a3[m Update route.ts
+[33me43d74b[m Update DealDrawer.tsx
+[33m0e597f0[m Update route.ts
+[33m7d9a0a1[m Update schema.prisma
+[33mc08fb37[m Create route.ts
+[33m42dd3fb[m Update DealDrawer.tsx
+[33m03830db[m Update route.ts
+[33m16b42a5[m Update package.json
+[33m6c28b5c[m Update route.ts
+[33m36eb19e[m Update page.tsx
+[33m575aa07[m Update DealDrawer.tsx
+[33mf17977d[m Update page.tsx
+[33m8270902[m Update schema.prisma
+[33mb8fd9cf[m Create route.ts
+[33m5e36237[m Create route.ts
+[33m9ec550c[m Create route.ts
+[33mde9eead[m Update package.json
+[33me3b43e4[m Update DealDrawer.tsx
+[33mbad061c[m Update PipelineBoard.tsx
+[33mf447e7c[m Update page.tsx
+[33m2a6db3c[m Update page.tsx
+[33mf930ace[m Update DealDrawer.tsx
+[33m69c9ec9[m Update DealDrawer.tsx
+[33m6def415[m Update DealDrawer.tsx
+[33m7b102d3[m Update page.tsx
+[33m3589a2e[m Update DealDrawer.tsx
+[33m57554de[m Update layout.tsx
+[33mad3f8e3[m Update utils.ts
+[33m0ca5540[m Update page.tsx
+[33m1d27c15[m Update DealCard.tsx
+[33m886c361[m Update route.ts
+[33m252d5f5[m Update route.ts
+[33m373b900[m Rename routes.ts to route.ts
+[33mcd5c83a[m Rename routes.ts to route.ts
+[33maa3ae9e[m Rename route.ts to routes.ts
+[33mc7a2de6[m Create routes.ts
+[33mf94f2d8[m Update DealDrawer.tsx
+[33m65c71ca[m Update page.tsx
+[33m8af0e64[m Update DealCard.tsx
+[33m8add167[m Update PipelineBoard.tsx
+[33m1ab772b[m Update schema.prisma
+[33m9caf7e8[m Create route.ts
+[33md8a0bc1[m Update importService.ts
+[33m777a586[m Update csvParser.ts
+[33m88d6610[m Update DealCard.tsx
+[33meba33a7[m Update importService.ts
+[33m38f5e5f[m Update importService.ts
+[33m29ad3db[m Update csvParser.ts
+[33mde3730d[m Update importService.ts
+[33me2cb373[m Update csvParser.ts
+[33m3038e5c[m Update DealCard.tsx
+[33mff75621[m Merge branch 'main' of https://github.com/coldcall-swipelink/crm-magasins
+[33mf899395[m nouveau-pipe
+[33m5e5d1f6[m Update page.tsx
+[33m723a41d[m Delete tailwind.config.ts
+[33m9b0887c[m Delete postcss.config.mjs
+[33m9d0ac99[m sans-tailwind
+[33m847d027[m projet complet
