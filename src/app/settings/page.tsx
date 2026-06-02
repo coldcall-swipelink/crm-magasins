@@ -104,7 +104,7 @@ export default function SettingsPage() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
-  const columns = currentPipeline?.columns || [];
+  const columns = (currentPipeline?.columns || []).sort((a, b) => a.position - b.position);
 
   const addBrand = async () => {
     if (!newBrand.name.trim()) return;
@@ -158,25 +158,31 @@ export default function SettingsPage() {
   };
 
   const moveColumn = async (colId: string, direction: 'up' | 'down') => {
-    const sorted = [...columns].sort((a, b) => a.position - b.position);
+    const sorted = [...columns];
     const currentIndex = sorted.findIndex(c => c.id === colId);
     
     if (direction === 'up' && currentIndex > 0) {
-      // Swap dans le tableau
       [sorted[currentIndex], sorted[currentIndex - 1]] = [sorted[currentIndex - 1], sorted[currentIndex]];
     } else if (direction === 'down' && currentIndex < sorted.length - 1) {
-      // Swap dans le tableau
       [sorted[currentIndex], sorted[currentIndex + 1]] = [sorted[currentIndex + 1], sorted[currentIndex]];
     } else {
-      return; // Pas de mouvement possible
+      return;
     }
     
-    // Réassigner toutes les positions 0, 1, 2, ...
+    // Optimistic update - mettre à jour l'état local IMMÉDIATEMENT
+    const updatedPipelines = pipelines.map(p => {
+      if (p.id !== selectedPipelineId) return p;
+      return {
+        ...p,
+        columns: sorted
+      };
+    });
+    setPipelines(updatedPipelines);
+    
+    // Appeler l'API en arrière-plan
     for (let i = 0; i < sorted.length; i++) {
       await updateColPosition(sorted[i].id, i);
     }
-    
-    await fetchAll();
   };
 
   const addCollab = async () => {
@@ -348,7 +354,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {[...columns].sort((a, b) => a.position - b.position).map((c, idx) => (
+          {columns.map((c, idx) => (
             <div 
               key={c.id} 
               style={{
