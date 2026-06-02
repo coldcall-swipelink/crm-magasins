@@ -26,6 +26,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
   const [editCommercial, setEditCommercial] = useState(false);
+  const [showActionForm, setShowActionForm] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', contactCivilite: 'Monsieur', contactLastName: '', dealValue: '', demoDate: '' });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
@@ -40,6 +41,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [emailBody, setEmailBody] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
+  const [newAction, setNewAction] = useState({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale' as Priority, note: '' });
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -106,6 +108,32 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     setNote(''); setShowNoteForm(false); fetchDeal(); onUpdated();
   };
 
+  const createAction = async () => {
+    if (!newAction.title || !newAction.dueDate) { toast('Titre et date requis', 'error'); return; }
+    const payload = {
+      title: newAction.title,
+      type: newAction.type,
+      dueDate: new Date(newAction.dueDate).toISOString(),
+      dueTime: newAction.dueTime,
+      priority: newAction.priority,
+      note: newAction.note,
+      status: 'todo',
+    };
+    await fetch(`/api/actions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, ...payload }) });
+    setNewAction({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale', note: '' });
+    setShowActionForm(false);
+    fetchDeal();
+    onUpdated();
+    toast('✓ Action créée');
+  };
+
+  const completeAction = async (actionId: string) => {
+    await fetch(`/api/actions/${actionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) });
+    fetchDeal();
+    onUpdated();
+    toast('✓ Action complétée');
+  };
+
   const saveContacts = async () => {
     const payload = { 
       directeur: contacts.directeur,
@@ -151,12 +179,23 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const isWhite = bc === '#ffffff';
   const dOffers = deal.jobOffers?.sort((a: any, b: any) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime()) ?? [];
   const dNotes = deal.notes?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
+  const dActions = deal.actions?.sort((a: any, b: any) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()) ?? [];
   const currentCollab = deal.collaborator as Collaborator | null;
+
+  const todoActions = dActions.filter((a: any) => a.status !== 'completed');
+  const completedActions = dActions.filter((a: any) => a.status === 'completed');
 
   const timeline = [
     ...dNotes.map((n: Note) => ({ type: 'note', data: n, date: new Date(n.createdAt) })),
     ...emailLogs.map((e: EmailLog) => ({ type: 'email', data: e, date: new Date(e.sentAt) })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  const priorityColors: Record<string, string> = {
+    faible: '#10b981',
+    normale: '#3b82f6',
+    élevée: '#f59e0b',
+    urgente: '#ef4444',
+  };
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
@@ -279,6 +318,85 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 </div>
               </div>
             )}
+
+            {/* ACTIONS */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>✓ ACTIONS</div>
+                <button onClick={() => setShowActionForm(!showActionForm)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>+ Programmer</button>
+              </div>
+
+              {showActionForm && (
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Titre *</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} placeholder="Appeler le directeur" value={newAction.title} onChange={e => setNewAction(a => ({ ...a, title: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Type</label>
+                    <select style={inp} value={newAction.type} onChange={e => setNewAction(a => ({ ...a, type: e.target.value }))}>
+                      {ACTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Date *</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="date" value={newAction.dueDate} onChange={e => setNewAction(a => ({ ...a, dueDate: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Heure</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="time" value={newAction.dueTime} onChange={e => setNewAction(a => ({ ...a, dueTime: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Priorité</label>
+                    <select style={inp} value={newAction.priority} onChange={e => setNewAction(a => ({ ...a, priority: e.target.value as Priority }))}>
+                      {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Note</label>
+                    <textarea style={{ ...inp, height: 60, resize: 'none', padding: '8px 10px', fontSize: 12 }} placeholder="Infos supplémentaires…" value={newAction.note} onChange={e => setNewAction(a => ({ ...a, note: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button style={{ ...btnPri, flex: 1, fontSize: 11, padding: '7px 10px' }} onClick={createAction}>Créer</button>
+                    <button style={{ ...btnDef, flex: 1, fontSize: 11, padding: '7px 10px' }} onClick={() => { setShowActionForm(false); setNewAction({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale', note: '' }); }}>Annuler</button>
+                  </div>
+                </div>
+              )}
+
+              {todoActions.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>À FAIRE</div>
+                  {todoActions.map((a: any) => (
+                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#fafbfc' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <input type="checkbox" style={{ marginTop: 3, cursor: 'pointer' }} onChange={() => completeAction(a.id)} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 3 }}>{a.title}</div>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{a.type} • {formatDate(a.dueDate)} {a.dueTime && `à ${a.dueTime}`}</div>
+                          <div style={{ fontSize: 10, color: '#fff', display: 'inline-block', padding: '2px 6px', borderRadius: 3, background: priorityColors[a.priority] || '#6366f1', fontWeight: 500 }}>{a.priority}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {completedActions.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>COMPLÉTÉES</div>
+                  {completedActions.map((a: any) => (
+                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#f0fdf4', opacity: 0.7 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textDecoration: 'line-through' }}>{a.title}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(a.dueDate)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {todoActions.length === 0 && completedActions.length === 0 && (
+                <div style={{ fontSize: 11, color: '#cbd5e1', textAlign: 'center', padding: '12px 0' }}>Aucune action</div>
+              )}
+            </div>
 
             {/* ASSIGNÉ */}
             <div>
