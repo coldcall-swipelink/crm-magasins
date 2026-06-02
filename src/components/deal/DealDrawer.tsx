@@ -164,7 +164,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ width: 500, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 'calc(100vw * 2 / 3)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ color: '#94a3b8' }}>Chargement…</span>
       </div>
     </div>
@@ -191,7 +191,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 500, height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 'calc(100vw * 2 / 3)', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
