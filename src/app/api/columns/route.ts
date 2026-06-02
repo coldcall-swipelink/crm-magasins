@@ -11,11 +11,24 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { title, color } = await req.json();
+  const { title, color, pipelineId } = await req.json();
+  
   if (!title) return NextResponse.json({ error: 'title requis' }, { status: 400 });
-  const maxPos = await prisma.pipelineColumn.aggregate({ _max: { position: true } });
-  const col = await prisma.pipelineColumn.create({
-    data: { title, color: color || '#6366f1', position: (maxPos._max.position ?? 0) + 1 },
+  if (!pipelineId) return NextResponse.json({ error: 'pipelineId requis' }, { status: 400 });
+
+  const maxPos = await prisma.pipelineColumn.aggregate({
+    where: { pipelineId },
+    _max: { position: true },
   });
+
+  const col = await prisma.pipelineColumn.create({
+    data: {
+      pipelineId,
+      title,
+      color: color || '#6366f1',
+      position: (maxPos._max.position ?? -1) + 1,
+    },
+  });
+
   return NextResponse.json(col, { status: 201 });
 }
