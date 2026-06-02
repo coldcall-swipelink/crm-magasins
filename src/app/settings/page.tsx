@@ -9,12 +9,13 @@ const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
+interface Brand { id: string; name: string; color: string; _count?: { stores: number }; }
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
+interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
 
 const VARIABLES = ['{{civilite}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
 
-// ← EN DEHORS de SettingsPage pour éviter le bug de focus
 interface TemplateFormProps {
   value: EmailTemplate | { name: string; subject: string; body: string };
   onChange: (field: string, val: string) => void;
@@ -65,7 +66,8 @@ function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) 
 
 export default function SettingsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [columns, setColumns] = useState<PipelineColumn[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [newBrand, setNewBrand] = useState({ name: '', color: '#6366f1' });
@@ -77,18 +79,31 @@ export default function SettingsPage() {
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
+  const [draggedCol, setDraggedCol] = useState<PipelineColumn | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [bRes, cRes, collRes, tRes] = await Promise.all([
-      fetch('/api/brands'), fetch('/api/columns'),
-      fetch('/api/collaborators'), fetch('/api/email-templates'),
+    const [bRes, pRes, collRes, tRes] = await Promise.all([
+      fetch('/api/brands'),
+      fetch('/api/pipelines'),
+      fetch('/api/collaborators'),
+      fetch('/api/email-templates'),
     ]);
     if (bRes.ok) setBrands(await bRes.json());
-    if (cRes.ok) setColumns(await cRes.json());
+    if (pRes.ok) {
+      const pData = await pRes.json();
+      setPipelines(pData.pipelines || []);
+      if (pData.pipelines && pData.pipelines.length > 0 && !selectedPipelineId) {
+        setSelectedPipelineId(pData.pipelines[0].id);
+      }
+    }
     if (collRes.ok) setCollaborators(await collRes.json());
     if (tRes.ok) setTemplates(await tRes.json());
-  }, []);
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  }, [selectedPipelineId]);
+  
+  useEffect(() => { fetchAll(); }, []);
+
+  const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
+  const columns = currentPipeline?.columns || [];
 
   const addBrand = async () => {
     if (!newBrand.name.trim()) return;
@@ -104,20 +119,54 @@ export default function SettingsPage() {
     if (!confirm('Supprimer cette enseigne ?')) return;
     await fetch(`/api/brands/${id}`, { method: 'DELETE' }); fetchAll(); toast('Supprimée');
   };
+  
   const addColumn = async () => {
-    if (!newColTitle.trim()) return;
-    await fetch('/api/columns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newColTitle, color: newColColor }) });
+    if (!newColTitle.trim() || !selectedPipelineId) return;
+    await fetch('/api/columns', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ pipelineId: selectedPipelineId, title: newColTitle, color: newColColor }) 
+    });
     setNewColTitle(''); fetchAll(); toast('Colonne ajoutée');
   };
+  
   const deleteColumn = async (id: string) => {
     const res = await fetch(`/api/columns/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) { toast(data.error, 'error'); return; }
     fetchAll(); toast('Colonne supprimée');
   };
+  
   const updateColColor = async (id: string, color: string) => {
     await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color }) });
   };
+
+  const updateColPosition = async (id: string, newPosition: number) => {
+    await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: newPosition }) });
+    fetchAll();
+  };
+
+  const handleDragStart = (col: PipelineColumn) => {
+    setDraggedCol(col);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (targetCol: PipelineColumn) => {
+    if (!draggedCol || draggedCol.id === targetCol.id) {
+      setDraggedCol(null);
+      return;
+    }
+    
+    // Swap positions
+    const newPos = targetCol.position;
+    await updateColPosition(draggedCol.id, newPos);
+    await updateColPosition(targetCol.id, draggedCol.position);
+    setDraggedCol(null);
+  };
+
   const addCollab = async () => {
     if (!newCollab.name.trim()) return;
     await fetch('/api/collaborators', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCollab) });
@@ -250,11 +299,40 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Colonnes */}
+        {/* Colonnes par Pipeline */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Colonnes pipeline</div>
+          
+          {pipelines.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6 }}>Sélectionner un pipeline</label>
+              <select 
+                value={selectedPipelineId} 
+                onChange={e => setSelectedPipelineId(e.target.value)}
+                style={{ ...inp, cursor: 'pointer' }}
+              >
+                {pipelines.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {[...columns].sort((a, b) => a.position - b.position).map(c => (
-            <div key={c.id} style={row}>
+            <div 
+              key={c.id} 
+              style={{
+                ...row,
+                cursor: 'grab',
+                opacity: draggedCol?.id === c.id ? 0.5 : 1,
+                transition: 'opacity 0.2s'
+              }}
+              draggable
+              onDragStart={() => handleDragStart(c)}
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(c)}
+            >
+              <span style={{ fontSize: 20, cursor: 'grab' }}>⋮⋮</span>
               <input type="color" value={c.color} onChange={e => updateColColor(c.id, e.target.value)} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
               <span style={{ flex: 1, fontSize: 13 }}>{c.title}</span>
               {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#eef2ff', color: '#4338ca', fontWeight: 500 }}>Par défaut</span>}
@@ -262,6 +340,9 @@ export default function SettingsPage() {
               <button style={btnXs} onClick={() => deleteColumn(c.id)}>🗑</button>
             </div>
           ))}
+          
+          {columns.length === 0 && <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>Aucune colonne pour ce pipeline.</div>}
+          
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input style={{ ...inp, flex: 1 }} placeholder="Titre de la colonne" value={newColTitle} onChange={e => setNewColTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && addColumn()} />
             <input type="color" value={newColColor} onChange={e => setNewColColor(e.target.value)} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
