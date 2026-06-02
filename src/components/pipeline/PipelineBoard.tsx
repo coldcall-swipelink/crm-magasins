@@ -7,13 +7,15 @@ import CreateDealModal from './CreateDealModal';
 import { toast } from '@/components/ui/Toast';
 
 interface Collaborator { id: string; name: string; color: string; }
-interface Pipeline { id: string; name: string; color: string; columns: PipelineColumn[]; }
-interface Props { initialDeals: Deal[]; pipelines: Pipeline[]; }
+interface Pipeline { id: string; name: string; columns: PipelineColumn[]; }
+interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
 
-export default function PipelineBoard({ initialDeals, pipelines }: Props) {
+export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [selectedDeal, setSelected] = useState<Deal | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
@@ -24,8 +26,32 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
   const [loading, setLoading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline>(pipelines[0] || { id: '', name: '', color: '#6366f1', columns: [] });
   const dragDeal = useRef<Deal | null>(null);
+
+  // Load pipeline selection from localStorage FIRST
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedPipelineId');
+    if (saved) {
+      setSelectedPipelineId(saved);
+    }
+  }, []);
+
+  // Load pipelines on mount
+  useEffect(() => {
+    fetch('/api/pipelines')
+      .then(r => r.json())
+      .then(data => {
+        setPipelines(data.pipelines || []);
+        // Utilise localStorage si disponible, sinon le premier pipeline
+        const saved = localStorage.getItem('selectedPipelineId');
+        if (saved) {
+          setSelectedPipelineId(saved);
+        } else if (data.pipelines && data.pipelines.length > 0) {
+          setSelectedPipelineId(data.pipelines[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchDeals = useCallback(async () => {
     setLoading(true);
@@ -36,10 +62,11 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
       if (filterOffer)  params.set('newOffer', 'true');
       if (filterBrand)  params.set('brandId', filterBrand);
       if (filterCollab) params.set('collaboratorId', filterCollab);
+      if (selectedPipelineId) params.set('pipelineId', selectedPipelineId);
       const res = await fetch(`/api/deals?${params}`);
       if (res.ok) setDeals(await res.json());
     } finally { setLoading(false); }
-  }, [search, filterNew, filterOffer, filterBrand, filterCollab]);
+  }, [search, filterNew, filterOffer, filterBrand, filterCollab, selectedPipelineId]);
 
   useEffect(() => {
     fetchDeals();
@@ -51,6 +78,9 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
     fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {});
     fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {});
   }, []);
+
+  const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
+  const pipelineColumns = (currentPipeline?.columns || []).sort((a, b) => a.position - b.position);
 
   const onDragStart = (e: React.DragEvent, deal: Deal) => { dragDeal.current = deal; setDraggingId(deal.id); e.dataTransfer.effectAllowed = 'move'; };
   const onDragEnd = () => { setDraggingId(null); setDragOverCol(null); };
@@ -67,8 +97,7 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
   };
 
-  const columns = selectedPipeline.columns || [];
-  const sortedCols = [...columns].sort((a, b) => a.position - b.position);
+  const sortedCols = pipelineColumns;
   const dealsForCol = (colId: string) => deals.filter(d => d.columnId === colId).sort((a, b) => a.position - b.position);
 
   const selStyle = (active: boolean, color = '#4f46e5'): React.CSSProperties => ({
@@ -82,26 +111,12 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
       <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, marginRight: 4 }}>Pipeline</span>
 
-        <div style={{ display: 'flex', gap: 6 }}>
-          {pipelines.map(pipe => (
-            <button
-              key={pipe.id}
-              onClick={() => setSelectedPipeline(pipe)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 6,
-                border: selectedPipeline.id === pipe.id ? `2px solid ${pipe.color}` : '1px solid #e2e8f0',
-                background: selectedPipeline.id === pipe.id ? '#eef2ff' : '#fff',
-                color: selectedPipeline.id === pipe.id ? pipe.color : '#475569',
-                fontSize: 12,
-                fontWeight: selectedPipeline.id === pipe.id ? 600 : 500,
-                cursor: 'pointer',
-              }}
-            >
-              {pipe.name}
-            </button>
-          ))}
-        </div>
+        {pipelines.length > 0 && (
+          <select value={selectedPipelineId} onChange={e => setSelectedPipelineId(e.target.value)}
+            style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, color: '#475569', cursor: 'pointer', outline: 'none' }}>
+            {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
 
         <input style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, width: 160, outline: 'none' }}
           placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -162,7 +177,7 @@ export default function PipelineBoard({ initialDeals, pipelines }: Props) {
       </div>
 
       {selectedDeal && <DealDrawer dealId={selectedDeal.id} onClose={() => setSelected(null)} onUpdated={fetchDeals} />}
-      {showCreate && <CreateDealModal columns={columns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
+      {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
     </div>
   );
 }
