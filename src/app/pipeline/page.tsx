@@ -19,7 +19,7 @@ export default async function PipelinePage() {
       include: {
         columns: { orderBy: { position: 'asc' } },
       },
-      orderBy: { order: 'asc' },
+      orderBy: { position: 'asc' },
     }),
   ]);
 
