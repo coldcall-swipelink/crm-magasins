@@ -95,11 +95,27 @@ export default function SettingsPage() {
     if (tRes.ok) setTemplates(await tRes.json());
   }, []);
 
+  // Charger la sélection depuis localStorage au démarrage
+  useEffect(() => {
+    const saved = localStorage.getItem('selectedPipelineId');
+    if (saved) {
+      setSelectedPipelineId(saved);
+    }
+  }, []);
+
+  // Initialiser avec le premier pipeline si aucune sélection
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipelineId) {
       setSelectedPipelineId(pipelines[0].id);
     }
   }, [pipelines, selectedPipelineId]);
+
+  // Sauvegarder la sélection dans localStorage
+  useEffect(() => {
+    if (selectedPipelineId) {
+      localStorage.setItem('selectedPipelineId', selectedPipelineId);
+    }
+  }, [selectedPipelineId]);
   
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
