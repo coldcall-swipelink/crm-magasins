@@ -6,7 +6,7 @@ export async function GET() {
     const pipelines = await prisma.pipeline.findMany({
       include: {
         columns: {
-          orderBy: { position: 'asc' },
+          orderBy: { position: 'asc' },  // ✅ CORRECT
         },
       },
       orderBy: { position: 'asc' },
