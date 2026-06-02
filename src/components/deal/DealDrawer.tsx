@@ -26,7 +26,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
   const [editCommercial, setEditCommercial] = useState(false);
-  const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', dealValue: '', demoDate: '' });
+  const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', contactCivilite: 'Monsieur', contactLastName: '', dealValue: '', demoDate: '' });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -46,7 +46,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     if (res.ok) {
       const d = await res.json();
       setDeal(d);
-      setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '', dealValue: d.dealValue ? d.dealValue.toString() : '', demoDate: d.demoDate ? d.demoDate.split('T')[0] : '' });
+      setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '', contactCivilite: d.contactCivilite || 'Monsieur', contactLastName: d.contactLastName || '', dealValue: d.dealValue ? d.dealValue.toString() : '', demoDate: d.demoDate ? d.demoDate.split('T')[0] : '' });
       setEmailTo(d.dealEmail || '');
     }
     setLoading(false);
@@ -111,6 +111,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       directeur: contacts.directeur,
       contactCalling: contacts.contactCalling,
       dealEmail: contacts.dealEmail,
+      contactCivilite: contacts.contactCivilite,
+      contactLastName: contacts.contactLastName,
     };
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
@@ -195,6 +197,17 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               
               {editContacts ? (
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Civilité</label>
+                    <select style={inp} value={contacts.contactCivilite} onChange={e => setContacts(c => ({ ...c, contactCivilite: e.target.value }))}>
+                      <option>Monsieur</option>
+                      <option>Madame</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Nom de famille</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} placeholder="Dupont" value={contacts.contactLastName} onChange={e => setContacts(c => ({ ...c, contactLastName: e.target.value }))} />
+                  </div>
                   {[['Directeur', 'directeur'], ['Contact calling', 'contactCalling'], ['Email', 'dealEmail']].map(([label, key]) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>{label}</label>
@@ -205,7 +218,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 </div>
               ) : (
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
-                  {[['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
+                  {[['Contact principal', `${contacts.contactCivilite} ${contacts.contactLastName}`], ['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
                     <div key={l} style={{ fontSize: 12, marginBottom: 7 }}>
                       <div style={{ color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>{l}</div>
                       <div style={{ color: v ? '#334155' : '#cbd5e1', fontSize: 12 }}>{v || '—'}</div>
