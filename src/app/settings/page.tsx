@@ -9,7 +9,6 @@ const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
-interface Brand { id: string; name: string; color: string; _count?: { stores: number }; }
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
