@@ -92,13 +92,17 @@ export default function SettingsPage() {
     if (pRes.ok) {
       const pData = await pRes.json();
       setPipelines(pData.pipelines || []);
-      if (pData.pipelines && pData.pipelines.length > 0) {
-        setSelectedPipelineId(pData.pipelines[0].id);
-      }
     }
     if (collRes.ok) setCollaborators(await collRes.json());
     if (tRes.ok) setTemplates(await tRes.json());
   }, []);
+
+  // Initialiser le pipeline au premier chargement
+  useEffect(() => {
+    if (pipelines.length > 0 && !selectedPipelineId) {
+      setSelectedPipelineId(pipelines[0].id);
+    }
+  }, [pipelines, selectedPipelineId]);
   
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
