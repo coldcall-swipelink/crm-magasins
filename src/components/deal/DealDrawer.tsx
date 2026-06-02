@@ -25,6 +25,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [deal, setDeal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
+  const [editCommercial, setEditCommercial] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', dealValue: '', demoDate: '' });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
@@ -110,11 +111,18 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       directeur: contacts.directeur,
       contactCalling: contacts.contactCalling,
       dealEmail: contacts.dealEmail,
+    };
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
+  };
+
+  const saveCommercial = async () => {
+    const payload = {
       dealValue: contacts.dealValue ? parseFloat(contacts.dealValue) : null,
       demoDate: contacts.demoDate ? new Date(contacts.demoDate).toISOString() : null
     };
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
+    setEditCommercial(false); fetchDeal(); onUpdated(); toast('Données commerciales mises à jour');
   };
 
   const assignCollaborator = async (collaboratorId: string | null) => {
@@ -209,21 +217,42 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* COMMERCIAL */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>💰 COMMERCIAL</div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Valeur</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: deal.dealValue ? '#059669' : '#cbd5e1' }}>
-                    {deal.dealValue ? `€${deal.dealValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Date DEMO</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: deal.demoDate ? '#3b82f6' : '#cbd5e1' }}>
-                    {deal.demoDate ? formatDate(deal.demoDate) : '—'}
-                  </div>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>💰 COMMERCIAL</div>
+                <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{editCommercial ? '✕' : '✎'}</button>
               </div>
+
+              {editCommercial ? (
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Valeur</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <span style={{ paddingTop: 8, color: '#64748b', fontWeight: 600, fontSize: 14 }}>€</span>
+                      <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="number" placeholder="1500" step="0.01" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Date DEMO</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
+                  </div>
+                  <button style={{ ...btnPri, width: '100%', fontSize: 11, padding: '7px 10px' }} onClick={saveCommercial}>Enregistrer</button>
+                </div>
+              ) : (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Valeur</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: deal.dealValue ? '#059669' : '#cbd5e1' }}>
+                      {deal.dealValue ? `€${deal.dealValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Date DEMO</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: deal.demoDate ? '#3b82f6' : '#cbd5e1' }}>
+                      {deal.demoDate ? formatDate(deal.demoDate) : '—'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* OFFRE */}
