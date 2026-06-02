@@ -385,9 +385,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <div>
                   <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>COMPLÉTÉES</div>
                   {completedActions.map((a: any) => (
-                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#f0fdf4', opacity: 0.7 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textDecoration: 'line-through' }}>{a.title}</div>
-                      <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(a.dueDate)}</div>
+                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#f0fdf4' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <input type="checkbox" style={{ marginTop: 3, cursor: 'pointer' }} checked={true} onChange={() => completeAction(a.id)} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textDecoration: 'line-through', marginBottom: 3 }}>{a.title}</div>
+                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(a.dueDate)}</div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
