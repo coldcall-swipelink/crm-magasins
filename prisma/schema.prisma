@@ -93,6 +93,8 @@ model Deal {
   directeur                 String   @default("")
   contactCalling            String   @default("")
   dealEmail                 String   @default("")
+  dealValue                 Float?
+  demoDate                  DateTime?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   createdAt                 DateTime @default(now())
