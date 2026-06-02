@@ -78,8 +78,6 @@ export default function SettingsPage() {
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
-  const [draggedCol, setDraggedCol] = useState<PipelineColumn | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const [bRes, pRes, collRes, tRes] = await Promise.all([
@@ -97,7 +95,6 @@ export default function SettingsPage() {
     if (tRes.ok) setTemplates(await tRes.json());
   }, []);
 
-  // Initialiser le pipeline au premier chargement
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipelineId) {
       setSelectedPipelineId(pipelines[0].id);
@@ -160,44 +157,20 @@ export default function SettingsPage() {
     await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: newPosition }) });
   };
 
-  const handleDragStart = (col: PipelineColumn) => {
-    setDraggedCol(col);
-  };
-
-  const handleDragOver = (e: React.DragEvent, colId: string) => {
-    e.preventDefault();
-    setDragOverId(colId);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverId(null);
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetCol: PipelineColumn) => {
-    e.preventDefault();
-    if (!draggedCol || draggedCol.id === targetCol.id) {
-      setDraggedCol(null);
-      setDragOverId(null);
-      return;
-    }
-    
-    // Créer une copie des colonnes triées
+  const moveColumn = async (colId: string, direction: 'up' | 'down') => {
     const sorted = [...columns].sort((a, b) => a.position - b.position);
-    const draggedIndex = sorted.findIndex(c => c.id === draggedCol.id);
-    const targetIndex = sorted.findIndex(c => c.id === targetCol.id);
+    const currentIndex = sorted.findIndex(c => c.id === colId);
     
-    // Réarranger le tableau
-    const reordered = [...sorted];
-    const [movedCol] = reordered.splice(draggedIndex, 1);
-    reordered.splice(targetIndex, 0, movedCol);
-    
-    // Mettre à jour TOUTES les positions
-    for (let i = 0; i < reordered.length; i++) {
-      await updateColPosition(reordered[i].id, i);
+    if (direction === 'up' && currentIndex > 0) {
+      const above = sorted[currentIndex - 1];
+      await updateColPosition(colId, above.position);
+      await updateColPosition(above.id, sorted[currentIndex].position);
+    } else if (direction === 'down' && currentIndex < sorted.length - 1) {
+      const below = sorted[currentIndex + 1];
+      await updateColPosition(colId, below.position);
+      await updateColPosition(below.id, sorted[currentIndex].position);
     }
     
-    setDraggedCol(null);
-    setDragOverId(null);
     await fetchAll();
   };
 
@@ -370,28 +343,21 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {[...columns].sort((a, b) => a.position - b.position).map(c => (
+          {[...columns].sort((a, b) => a.position - b.position).map((c, idx) => (
             <div 
               key={c.id} 
               style={{
                 ...row,
-                cursor: 'grab',
-                background: dragOverId === c.id ? '#f0f4ff' : '#fff',
-                borderColor: dragOverId === c.id ? '#4f46e5' : '#e2e8f0',
-                opacity: draggedCol?.id === c.id ? 0.4 : 1,
-                transition: 'all 0.2s'
+                background: '#fff',
               }}
-              draggable
-              onDragStart={() => handleDragStart(c)}
-              onDragOver={(e) => handleDragOver(e, c.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, c)}
             >
-              <span style={{ fontSize: 20, cursor: 'grab' }}>⋮⋮</span>
               <input type="color" value={c.color} onChange={e => updateColColor(c.id, e.target.value)} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
               <span style={{ flex: 1, fontSize: 13 }}>{c.title}</span>
               {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#eef2ff', color: '#4338ca', fontWeight: 500 }}>Par défaut</span>}
               <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
+              
+              <button style={btnXs} onClick={() => moveColumn(c.id, 'up')} disabled={idx === 0} title="Monter">↑</button>
+              <button style={btnXs} onClick={() => moveColumn(c.id, 'down')} disabled={idx === columns.length - 1} title="Descendre">↓</button>
               <button style={btnXs} onClick={() => deleteColumn(c.id)}>🗑</button>
             </div>
           ))}
