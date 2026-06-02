@@ -162,13 +162,18 @@ export default function SettingsPage() {
     const currentIndex = sorted.findIndex(c => c.id === colId);
     
     if (direction === 'up' && currentIndex > 0) {
-      const above = sorted[currentIndex - 1];
-      await updateColPosition(colId, above.position);
-      await updateColPosition(above.id, sorted[currentIndex].position);
+      // Swap dans le tableau
+      [sorted[currentIndex], sorted[currentIndex - 1]] = [sorted[currentIndex - 1], sorted[currentIndex]];
     } else if (direction === 'down' && currentIndex < sorted.length - 1) {
-      const below = sorted[currentIndex + 1];
-      await updateColPosition(colId, below.position);
-      await updateColPosition(below.id, sorted[currentIndex].position);
+      // Swap dans le tableau
+      [sorted[currentIndex], sorted[currentIndex + 1]] = [sorted[currentIndex + 1], sorted[currentIndex]];
+    } else {
+      return; // Pas de mouvement possible
+    }
+    
+    // Réassigner toutes les positions 0, 1, 2, ...
+    for (let i = 0; i < sorted.length; i++) {
+      await updateColPosition(sorted[i].id, i);
     }
     
     await fetchAll();
@@ -356,8 +361,22 @@ export default function SettingsPage() {
               {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#eef2ff', color: '#4338ca', fontWeight: 500 }}>Par défaut</span>}
               <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
               
-              <button style={btnXs} onClick={() => moveColumn(c.id, 'up')} disabled={idx === 0} title="Monter">↑</button>
-              <button style={btnXs} onClick={() => moveColumn(c.id, 'down')} disabled={idx === columns.length - 1} title="Descendre">↓</button>
+              <button 
+                style={{ ...btnXs, opacity: idx === 0 ? 0.5 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }} 
+                onClick={() => moveColumn(c.id, 'up')} 
+                disabled={idx === 0} 
+                title="Monter"
+              >
+                ↑
+              </button>
+              <button 
+                style={{ ...btnXs, opacity: idx === columns.length - 1 ? 0.5 : 1, cursor: idx === columns.length - 1 ? 'not-allowed' : 'pointer' }} 
+                onClick={() => moveColumn(c.id, 'down')} 
+                disabled={idx === columns.length - 1} 
+                title="Descendre"
+              >
+                ↓
+              </button>
               <button style={btnXs} onClick={() => deleteColumn(c.id)}>🗑</button>
             </div>
           ))}
