@@ -160,6 +160,7 @@ async function main() {
       where: { storeId: store.id },
       update: {},
       create: {
+        pipelineId: pipeline.id,
         storeId: store.id,
         columnId: colId,
         priority,
