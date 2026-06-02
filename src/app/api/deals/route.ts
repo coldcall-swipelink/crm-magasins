@@ -64,10 +64,17 @@ export async function POST(req: NextRequest) {
     }
 
     let targetColumnId = columnId;
+    let pipelineId: string;
+
     if (!targetColumnId) {
       const defaultCol = await prisma.pipelineColumn.findFirst({ where: { position: 0 } });
       targetColumnId = defaultCol?.id;
+      pipelineId = defaultCol?.pipelineId!;
       if (!targetColumnId) return NextResponse.json({ error: 'Aucune colonne trouvée' }, { status: 400 });
+    } else {
+      const col = await prisma.pipelineColumn.findUnique({ where: { id: targetColumnId } });
+      pipelineId = col?.pipelineId!;
+      if (!pipelineId) return NextResponse.json({ error: 'Pipeline introuvable' }, { status: 400 });
     }
 
     const deduplicationKey = `manual:${normalizeText(storeName)}:${normalizeText(city || '')}:${Date.now()}`;
@@ -89,6 +96,7 @@ export async function POST(req: NextRequest) {
 
     const deal = await prisma.deal.create({
       data: {
+        pipelineId,
         storeId: store.id,
         columnId: targetColumnId,
         priority: priority || 'normale',
