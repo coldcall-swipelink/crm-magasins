@@ -174,31 +174,36 @@ export default function SettingsPage() {
   };
 
   const moveColumn = async (colId: string, direction: 'up' | 'down') => {
-    const sorted = [...columns];
-    const currentIndex = sorted.findIndex(c => c.id === colId);
+    console.log('moveColumn called', colId, direction);
     
-    if (direction === 'up' && currentIndex > 0) {
-      [sorted[currentIndex], sorted[currentIndex - 1]] = [sorted[currentIndex - 1], sorted[currentIndex]];
-    } else if (direction === 'down' && currentIndex < sorted.length - 1) {
-      [sorted[currentIndex], sorted[currentIndex + 1]] = [sorted[currentIndex + 1], sorted[currentIndex]];
+    const sorted = [...columns];
+    const idx = sorted.findIndex(c => c.id === colId);
+    
+    console.log('current index:', idx, 'total:', sorted.length);
+    
+    if (direction === 'up' && idx > 0) {
+      [sorted[idx], sorted[idx - 1]] = [sorted[idx - 1], sorted[idx]];
+    } else if (direction === 'down' && idx < sorted.length - 1) {
+      [sorted[idx], sorted[idx + 1]] = [sorted[idx + 1], sorted[idx]];
     } else {
+      console.log('no move possible');
       return;
     }
     
-    // Optimistic update - mettre à jour l'état local IMMÉDIATEMENT
-    const updatedPipelines = pipelines.map(p => {
-      if (p.id !== selectedPipelineId) return p;
-      return {
-        ...p,
-        columns: sorted
-      };
-    });
-    setPipelines(updatedPipelines);
+    console.log('new order:', sorted.map(c => c.title));
     
-    // Appeler l'API en arrière-plan
+    // Update UI instantly
+    const updated = pipelines.map(p => 
+      p.id === selectedPipelineId ? { ...p, columns: sorted } : p
+    );
+    setPipelines(updated);
+    
+    // Save to API
     for (let i = 0; i < sorted.length; i++) {
       await updateColPosition(sorted[i].id, i);
     }
+    
+    console.log('save complete');
   };
 
   const addCollab = async () => {
