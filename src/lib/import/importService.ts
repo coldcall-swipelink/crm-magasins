@@ -37,9 +37,13 @@ export async function runCsvImport(
   const rows = parseCsv(csvText);
   if (rows.length === 0) throw new Error('Le fichier CSV est vide ou non lisible.');
 
-  // ── 2. Récupérer la colonne "À appeler" (position 0) ─────────────────────
+  // ── 2. Récupérer la colonne "À appeler" (position 0) et son pipeline ─────
   const defaultColumn = await prisma.pipelineColumn.findFirst({ where: { position: 0 } });
   if (!defaultColumn) throw new Error('Aucune colonne pipeline trouvée. Lancez d\'abord le seed : npm run db:seed');
+  
+  // Récupérer le pipeline associé à la colonne
+  const pipeline = await prisma.pipeline.findUnique({ where: { id: defaultColumn.pipelineId } });
+  if (!pipeline) throw new Error('Pipeline non trouvé pour la colonne.');
 
   // ── 3. Créer le batch d'import ────────────────────────────────────────────
   const batch = await prisma.importBatch.create({
@@ -115,6 +119,7 @@ export async function runCsvImport(
 
         deal = await prisma.deal.create({
           data: {
+            pipelineId:              pipeline.id,
             storeId:                 store.id,
             columnId:                defaultColumn.id,
             priority:                'normale',
@@ -149,10 +154,15 @@ export async function runCsvImport(
           // Cas rare : affaire manquante → recréer
           deal = await prisma.deal.create({
             data: {
-              storeId: store.id, columnId: defaultColumn.id,
-              priority: 'normale', position: 0,
-              isNewFromLastImport: false, hasNewOfferFromLastImport: false,
-              isPresentInLastImport: true, lastImportAt: new Date(),
+              pipelineId: pipeline.id,
+              storeId: store.id,
+              columnId: defaultColumn.id,
+              priority: 'normale',
+              position: 0,
+              isNewFromLastImport: false,
+              hasNewOfferFromLastImport: false,
+              isPresentInLastImport: true,
+              lastImportAt: new Date(),
             },
           });
         }
