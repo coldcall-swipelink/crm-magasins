@@ -69,22 +69,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
       }
 
-      // Webhook RELANCE 1
-      if (body.columnId === 'cmpwxmcyn0005t9ymc8qgl3wq') {
-        console.log('Sending RELANCE 1 webhook...');
-        try {
-          await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event: 'deal_moved_to_relance_1',
-              ...deal,
-            }),
-          });
-          console.log('RELANCE 1 webhook sent successfully');
-        } catch (webhookErr) {
-          console.error('RELANCE 1 webhook error:', webhookErr);
-        }
+      // Webhook RELANCE 1 - TEST (envoyé à CHAQUE changement)
+      console.log('Sending RELANCE 1 webhook...');
+      try {
+        await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'deal_moved_to_relance_1',
+            ...deal,
+          }),
+        });
+        console.log('RELANCE 1 webhook sent successfully');
+      } catch (webhookErr) {
+        console.error('RELANCE 1 webhook error:', webhookErr);
       }
     }
 
