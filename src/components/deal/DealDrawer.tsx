@@ -167,7 +167,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div style={{ width: 'calc(100vw * 2 / 3)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '66.66vw', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ color: '#94a3b8' }}>Chargement…</span>
       </div>
     </div>
@@ -201,9 +201,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 'calc(100vw * 2 / 3)', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '66.66vw', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
 
-        {/* LEFT: INFO (1/3) */}
+        {/* LEFT: INFO (1/3 du drawer = 1/6 de l'écran) */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0' }}>
           <div style={{ padding: '20px 16px' }}>
 
@@ -390,7 +390,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: FEED (2/3) */}
+        {/* RIGHT: FEED (2/3 du drawer = 2/3 de l'écran) */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
           
           {/* PIPELINE TIMELINE */}
@@ -398,7 +398,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
               {pipelineColumns.map((col: any, idx: number) => {
                 const isCurrentColumn = deal.columnId === col.id;
-                const isAfterCurrent = pipelineColumns.findIndex((c: any) => c.id === deal.columnId) < idx;
                 return (
                   <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <button
