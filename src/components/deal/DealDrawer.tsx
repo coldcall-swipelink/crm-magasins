@@ -201,6 +201,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {deal.jobOffers.map((offer: any) => (
                     <div key={offer.id} style={{ fontSize: 8, marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' }}>
                       <div style={{ fontWeight: 600, color: '#334155' }}>{offer.jobTitle}</div>
+                      {offer.firstSeenAt && <div style={{ color: '#94a3b8', fontSize: 7 }}>{formatDate(offer.firstSeenAt)}</div>}
                     </div>
                   ))}
                 </div>
