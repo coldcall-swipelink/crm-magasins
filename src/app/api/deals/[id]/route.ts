@@ -49,7 +49,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id: body.columnId },
       });
 
+      console.log('Column title:', newColumn?.title);
+      console.log('Is DEMO FAITE?', newColumn?.title === 'DEMO FAITE');
+
       if (newColumn?.title === 'DEMO FAITE') {
+        console.log('Sending webhook...');
         // Envoyer webhook à n8n
         try {
           await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
@@ -69,6 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               demoDate: deal.demoDate,
             }),
           });
+          console.log('Webhook sent successfully');
         } catch (webhookErr) {
           console.error('Webhook error:', webhookErr);
         }
