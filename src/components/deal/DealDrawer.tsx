@@ -40,6 +40,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [civilite, setCivilite] = useState('Monsieur');
   const [editingAction, setEditingAction] = useState<any | null>(null);
   const [editActionForm, setEditActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' as Priority });
+  const [showCreateAction, setShowCreateAction] = useState(false);
+  const [newActionForm, setNewActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' as Priority });
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -122,6 +124,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     if (!editingAction) return;
     await fetch(`/api/actions/${editingAction.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: editActionForm.title, type: editActionForm.type, dueDate: new Date(editActionForm.dueDate).toISOString(), priority: editActionForm.priority }) });
     setEditingAction(null); fetchDeal(); onUpdated(); toast('Action mise à jour');
+  };
+
+  const createAction = async () => {
+    if (!newActionForm.title.trim() || !newActionForm.dueDate) { toast('Titre et date requis', 'error'); return; }
+    await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, ...newActionForm, dueDate: new Date(newActionForm.dueDate).toISOString() }) });
+    setNewActionForm({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' }); setShowCreateAction(false); fetchDeal(); onUpdated(); toast('Action créée');
   };
 
   const completeAction = async (actionId: string) => {
@@ -283,7 +291,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: 2/3 - NOTES, EMAILS & ACTIONS */}
+        {/* RIGHT: 2/3 - ACTIONS, NOTES & EMAILS */}
         <div style={{ width: '66.66%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           
           {/* PIPELINE */}
@@ -298,8 +306,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           </div>
 
-          {/* ACTIONS */}
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#fff', maxHeight: editingAction ? '200px' : 'auto', overflowY: 'auto' }}>
+          {/* ACTIONS SECTION */}
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#fff', maxHeight: editingAction || showCreateAction ? '250px' : 'auto', overflowY: 'auto' }}>
             {editingAction ? (
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Éditer l'action</div>
@@ -317,9 +325,28 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   <button style={{ ...btnDef, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => { deleteAction(editingAction.id); setEditingAction(null); }}>🗑 Supprimer</button>
                 </div>
               </div>
+            ) : showCreateAction ? (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Créer une action</div>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.title} onChange={e => setNewActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.type} onChange={e => setNewActionForm(f => ({ ...f, type: e.target.value }))}>
+                  {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} type="date" value={newActionForm.dueDate} onChange={e => setNewActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.priority} onChange={e => setNewActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
+                  {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button style={btnPri} onClick={createAction}>✓ Créer</button>
+                  <button style={btnDef} onClick={() => setShowCreateAction(false)}>✕ Annuler</button>
+                </div>
+              </div>
             ) : (
               <div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Actions ({todoActions.length})</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#334155' }}>Actions ({todoActions.length})</div>
+                  <button onClick={() => setShowCreateAction(true)} style={{ fontSize: 8, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}>+ Créer</button>
+                </div>
                 {todoActions.length === 0 ? (
                   <div style={{ fontSize: 9, color: '#94a3b8' }}>Aucune action</div>
                 ) : (
@@ -342,7 +369,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             )}
           </div>
 
-          {/* NOTES & EMAILS */}
+          {/* NOTES & EMAILS BUTTONS */}
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', gap: 6 }}>
             <button onClick={() => setShowNoteForm(!showNoteForm)} style={{ ...btnPri, flex: 1, fontSize: 10 }}>+ Note</button>
             <button onClick={() => setShowEmailForm(!showEmailForm)} style={{ ...btnPri, flex: 1, fontSize: 10 }}>📧 Email</button>
