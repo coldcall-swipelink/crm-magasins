@@ -131,8 +131,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   const createAction = async () => {
     if (!newActionForm.title.trim() || !newActionForm.dueDate) { toast('Titre et date requis', 'error'); return; }
-    const dueDateTime = `${newActionForm.dueDate}T${newActionForm.dueTime}:00`;
-    await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, title: newActionForm.title, type: newActionForm.type, dueDate: new Date(dueDateTime).toISOString(), priority: newActionForm.priority }) });
+    await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, title: newActionForm.title, type: newActionForm.type, dueDate: newActionForm.dueDate, dueTime: newActionForm.dueTime, priority: newActionForm.priority }) });
     setNewActionForm({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale' }); setShowCreateAction(false); fetchDeal(); onUpdated(); toast('Action créée');
   };
 
