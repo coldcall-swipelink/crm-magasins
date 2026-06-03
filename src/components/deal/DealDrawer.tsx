@@ -136,7 +136,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   };
 
   const completeAction = async (actionId: string) => {
-    await fetch(`/api/actions/${actionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) });
+    await fetch(`/api/actions/${actionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }) });
     fetchDeal(); onUpdated(); toast('Action complétée');
   };
 
@@ -363,7 +363,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                     {todoActions.map((action: any) => (
                       <div key={action.id} onClick={() => editAction(action)} style={{ border: '1px solid #e2e8f0', borderRadius: 5, padding: 6, background: '#f8fafc', cursor: 'pointer', transition: 'all .2s' }}>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
-                          <input type="checkbox" onChange={() => completeAction(action.id)} style={{ marginTop: 2, cursor: 'pointer' }} />
+                          <input type="checkbox" onChange={(e) => { e.stopPropagation(); completeAction(action.id); }} style={{ marginTop: 2, cursor: 'pointer' }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 9, fontWeight: 600, color: '#334155' }}>{action.title}</div>
                             <div style={{ fontSize: 8, color: '#64748b' }}>{action.type} • {formatDate(action.dueDate)}</div>
