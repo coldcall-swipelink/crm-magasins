@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       // Webhook RELANCE 1
-      if (newColumn?.title === 'RELANCE 1') {
+      if (body.columnId === 'cmpwxmcyn0005t9ymc8qgl3wq') {
         console.log('Sending RELANCE 1 webhook...');
         try {
           await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
