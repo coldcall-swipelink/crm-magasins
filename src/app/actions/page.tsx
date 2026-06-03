@@ -73,15 +73,23 @@ export default function ActionsPage() {
   const saveAction = async () => {
     if (!form?.title || !form.dueDate || !form.dealId) { toast('Titre, date et affaire requis', 'error'); return; }
     
-    // Construire l'objet à envoyer - UNIQUEMENT ce qui est nécessaire
-    const payload = {
+    // Construire l'objet à envoyer - UNIQUEMENT les champs modifiés
+    const payload: any = {
       title: form.title,
       type: form.type || 'Appeler',
-      dueDate: form.dueDate,
-      dueTime: (form as any).dueTime || '',
       priority: form.priority || 'normale',
       note: form.note || '',
     };
+
+    // Envoyer dueDate SEULEMENT si c'est une création (form.id = pas d'id = création)
+    if (!form.id || typeof form.dueDate === 'string') {
+      payload.dueDate = form.dueDate;
+    }
+
+    // Envoyer dueTime SEULEMENT s'il n'est pas vide
+    if ((form as any).dueTime) {
+      payload.dueTime = (form as any).dueTime;
+    }
 
     const url = form.id ? `/api/actions/${form.id}` : '/api/actions';
     try {
