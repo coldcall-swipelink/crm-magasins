@@ -72,12 +72,23 @@ export default function ActionsPage() {
 
   const saveAction = async () => {
     if (!form?.title || !form.dueDate || !form.dealId) { toast('Titre, date et affaire requis', 'error'); return; }
+    
+    // Construire l'objet à envoyer - UNIQUEMENT ce qui est nécessaire
+    const payload = {
+      title: form.title,
+      type: form.type || 'Appeler',
+      dueDate: typeof form.dueDate === 'string' ? form.dueDate : form.dueDate.toISOString().slice(0, 10),
+      dueTime: (form as any).dueTime || '',
+      priority: form.priority || 'normale',
+      note: form.note || '',
+    };
+
     const url = form.id ? `/api/actions/${form.id}` : '/api/actions';
     try {
-      const res = await fetch(url, { method: form.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await fetch(url, { method: form.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) { toast(`Erreur: ${data.error || 'Impossible d\'enregistrer'}`, 'error'); return; }
-      setForm(null); fetchAll(); toast('Action enregistrée');
+      setForm(null); fetchAll(); toast('✓ Enregistrée');
     } catch (e) {
       toast(`Erreur réseau: ${(e as Error).message}`, 'error');
     }
