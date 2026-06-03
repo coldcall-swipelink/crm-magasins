@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (newColumn?.title === 'DEMO FAITE') {
         // Envoyer webhook à n8n
         try {
-          await fetch('https://swipelink.app.n8n.cloud/webhook-test/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
+          await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -77,7 +77,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json(deal);
   } catch (err) {
-    console.error('[PATCH /api/deals/[id]]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
