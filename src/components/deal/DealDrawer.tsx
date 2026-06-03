@@ -59,7 +59,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     if (res.ok) setEmailLogs(await res.json());
   }, [dealId]);
 
-  useEffect(() => { fetchDeal(); fetchEmailLogs(); }, [fetchDeal]);
+  useEffect(() => { fetchDeal(); fetchEmailLogs(); }, [fetchDeal, dealId]);
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
@@ -134,6 +134,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     toast('✓ Action complétée');
   };
 
+  const moveToColumn = async (columnId: string) => {
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
+    fetchDeal(); onUpdated(); toast('Étape mise à jour');
+  };
+
   const saveContacts = async () => {
     const payload = { 
       directeur: contacts.directeur,
@@ -197,6 +202,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     urgente: '#ef4444',
   };
 
+  // Get pipeline columns sorted by position
+  const pipelineColumns = columns.filter((c: any) => c.pipelineId === deal.column?.pipelineId).sort((a: any, b: any) => a.position - b.position);
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 'calc(100vw * 2 / 3)', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
@@ -250,74 +258,56 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {[['Directeur', 'directeur'], ['Contact calling', 'contactCalling'], ['Email', 'dealEmail']].map(([label, key]) => (
                     <div key={key} style={{ marginBottom: 10 }}>
                       <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>{label}</label>
-                      <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} placeholder="" value={(contacts as any)[key]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
+                      <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} value={contacts[key as keyof typeof contacts]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
                     </div>
                   ))}
-                  <button style={{ ...btnPri, width: '100%', fontSize: 11, padding: '7px 10px' }} onClick={saveContacts}>Enregistrer</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button style={btnPri} onClick={saveContacts}>Enregistrer</button>
+                    <button style={btnDef} onClick={() => setEditContacts(false)}>Annuler</button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
-                  {[['Contact principal', `${contacts.contactCivilite} ${contacts.contactLastName}`], ['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
-                    <div key={l} style={{ fontSize: 12, marginBottom: 7 }}>
-                      <div style={{ color: '#94a3b8', fontWeight: 600, marginBottom: 2 }}>{l}</div>
-                      <div style={{ color: v ? '#334155' : '#cbd5e1', fontSize: 12 }}>{v || '—'}</div>
-                    </div>
-                  ))}
+                  <div style={{ fontSize: 13, color: '#334155', marginBottom: 6 }}>
+                    <strong>Contact principal :</strong> {contacts.contactCivilite} {contacts.contactLastName}
+                  </div>
+                  {contacts.directeur && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 3 }}><strong>Dir. :</strong> {contacts.directeur}</div>}
+                  {contacts.contactCalling && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 3 }}><strong>Tel :</strong> {contacts.contactCalling}</div>}
+                  {contacts.dealEmail && <div style={{ fontSize: 12, color: '#64748b' }}><strong>Email :</strong> {contacts.dealEmail}</div>}
                 </div>
               )}
             </div>
 
-            {/* COMMERCIAL */}
+            {/* OFFRE COMMERCIALE */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>💰 COMMERCIAL</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>💼 OFFRE</div>
                 <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{editCommercial ? '✕' : '✎'}</button>
               </div>
 
               {editCommercial ? (
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
                   <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Valeur</label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <span style={{ paddingTop: 8, color: '#64748b', fontWeight: 600, fontSize: 14 }}>€</span>
-                      <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="number" placeholder="1500" step="0.01" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
-                    </div>
+                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Valeur (€)</label>
+                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="number" placeholder="5000" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
                   </div>
-                  <div style={{ marginBottom: 12 }}>
+                  <div style={{ marginBottom: 10 }}>
                     <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Date DEMO</label>
                     <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
                   </div>
-                  <button style={{ ...btnPri, width: '100%', fontSize: 11, padding: '7px 10px' }} onClick={saveCommercial}>Enregistrer</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button style={btnPri} onClick={saveCommercial}>Enregistrer</button>
+                    <button style={btnDef} onClick={() => setEditCommercial(false)}>Annuler</button>
+                  </div>
                 </div>
               ) : (
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Valeur</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: deal.dealValue ? '#059669' : '#cbd5e1' }}>
-                      {deal.dealValue ? `€${deal.dealValue.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>Date DEMO</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: deal.demoDate ? '#3b82f6' : '#cbd5e1' }}>
-                      {deal.demoDate ? formatDate(deal.demoDate) : '—'}
-                    </div>
-                  </div>
+                  {contacts.dealValue && <div style={{ fontSize: 13, color: '#334155', marginBottom: 6 }}><strong>{contacts.dealValue} €</strong></div>}
+                  {contacts.demoDate && <div style={{ fontSize: 12, color: '#64748b' }}><strong>DEMO :</strong> {contacts.demoDate}</div>}
+                  {!contacts.dealValue && !contacts.demoDate && <div style={{ fontSize: 12, color: '#94a3b8' }}>Aucune donnée</div>}
                 </div>
               )}
             </div>
-
-            {/* OFFRE */}
-            {dOffers.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>💼 OFFRE</div>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 13, background: '#f8fafc' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 6 }}>{dOffers[0].jobTitle || dOffers[0].title}</div>
-                  {dOffers[0].contractType && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 3 }}>📄 {dOffers[0].contractType}</div>}
-                  {dOffers[0].salary && <div style={{ fontSize: 12, color: '#64748b' }}>💵 {dOffers[0].salary}</div>}
-                </div>
-              </div>
-            )}
 
             {/* ACTIONS */}
             <div style={{ marginBottom: 20 }}>
@@ -327,54 +317,40 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               </div>
 
               {showActionForm && (
-                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Titre *</label>
-                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} placeholder="Appeler le directeur" value={newAction.title} onChange={e => setNewAction(a => ({ ...a, title: e.target.value }))} />
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <input style={{ ...inp, marginBottom: 8 }} placeholder="Titre *" value={newAction.title} onChange={e => setNewAction(a => ({ ...a, title: e.target.value }))} />
+                  <select style={{ ...inp, marginBottom: 8 }} value={newAction.type} onChange={e => setNewAction(a => ({ ...a, type: e.target.value }))}>
+                    {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input style={{ ...inp, flex: 1 }} type="date" value={newAction.dueDate} onChange={e => setNewAction(a => ({ ...a, dueDate: e.target.value }))} />
+                    <input style={{ ...inp, flex: 1 }} type="time" value={newAction.dueTime} onChange={e => setNewAction(a => ({ ...a, dueTime: e.target.value }))} />
                   </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Type</label>
-                    <select style={inp} value={newAction.type} onChange={e => setNewAction(a => ({ ...a, type: e.target.value }))}>
-                      {ACTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Date *</label>
-                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="date" value={newAction.dueDate} onChange={e => setNewAction(a => ({ ...a, dueDate: e.target.value }))} />
-                  </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Heure</label>
-                    <input style={{ ...inp, padding: '8px 10px', fontSize: 12 }} type="time" value={newAction.dueTime} onChange={e => setNewAction(a => ({ ...a, dueTime: e.target.value }))} />
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Priorité</label>
-                    <select style={inp} value={newAction.priority} onChange={e => setNewAction(a => ({ ...a, priority: e.target.value as Priority }))}>
-                      {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>Note</label>
-                    <textarea style={{ ...inp, height: 60, resize: 'none', padding: '8px 10px', fontSize: 12 }} placeholder="Infos supplémentaires…" value={newAction.note} onChange={e => setNewAction(a => ({ ...a, note: e.target.value }))} />
-                  </div>
+                  <select style={{ ...inp, marginBottom: 8 }} value={newAction.priority} onChange={e => setNewAction(a => ({ ...a, priority: e.target.value as Priority }))}>
+                    {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                  <textarea style={{ ...inp, height: 60, resize: 'none', marginBottom: 8 }} placeholder="Note…" value={newAction.note} onChange={e => setNewAction(a => ({ ...a, note: e.target.value }))} />
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ ...btnPri, flex: 1, fontSize: 11, padding: '7px 10px' }} onClick={createAction}>Créer</button>
-                    <button style={{ ...btnDef, flex: 1, fontSize: 11, padding: '7px 10px' }} onClick={() => { setShowActionForm(false); setNewAction({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale', note: '' }); }}>Annuler</button>
+                    <button style={btnPri} onClick={createAction}>Créer</button>
+                    <button style={btnDef} onClick={() => setShowActionForm(false)}>Annuler</button>
                   </div>
                 </div>
               )}
 
               {todoActions.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>À FAIRE</div>
-                  {todoActions.map((a: any) => (
-                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#fafbfc' }}>
+                  {todoActions.map(a => (
+                    <div key={a.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                        <input type="checkbox" style={{ marginTop: 3, cursor: 'pointer' }} onChange={() => completeAction(a.id)} />
+                        <input type="checkbox" onChange={() => completeAction(a.id)} style={{ marginTop: 2, cursor: 'pointer' }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 3 }}>{a.title}</div>
-                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{a.type} • {formatDate(a.dueDate)} {a.dueTime && `à ${a.dueTime}`}</div>
-                          <div style={{ fontSize: 10, color: '#fff', display: 'inline-block', padding: '2px 6px', borderRadius: 3, background: priorityColors[a.priority] || '#6366f1', fontWeight: 500 }}>{a.priority}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{a.title}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{a.type}</div>
+                          {a.dueDate && <div style={{ fontSize: 10, color: isOverdue(a.dueDate) ? '#ef4444' : '#64748b' }}>{formatDate(a.dueDate)}</div>}
                         </div>
+                        {a.priority && (
+                          <span style={{ background: priorityColors[a.priority], color: '#fff', padding: '2px 6px', borderRadius: 3, fontSize: 10, fontWeight: 500 }}>{a.priority}</span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -383,14 +359,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               {completedActions.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>COMPLÉTÉES</div>
-                  {completedActions.map((a: any) => (
-                    <div key={a.id} style={{ border: '1px solid #e2e8f0', borderRadius: 7, padding: 10, marginBottom: 6, background: '#f0fdf4' }}>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Complétées</div>
+                  {completedActions.map(a => (
+                    <div key={a.id} style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: 10, marginBottom: 8, opacity: 0.7 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                        <input type="checkbox" style={{ marginTop: 3, cursor: 'pointer' }} checked={true} onChange={() => completeAction(a.id)} />
+                        <input type="checkbox" checked disabled style={{ marginTop: 2, cursor: 'pointer' }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textDecoration: 'line-through', marginBottom: 3 }}>{a.title}</div>
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(a.dueDate)}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 2, textDecoration: 'line-through' }}>{a.title}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{a.type}</div>
                         </div>
                       </div>
                     </div>
@@ -422,8 +398,41 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
         {/* RIGHT: FEED (2/3) */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
+          
+          {/* PIPELINE TIMELINE */}
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#f8fafc' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>📊 ÉTAPES DU PIPELINE</div>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
+              {pipelineColumns.map((col: any, idx: number) => {
+                const isCurrentColumn = deal.columnId === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => moveToColumn(col.id)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      background: isCurrentColumn ? '#4f46e5' : '#fff',
+                      color: isCurrentColumn ? '#fff' : '#334155',
+                      borderColor: isCurrentColumn ? '#4f46e5' : '#e2e8f0',
+                      fontWeight: isCurrentColumn ? 600 : 400,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      transition: 'all .2s'
+                    }}
+                  >
+                    {col.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* HEADER */}
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, borderTop: `4px solid ${bc}` }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowNoteForm(!showNoteForm)} style={{ ...btnPri, flex: 1 }}>+ Ajouter une note</button>
               <button onClick={() => setShowEmailForm(!showEmailForm)} style={{ ...btnPri, flex: 1 }}>📧 Envoyer email</button>
