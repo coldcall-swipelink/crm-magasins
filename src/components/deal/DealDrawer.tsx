@@ -39,9 +39,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
   const [editingAction, setEditingAction] = useState<any | null>(null);
-  const [editActionForm, setEditActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' as Priority });
+  const [editActionForm, setEditActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale' as Priority });
   const [showCreateAction, setShowCreateAction] = useState(false);
-  const [newActionForm, setNewActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' as Priority });
+  const [newActionForm, setNewActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale' as Priority });
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -116,20 +116,24 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   };
 
   const editAction = (action: any) => {
+    const dateStr = action.dueDate.split('T')[0];
+    const timeStr = action.dueDate.split('T')[1]?.slice(0, 5) || '09:00';
     setEditingAction(action);
-    setEditActionForm({ title: action.title, type: action.type, dueDate: action.dueDate.split('T')[0], priority: action.priority });
+    setEditActionForm({ title: action.title, type: action.type, dueDate: dateStr, dueTime: timeStr, priority: action.priority });
   };
 
   const saveAction = async () => {
     if (!editingAction) return;
-    await fetch(`/api/actions/${editingAction.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: editActionForm.title, type: editActionForm.type, dueDate: new Date(editActionForm.dueDate).toISOString(), priority: editActionForm.priority }) });
+    const dueDateTime = `${editActionForm.dueDate}T${editActionForm.dueTime}:00`;
+    await fetch(`/api/actions/${editingAction.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: editActionForm.title, type: editActionForm.type, dueDate: new Date(dueDateTime).toISOString(), priority: editActionForm.priority }) });
     setEditingAction(null); fetchDeal(); onUpdated(); toast('Action mise à jour');
   };
 
   const createAction = async () => {
     if (!newActionForm.title.trim() || !newActionForm.dueDate) { toast('Titre et date requis', 'error'); return; }
-    await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, ...newActionForm, dueDate: new Date(newActionForm.dueDate).toISOString() }) });
-    setNewActionForm({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' }); setShowCreateAction(false); fetchDeal(); onUpdated(); toast('Action créée');
+    const dueDateTime = `${newActionForm.dueDate}T${newActionForm.dueTime}:00`;
+    await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, title: newActionForm.title, type: newActionForm.type, dueDate: new Date(dueDateTime).toISOString(), priority: newActionForm.priority }) });
+    setNewActionForm({ title: '', type: 'Appeler', dueDate: '', dueTime: '', priority: 'normale' }); setShowCreateAction(false); fetchDeal(); onUpdated(); toast('Action créée');
   };
 
   const completeAction = async (actionId: string) => {
@@ -315,7 +319,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.type} onChange={e => setEditActionForm(f => ({ ...f, type: e.target.value }))}>
                   {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
-                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} type="date" value={editActionForm.dueDate} onChange={e => setEditActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                  <input style={{ ...inp, flex: 1, fontSize: 10 }} type="date" value={editActionForm.dueDate} onChange={e => setEditActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                  <input style={{ ...inp, flex: 0.6, fontSize: 10 }} type="time" value={editActionForm.dueTime} onChange={e => setEditActionForm(f => ({ ...f, dueTime: e.target.value }))} />
+                </div>
                 <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.priority} onChange={e => setEditActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
                   {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                 </select>
@@ -332,7 +339,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.type} onChange={e => setNewActionForm(f => ({ ...f, type: e.target.value }))}>
                   {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
-                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} type="date" value={newActionForm.dueDate} onChange={e => setNewActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                  <input style={{ ...inp, flex: 1, fontSize: 10 }} type="date" value={newActionForm.dueDate} onChange={e => setNewActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                  <input style={{ ...inp, flex: 0.6, fontSize: 10 }} type="time" value={newActionForm.dueTime} onChange={e => setNewActionForm(f => ({ ...f, dueTime: e.target.value }))} />
+                </div>
                 <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.priority} onChange={e => setNewActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
                   {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                 </select>
