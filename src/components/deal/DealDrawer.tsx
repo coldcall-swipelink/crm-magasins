@@ -339,7 +339,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               {todoActions.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
-                  {todoActions.map(a => (
+                  {todoActions.map((a: any) => (
                     <div key={a.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <input type="checkbox" onChange={() => completeAction(a.id)} style={{ marginTop: 2, cursor: 'pointer' }} />
@@ -360,7 +360,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {completedActions.length > 0 && (
                 <div>
                   <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', fontWeight: 600 }}>Complétées</div>
-                  {completedActions.map(a => (
+                  {completedActions.map((a: any) => (
                     <div key={a.id} style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, padding: 10, marginBottom: 8, opacity: 0.7 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <input type="checkbox" checked disabled style={{ marginTop: 2, cursor: 'pointer' }} />
