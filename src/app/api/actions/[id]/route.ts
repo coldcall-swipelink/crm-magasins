@@ -22,12 +22,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if ('title'    in body) data.title    = body.title;
     if ('type'     in body) data.type     = body.type;
-    if ('dueDate'  in body) data.dueDate  = new Date(`${body.dueDate}T00:00:00Z`);
+    if ('dueDate'  in body) {
+      // Accepte format "YYYY-MM-DD" ou ISO string
+      const dateStr = typeof body.dueDate === 'string' ? body.dueDate.split('T')[0] : body.dueDate;
+      data.dueDate = new Date(`${dateStr}T00:00:00Z`);
+    }
     if ('dueTime'  in body) data.dueTime  = body.dueTime;
     if ('priority' in body) data.priority = body.priority;
     if ('note'     in body) data.note     = body.note;
     if ('status'   in body) {
-      if (body.status !== 'todo' && body.status !== 'done') {
+      const validStatuses = ['todo', 'done'];
+      if (!validStatuses.includes(body.status)) {
         return NextResponse.json({ error: 'Status invalide' }, { status: 400 });
       }
       data.status = body.status;
