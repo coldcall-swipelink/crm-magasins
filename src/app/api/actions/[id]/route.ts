@@ -22,14 +22,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if ('title'    in body) data.title    = body.title;
     if ('type'     in body) data.type     = body.type;
-    if ('dueDate'  in body) {
-      // Accepte format "YYYY-MM-DD" ou ISO string
-      const dateStr = typeof body.dueDate === 'string' ? body.dueDate.split('T')[0] : body.dueDate;
-      data.dueDate = new Date(`${dateStr}T00:00:00Z`);
-    }
     if ('dueTime'  in body) data.dueTime  = body.dueTime;
     if ('priority' in body) data.priority = body.priority;
     if ('note'     in body) data.note     = body.note;
+    
+    if ('dueDate'  in body) {
+      // Traiter la date comme local (YYYY-MM-DD)
+      const dateStr = body.dueDate.includes('T') ? body.dueDate.split('T')[0] : body.dueDate;
+      const [year, month, day] = dateStr.split('-').map(Number);
+      data.dueDate = new Date(year, month - 1, day);
+    }
+    
     if ('status'   in body) {
       const validStatuses = ['todo', 'done'];
       if (!validStatuses.includes(body.status)) {
