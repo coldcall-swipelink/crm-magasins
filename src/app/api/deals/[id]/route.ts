@@ -44,28 +44,46 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
 
-    // Vérifier si la colonne a changé et c'est "DEMO FAITE"
+    // Vérifier la colonne et envoyer les webhooks appropriés
     if (body.columnId) {
       const newColumn = await prisma.pipelineColumn.findUnique({
         where: { id: body.columnId },
       });
       console.log('Column title:', newColumn?.title);
-      console.log('Is DEMO FAITE?', newColumn?.title === 'DEMO FAITE');
       
+      // Webhook DEMO FAITE
       if (newColumn?.title === 'DEMO FAITE') {
-        console.log('Sending webhook...');
+        console.log('Sending DEMO FAITE webhook...');
         try {
           await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               event: 'deal_moved_to_demo_faite',
-              ...deal, // Envoie le deal complet avec toutes les relations
+              ...deal,
             }),
           });
-          console.log('Webhook sent successfully');
+          console.log('DEMO FAITE webhook sent successfully');
         } catch (webhookErr) {
-          console.error('Webhook error:', webhookErr);
+          console.error('DEMO FAITE webhook error:', webhookErr);
+        }
+      }
+
+      // Webhook RELANCE 1
+      if (newColumn?.title === 'RELANCE 1') {
+        console.log('Sending RELANCE 1 webhook...');
+        try {
+          await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'deal_moved_to_relance_1',
+              ...deal,
+            }),
+          });
+          console.log('RELANCE 1 webhook sent successfully');
+        } catch (webhookErr) {
+          console.error('RELANCE 1 webhook error:', webhookErr);
         }
       }
     }
