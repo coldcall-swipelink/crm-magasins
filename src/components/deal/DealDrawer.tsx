@@ -200,10 +200,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               )}
             </div>
 
-            {/* OFFRE */}
+            {/* OFFRES */}
+            {deal.jobOffers && deal.jobOffers.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 4 }}>OFFRES</div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#f8fafc' }}>
+                  {deal.jobOffers.map((offer: any) => (
+                    <div key={offer.id} style={{ fontSize: 9, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #e2e8f0' }}>
+                      <div style={{ fontWeight: 600, color: '#334155' }}>{offer.jobTitle}</div>
+                      {offer.company && <div style={{ color: '#64748b', fontSize: 8 }}>@ {offer.company}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* COMMERCIAL */}
             <div style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.5px', textTransform: 'uppercase' }}>OFFRE</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', letterSpacing: '.5px', textTransform: 'uppercase' }}>COMMERCIAL</div>
                 <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 9, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{editCommercial ? '✕' : '✎'}</button>
               </div>
 
