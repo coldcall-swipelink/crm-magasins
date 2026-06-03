@@ -165,11 +165,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated(); toast('Assignation mise à jour');
   };
 
-  const setPriority = async (priority: Priority) => {
-    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority }) });
-    fetchDeal(); onUpdated();
-  };
-
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: 'calc(100vw * 2 / 3)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -202,7 +197,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     urgente: '#ef4444',
   };
 
-  // Get pipeline columns sorted by position
   const pipelineColumns = columns.filter((c: any) => c.pipelineId === deal.column?.pipelineId).sort((a: any, b: any) => a.position - b.position);
 
   return (
@@ -384,7 +378,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>👥 ASSIGNÉ À</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 <button onClick={() => assignCollaborator(null)} style={{ padding: '6px 10px', borderRadius: 18, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non assigné</button>
-                {collaborators.map(c => (
+                {collaborators.map((c: any) => (
                   <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '6px 10px', borderRadius: 18, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 4, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
                     <span style={{ width: 16, height: 16, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
                     <span style={{ fontSize: 11 }}>{c.name}</span>
@@ -400,32 +394,35 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
           
           {/* PIPELINE TIMELINE */}
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#f8fafc' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 10 }}>📊 ÉTAPES DU PIPELINE</div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
               {pipelineColumns.map((col: any, idx: number) => {
                 const isCurrentColumn = deal.columnId === col.id;
+                const isAfterCurrent = pipelineColumns.findIndex((c: any) => c.id === deal.columnId) < idx;
                 return (
-                  <button
-                    key={col.id}
-                    onClick={() => moveToColumn(col.id)}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      border: '1px solid',
-                      background: isCurrentColumn ? '#4f46e5' : '#fff',
-                      color: isCurrentColumn ? '#fff' : '#334155',
-                      borderColor: isCurrentColumn ? '#4f46e5' : '#e2e8f0',
-                      fontWeight: isCurrentColumn ? 600 : 400,
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      transition: 'all .2s'
-                    }}
-                  >
-                    {col.title}
-                  </button>
+                  <div key={col.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <button
+                      onClick={() => moveToColumn(col.id)}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        border: 'none',
+                        background: isCurrentColumn ? '#4f46e5' : '#f1f5f9',
+                        color: isCurrentColumn ? '#fff' : '#64748b',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        transition: 'all .2s'
+                      }}
+                    >
+                      {col.title}
+                    </button>
+                    {idx < pipelineColumns.length - 1 && (
+                      <div style={{ fontSize: 16, color: '#cbd5e1', flexShrink: 0 }}>→</div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -457,7 +454,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 }}>Template</label>
                 <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
                   <option value="">— Choisir un template —</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
 
