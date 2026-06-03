@@ -27,10 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if ('note'     in body) data.note     = body.note;
     
     if ('dueDate'  in body) {
-      // Traiter la date comme local (YYYY-MM-DD)
+      // Créer la date en UTC pour éviter les décalages timezone
       const dateStr = body.dueDate.includes('T') ? body.dueDate.split('T')[0] : body.dueDate;
-      const [year, month, day] = dateStr.split('-').map(Number);
-      data.dueDate = new Date(year, month - 1, day);
+      data.dueDate = new Date(`${dateStr}T00:00:00Z`);
     }
     
     if ('status'   in body) {
