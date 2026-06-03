@@ -16,6 +16,9 @@ interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 function replaceVars(text: string, vars: Record<string, string>) { return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || ''); }
 
+const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
+const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
+
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [deal, setDeal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [emailBody, setEmailBody] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
+  const [editingAction, setEditingAction] = useState<any | null>(null);
+  const [editActionForm, setEditActionForm] = useState({ title: '', type: 'Appeler', dueDate: '', priority: 'normale' as Priority });
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -108,6 +113,27 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated(); toast('Assignation mise à jour');
   };
 
+  const editAction = (action: any) => {
+    setEditingAction(action);
+    setEditActionForm({ title: action.title, type: action.type, dueDate: action.dueDate.split('T')[0], priority: action.priority });
+  };
+
+  const saveAction = async () => {
+    if (!editingAction) return;
+    await fetch(`/api/actions/${editingAction.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: editActionForm.title, type: editActionForm.type, dueDate: new Date(editActionForm.dueDate).toISOString(), priority: editActionForm.priority }) });
+    setEditingAction(null); fetchDeal(); onUpdated(); toast('Action mise à jour');
+  };
+
+  const completeAction = async (actionId: string) => {
+    await fetch(`/api/actions/${actionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) });
+    fetchDeal(); onUpdated(); toast('Action complétée');
+  };
+
+  const deleteAction = async (actionId: string) => {
+    await fetch(`/api/actions/${actionId}`, { method: 'DELETE' });
+    fetchDeal(); onUpdated(); toast('Action supprimée');
+  };
+
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: '66.66vw', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -122,12 +148,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const currentCollab = deal.collaborator as Collaborator | null;
   const timeline = [...(deal.notes || []).map((n: any) => ({ type: 'note', data: n, date: new Date(n.createdAt) })), ...emailLogs.map((e: EmailLog) => ({ type: 'email', data: e, date: new Date(e.sentAt) }))].sort((a, b) => b.date.getTime() - a.date.getTime());
   const pipelineColumns = (deal.column ? [deal.column] : []).concat((columns.filter((c: any) => c.pipelineId === deal.column?.pipelineId && c.id !== deal.column?.id) || [])).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+  const dActions = deal.actions?.sort((a: any, b: any) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime()) ?? [];
+  const todoActions = dActions.filter((a: any) => a.status !== 'completed');
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '66.66vw', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
 
-        {/* LEFT: 1/3 - INFOS SEULEMENT */}
+        {/* LEFT: 1/3 - INFOS */}
         <div style={{ width: '33.33%', display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0', minWidth: 0 }}>
           <div style={{ padding: '12px' }}>
 
@@ -255,7 +283,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: 2/3 - NOTES & EMAILS */}
+        {/* RIGHT: 2/3 - NOTES, EMAILS & ACTIONS */}
         <div style={{ width: '66.66%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           
           {/* PIPELINE */}
@@ -271,6 +299,50 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
 
           {/* ACTIONS */}
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#fff', maxHeight: editingAction ? '200px' : 'auto', overflowY: 'auto' }}>
+            {editingAction ? (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Éditer l'action</div>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.title} onChange={e => setEditActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.type} onChange={e => setEditActionForm(f => ({ ...f, type: e.target.value }))}>
+                  {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} type="date" value={editActionForm.dueDate} onChange={e => setEditActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.priority} onChange={e => setEditActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
+                  {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button style={btnPri} onClick={saveAction}>✓ Sauver</button>
+                  <button style={btnDef} onClick={() => setEditingAction(null)}>✕ Annuler</button>
+                  <button style={{ ...btnDef, color: '#ef4444', borderColor: '#ef4444' }} onClick={() => { deleteAction(editingAction.id); setEditingAction(null); }}>🗑 Supprimer</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Actions ({todoActions.length})</div>
+                {todoActions.length === 0 ? (
+                  <div style={{ fontSize: 9, color: '#94a3b8' }}>Aucune action</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {todoActions.map((action: any) => (
+                      <div key={action.id} onClick={() => editAction(action)} style={{ border: '1px solid #e2e8f0', borderRadius: 5, padding: 6, background: '#f8fafc', cursor: 'pointer', transition: 'all .2s' }}>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+                          <input type="checkbox" onChange={() => completeAction(action.id)} style={{ marginTop: 2, cursor: 'pointer' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 9, fontWeight: 600, color: '#334155' }}>{action.title}</div>
+                            <div style={{ fontSize: 8, color: '#64748b' }}>{action.type} • {formatDate(action.dueDate)}</div>
+                          </div>
+                          <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', padding: '2px 4px', borderRadius: 3, whiteSpace: 'nowrap' }}>{action.priority}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* NOTES & EMAILS */}
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', gap: 6 }}>
             <button onClick={() => setShowNoteForm(!showNoteForm)} style={{ ...btnPri, flex: 1, fontSize: 10 }}>+ Note</button>
             <button onClick={() => setShowEmailForm(!showEmailForm)} style={{ ...btnPri, flex: 1, fontSize: 10 }}>📧 Email</button>
