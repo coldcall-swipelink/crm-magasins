@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Helper pour vérifier l'API key
-function verifyApiKey(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) return false;
-  
-  const token = authHeader.replace('Bearer ', '');
-  const apiKey = process.env.API_KEY;
-  
-  return token === apiKey;
-}
-
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Vérifier l'API key
-    if (!verifyApiKey(_req)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const deal = await prisma.deal.findUnique({
       where: { id: params.id },
       include: {
