@@ -167,81 +167,81 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '66.66vw', height: '100%', background: '#fff', borderLeft: '1px solid #e2e8f0', display: 'flex', overflow: 'hidden' }}>
 
-        {/* LEFT: 1/3 - INFOS UNIQUEMENT (ÉNORME) */}
+        {/* LEFT PANEL: 1/3 - INFOS (LARGER) */}
         <div style={{ width: '33.33%', display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0', minWidth: 0 }}>
-          <div style={{ padding: '20px' }}>
+          <div style={{ padding: '18px' }}>
 
             {/* HEADER */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {brand && <div style={{ fontSize: 13, fontWeight: 700, color: bc, marginBottom: 2 }}>{brand.name}</div>}
-                <div style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store?.name}</div>
+                {brand && <div style={{ fontSize: 12, fontWeight: 700, color: bc, marginBottom: 2 }}>{brand.name}</div>}
+                <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store?.name}</div>
               </div>
               <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8', padding: 0, flexShrink: 0 }}>×</button>
             </div>
 
             {/* MAGASIN */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>MAGASIN</div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, background: '#f8fafc' }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>MAGASIN</div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, background: '#f8fafc' }}>
                 {[['Enseigne', brand?.name], ['Ville', store?.city]].map(([l, v]) => v && (
-                  <div key={l} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                    <span style={{ width: 70, flexShrink: 0, color: '#64748b', fontWeight: 600, fontSize: 14 }}>{l}</span>
-                    <span style={{ color: '#334155', fontSize: 14, fontWeight: 500, wordBreak: 'break-word', fontSize: 15 }}>{v}</span>
+                  <div key={l} style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
+                    <span style={{ width: 60, flexShrink: 0, color: '#64748b', fontWeight: 600, fontSize: 12 }}>{l}</span>
+                    <span style={{ color: '#334155', fontSize: 14, wordBreak: 'break-word' }}>{v}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* CONTACTS */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>CONTACTS</div>
-                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 10, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700 }}>{editContacts ? '✕' : '✎'}</button>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>CONTACTS</div>
+                <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 9, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{editContacts ? '✕' : '✎'}</button>
               </div>
               
               {editContacts ? (
-                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10 }}>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 8 }}>
                   {[['Civilité', 'civility'], ['Nom', 'name'], ['Dir.', 'directeur'], ['Tél', 'contactCalling'], ['Email', 'dealEmail']].map(([label, key]) => (
-                    <div key={key} style={{ marginBottom: 8 }}>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 600 }}>{label}</label>
+                    <div key={key} style={{ marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2, fontWeight: 600 }}>{label}</label>
                       {key === 'civility' ? (
                         <select style={inp} value={contacts.contactCivilite} onChange={e => setContacts(c => ({ ...c, contactCivilite: e.target.value }))}>
                           <option>Monsieur</option>
                           <option>Madame</option>
                         </select>
                       ) : (
-                        <input style={{ ...inp, padding: '6px 8px', fontSize: 12 }} value={key === 'name' ? contacts.contactLastName : contacts[key as keyof typeof contacts]} onChange={e => {
+                        <input style={{ ...inp, padding: '6px 8px', fontSize: 11 }} value={key === 'name' ? contacts.contactLastName : contacts[key as keyof typeof contacts]} onChange={e => {
                           if (key === 'name') setContacts(c => ({ ...c, contactLastName: e.target.value }));
                           else setContacts(c => ({ ...c, [key]: e.target.value }));
                         }} />
                       )}
                     </div>
                   ))}
-                  <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>
                     <button style={btnPri} onClick={saveContacts}>OK</button>
                     <button style={btnDef} onClick={() => setEditContacts(false)}>✕</button>
                   </div>
                 </div>
               ) : (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, background: '#f8fafc' }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 15 }}>{contacts.contactCivilite} {contacts.contactLastName}</div>
-                  {contacts.directeur && <div style={{ color: '#64748b', fontSize: 14, marginBottom: 3 }}><strong>Dir :</strong> {contacts.directeur}</div>}
-                  {contacts.contactCalling && <div style={{ color: '#64748b', fontSize: 14, marginBottom: 3 }}><strong>Tel :</strong> {contacts.contactCalling}</div>}
-                  {contacts.dealEmail && <div style={{ color: '#64748b', fontSize: 13 }}><strong>Email :</strong> {contacts.dealEmail}</div>}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, background: '#f8fafc' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 14 }}>{contacts.contactCivilite} {contacts.contactLastName}</div>
+                  {contacts.directeur && <div style={{ color: '#64748b', fontSize: 12, marginBottom: 2 }}><strong>Dir :</strong> {contacts.directeur}</div>}
+                  {contacts.contactCalling && <div style={{ color: '#64748b', fontSize: 12, marginBottom: 2 }}><strong>Tel :</strong> {contacts.contactCalling}</div>}
+                  {contacts.dealEmail && <div style={{ color: '#64748b', fontSize: 12 }}><strong>Email :</strong> {contacts.dealEmail}</div>}
                 </div>
               )}
             </div>
 
             {/* OFFRES */}
             {deal.jobOffers && deal.jobOffers.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>OFFRES</div>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, background: '#f8fafc' }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>OFFRES</div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, background: '#f8fafc' }}>
                   {deal.jobOffers.map((offer: any) => (
-                    <div key={offer.id} style={{ fontSize: 13, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #e2e8f0' }}>
-                      <div style={{ fontWeight: 600, color: '#334155', fontSize: 14 }}>{offer.jobTitle}</div>
-                      {offer.firstSeenAt && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 3 }}>{formatDate(offer.firstSeenAt)}</div>}
+                    <div key={offer.id} style={{ fontSize: 12, marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' }}>
+                      <div style={{ fontWeight: 600, color: '#334155', fontSize: 13 }}>{offer.jobTitle}</div>
+                      {offer.firstSeenAt && <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>{formatDate(offer.firstSeenAt)}</div>}
                     </div>
                   ))}
                 </div>
@@ -249,43 +249,43 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             )}
 
             {/* COMMERCIAL */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>COMMERCIAL</div>
-                <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 10, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700 }}>{editCommercial ? '✕' : '✎'}</button>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>COMMERCIAL</div>
+                <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 9, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{editCommercial ? '✕' : '✎'}</button>
               </div>
 
               {editCommercial ? (
-                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 600 }}>Valeur €</label>
-                    <input style={{ ...inp, padding: '6px 8px', fontSize: 12 }} type="number" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 8 }}>
+                  <div style={{ marginBottom: 6 }}>
+                    <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2, fontWeight: 600 }}>Valeur €</label>
+                    <input style={{ ...inp, padding: '6px 8px', fontSize: 11 }} type="number" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
                   </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 600 }}>DEMO</label>
-                    <input style={{ ...inp, padding: '6px 8px', fontSize: 12 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
+                  <div style={{ marginBottom: 6 }}>
+                    <label style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2, fontWeight: 600 }}>DEMO</label>
+                    <input style={{ ...inp, padding: '6px 8px', fontSize: 11 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
                     <button style={btnPri} onClick={saveCommercial}>OK</button>
                     <button style={btnDef} onClick={() => setEditCommercial(false)}>✕</button>
                   </div>
                 </div>
               ) : (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, background: '#f8fafc' }}>
-                  {contacts.dealValue && <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 16 }}>{contacts.dealValue} €</div>}
-                  {contacts.demoDate && <div style={{ color: '#64748b', fontSize: 13 }}><strong>DEMO :</strong> {contacts.demoDate}</div>}
-                  {!contacts.dealValue && !contacts.demoDate && <div style={{ color: '#94a3b8', fontSize: 13 }}>-</div>}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, background: '#f8fafc' }}>
+                  {contacts.dealValue && <div style={{ fontWeight: 600, marginBottom: 2, fontSize: 15 }}>{contacts.dealValue} €</div>}
+                  {contacts.demoDate && <div style={{ color: '#64748b', fontSize: 12 }}><strong>DEMO :</strong> {contacts.demoDate}</div>}
+                  {!contacts.dealValue && !contacts.demoDate && <div style={{ color: '#94a3b8', fontSize: 12 }}>-</div>}
                 </div>
               )}
             </div>
 
             {/* ASSIGNÉ */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 1 }}>ASSIGNÉ</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                <button onClick={() => assignCollaborator(null)} style={{ padding: '5px 10px', borderRadius: 12, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non</button>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>ASSIGNÉ</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <button onClick={() => assignCollaborator(null)} style={{ padding: '4px 8px', borderRadius: 10, fontSize: 10, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non</button>
                 {collaborators.map((c: any) => (
-                  <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '5px 10px', borderRadius: 12, fontSize: 11, cursor: 'pointer', border: '1px solid', background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0' }}>
+                  <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '4px 8px', borderRadius: 10, fontSize: 10, cursor: 'pointer', border: '1px solid', background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0' }}>
                     {initials(c.name)}
                   </button>
                 ))}
@@ -295,7 +295,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           </div>
         </div>
 
-        {/* RIGHT: 2/3 - ACTIONS, NOTES & EMAILS (ORIGINAL SIZE) */}
+        {/* RIGHT PANEL: 2/3 - ACTIONS, NOTES, EMAILS (ORIGINAL SIZE) */}
         <div style={{ width: '66.66%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           
           {/* PIPELINE */}
