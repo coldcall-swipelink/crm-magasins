@@ -144,7 +144,7 @@ export default function ActionsPage() {
 
             return (
               <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: `1px solid ${late ? '#fecaca' : '#e2e8f0'}`, borderRadius: 10, borderLeft: `3px solid ${late ? '#dc2626' : '#e2e8f0'}` }}>
-                <button onClick={() => a.status === 'todo' && doneAction(a.id)} style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${a.status === 'done' ? '#16a34a' : '#cbd5e1'}`, background: a.status === 'done' ? '#16a34a' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10 }}>
+                <button onClick={(e) => { e.stopPropagation(); if (a.status === 'todo') doneAction(a.id); }} style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${a.status === 'done' ? '#16a34a' : '#cbd5e1'}`, background: a.status === 'done' ? '#16a34a' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10 }}>
                   {a.status === 'done' && '✓'}
                 </button>
 
@@ -166,8 +166,8 @@ export default function ActionsPage() {
                 <div style={{ fontSize: 12, color: late ? '#dc2626' : '#64748b', fontWeight: late ? 600 : 400, whiteSpace: 'nowrap' }}>
                   🕐 {formatRelativeDate(a.dueDate)}{(a as any).dueTime ? ` à ${(a as any).dueTime}` : ''}
                 </div>
-                <button onClick={() => setForm({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : new Date(a.dueDate).toISOString().slice(0, 10) } as any)} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>✎</button>
-                <button onClick={() => deleteAction(a.id)} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>🗑</button>
+                <button onClick={(e) => { e.stopPropagation(); setForm({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : new Date(a.dueDate).toISOString().slice(0, 10) } as any); }} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>✎</button>
+                <button onClick={(e) => { e.stopPropagation(); deleteAction(a.id); }} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>🗑</button>
               </div>
             );
           })}
