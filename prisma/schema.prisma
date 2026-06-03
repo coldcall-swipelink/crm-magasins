@@ -169,7 +169,7 @@ model Action {
   deal        Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
   title       String
   type        String    @default("Appeler")
-  dueDate     DateTime
+  dueDate     DateTime  @db.Timestamptz
   dueTime     String    @default("")
   status      String    @default("todo")
   priority    String    @default("normale")
