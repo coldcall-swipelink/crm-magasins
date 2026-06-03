@@ -32,10 +32,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
     }
 
-    // Traiter la date comme local (YYYY-MM-DD)
+    // Créer la date en UTC pour éviter les décalages timezone
     const dateStr = dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const dateObj = new Date(year, month - 1, day);
+    const dateObj = new Date(`${dateStr}T00:00:00Z`);
 
     const action = await prisma.action.create({
       data: {
