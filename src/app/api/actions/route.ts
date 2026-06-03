@@ -1,56 +1,36 @@
-// src/app/api/actions/route.ts
+// src/app/api/actions/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET(req: NextRequest) {
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { searchParams } = new URL(req.url);
-    const dealId = searchParams.get('dealId');
-    const status = searchParams.get('status');
+    const body = await req.json();
+    const data: Record<string, unknown> = {};
 
-    const where: Record<string, unknown> = {};
-    if (dealId) where.dealId = dealId;
-    if (status) where.status = status;
+    if ('title'    in body) data.title    = body.title;
+    if ('type'     in body) data.type     = body.type;
+    if ('dueDate'  in body) data.dueDate  = new Date(body.dueDate);
+    if ('dueTime'  in body) data.dueTime  = body.dueTime;
+    if ('priority' in body) data.priority = body.priority;
+    if ('note'     in body) data.note     = body.note;
+    if ('status'   in body) {
+      data.status = body.status;
+      if (body.status === 'done') data.completedAt = new Date();
+      if (body.status === 'todo') data.completedAt = null;
+    }
 
-    const actions = await prisma.action.findMany({
-      where,
-      include: { deal: { include: { store: { select: { name: true, city: true } } } } },
-      orderBy: { dueDate: 'asc' },
-    });
-    return NextResponse.json(actions);
+    const action = await prisma.action.update({ where: { id: params.id }, data });
+    return NextResponse.json(action);
   } catch (err) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const body = await req.json();
-    const { dealId, title, type, dueDate, dueTime, priority, note } = body;
-
-    if (!dealId || !title || !dueDate) {
-      return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
-    }
-
-    // Créer la date en UTC pour éviter les décalages timezone
-    const dateStr = dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
-    const dateObj = new Date(`${dateStr}T00:00:00Z`);
-
-    const action = await prisma.action.create({
-      data: {
-        dealId,
-        title,
-        type:     type     || 'Appeler',
-        dueDate:  dateObj,
-        dueTime:  dueTime  || '',
-        priority: priority || 'normale',
-        note:     note     || '',
-        status:   'todo',
-      },
-    });
-    return NextResponse.json(action, { status: 201 });
+    await prisma.action.delete({ where: { id: params.id } });
+    return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[POST /api/actions]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
