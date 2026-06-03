@@ -169,20 +169,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
         {/* LEFT: 1/3 - INFOS */}
         <div style={{ width: '33.33%', display: 'flex', flexDirection: 'column', overflowY: 'auto', borderRight: '1px solid #e2e8f0', minWidth: 0 }}>
-          <div style={{ padding: '16px' }}>
+          <div style={{ padding: '18px' }}>
 
             {/* HEADER */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 {brand && <div style={{ fontSize: 12, fontWeight: 700, color: bc, marginBottom: 1 }}>{brand.name}</div>}
-                <div style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store?.name}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store?.name}</div>
               </div>
               <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#94a3b8', padding: 0, flexShrink: 0 }}>×</button>
             </div>
 
             {/* MAGASIN */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>MAGASIN</div>
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>MAGASIN</div>
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 5, padding: 8, background: '#f8fafc', fontSize: 14 }}>
                 {[['Enseigne', brand?.name], ['Ville', store?.city]].map(([l, v]) => v && (
                   <div key={l} style={{ display: 'flex', gap: 3, marginBottom: 2 }}>
@@ -194,9 +194,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
 
             {/* CONTACTS */}
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>CONTACTS</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>CONTACTS</div>
                 <button onClick={() => setEditContacts(!editContacts)} style={{ fontSize: 8, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{editContacts ? '✕' : '✎'}</button>
               </div>
               
@@ -204,14 +204,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 5, padding: 6 }}>
                   {[['Civilité', 'civility'], ['Nom', 'name'], ['Dir.', 'directeur'], ['Tél', 'contactCalling'], ['Email', 'dealEmail']].map(([label, key]) => (
                     <div key={key} style={{ marginBottom: 5 }}>
-                      <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>{label}</label>
+                      <label style={{ fontSize: 14, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>{label}</label>
                       {key === 'civility' ? (
                         <select style={inp} value={contacts.contactCivilite} onChange={e => setContacts(c => ({ ...c, contactCivilite: e.target.value }))}>
                           <option>Monsieur</option>
                           <option>Madame</option>
                         </select>
                       ) : (
-                        <input style={{ ...inp, padding: '4px 6px', fontSize: 10 }} value={key === 'name' ? contacts.contactLastName : contacts[key as keyof typeof contacts]} onChange={e => {
+                        <input style={{ ...inp, padding: '4px 6px', fontSize: 12 }} value={key === 'name' ? contacts.contactLastName : contacts[key as keyof typeof contacts]} onChange={e => {
                           if (key === 'name') setContacts(c => ({ ...c, contactLastName: e.target.value }));
                           else setContacts(c => ({ ...c, [key]: e.target.value }));
                         }} />
@@ -235,8 +235,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* OFFRES */}
             {deal.jobOffers && deal.jobOffers.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>OFFRES</div>
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>OFFRES</div>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 5, padding: 4, background: '#f8fafc' }}>
                   {deal.jobOffers.map((offer: any) => (
                     <div key={offer.id} style={{ fontSize: 8, marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' }}>
@@ -249,21 +249,21 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             )}
 
             {/* COMMERCIAL */}
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>COMMERCIAL</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>COMMERCIAL</div>
                 <button onClick={() => setEditCommercial(!editCommercial)} style={{ fontSize: 8, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{editCommercial ? '✕' : '✎'}</button>
               </div>
 
               {editCommercial ? (
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 5, padding: 6 }}>
                   <div style={{ marginBottom: 5 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>Valeur €</label>
-                    <input style={{ ...inp, padding: '4px 6px', fontSize: 10 }} type="number" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
+                    <label style={{ fontSize: 14, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>Valeur €</label>
+                    <input style={{ ...inp, padding: '4px 6px', fontSize: 12 }} type="number" value={contacts.dealValue} onChange={e => setContacts(c => ({ ...c, dealValue: e.target.value }))} />
                   </div>
                   <div style={{ marginBottom: 5 }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>DEMO</label>
-                    <input style={{ ...inp, padding: '4px 6px', fontSize: 10 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
+                    <label style={{ fontSize: 14, color: '#64748b', display: 'block', marginBottom: 1, fontWeight: 600 }}>DEMO</label>
+                    <input style={{ ...inp, padding: '4px 6px', fontSize: 12 }} type="date" value={contacts.demoDate} onChange={e => setContacts(c => ({ ...c, demoDate: e.target.value }))} />
                   </div>
                   <div style={{ display: 'flex', gap: 3 }}>
                     <button style={btnPri} onClick={saveCommercial}>OK</button>
@@ -281,7 +281,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* ASSIGNÉ */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>ASSIGNÉ</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>ASSIGNÉ</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 <button onClick={() => assignCollaborator(null)} style={{ padding: '3px 6px', borderRadius: 10, fontSize: 8, cursor: 'pointer', border: '1px solid', background: !currentCollab ? '#eef2ff' : '#f1f5f9', color: !currentCollab ? '#4338ca' : '#64748b', borderColor: !currentCollab ? '#6366f1' : '#e2e8f0', fontWeight: !currentCollab ? 600 : 400 }}>Non</button>
                 {collaborators.map((c: any) => (
@@ -315,15 +315,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             {editingAction ? (
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Éditer l'action</div>
-                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.title} onChange={e => setEditActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
-                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.type} onChange={e => setEditActionForm(f => ({ ...f, type: e.target.value }))}>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={editActionForm.title} onChange={e => setEditActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={editActionForm.type} onChange={e => setEditActionForm(f => ({ ...f, type: e.target.value }))}>
                   {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                  <input style={{ ...inp, flex: 1, fontSize: 10 }} type="date" value={editActionForm.dueDate} onChange={e => setEditActionForm(f => ({ ...f, dueDate: e.target.value }))} />
-                  <input style={{ ...inp, flex: 0.6, fontSize: 10 }} type="time" value={editActionForm.dueTime} onChange={e => setEditActionForm(f => ({ ...f, dueTime: e.target.value }))} />
+                  <input style={{ ...inp, flex: 1, fontSize: 12 }} type="date" value={editActionForm.dueDate} onChange={e => setEditActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                  <input style={{ ...inp, flex: 0.6, fontSize: 12 }} type="time" value={editActionForm.dueTime} onChange={e => setEditActionForm(f => ({ ...f, dueTime: e.target.value }))} />
                 </div>
-                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={editActionForm.priority} onChange={e => setEditActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
+                <select style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={editActionForm.priority} onChange={e => setEditActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
                   {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -335,15 +335,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             ) : showCreateAction ? (
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Créer une action</div>
-                <input style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.title} onChange={e => setNewActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
-                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.type} onChange={e => setNewActionForm(f => ({ ...f, type: e.target.value }))}>
+                <input style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={newActionForm.title} onChange={e => setNewActionForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" />
+                <select style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={newActionForm.type} onChange={e => setNewActionForm(f => ({ ...f, type: e.target.value }))}>
                   {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                  <input style={{ ...inp, flex: 1, fontSize: 10 }} type="date" value={newActionForm.dueDate} onChange={e => setNewActionForm(f => ({ ...f, dueDate: e.target.value }))} />
-                  <input style={{ ...inp, flex: 0.6, fontSize: 10 }} type="time" value={newActionForm.dueTime} onChange={e => setNewActionForm(f => ({ ...f, dueTime: e.target.value }))} />
+                  <input style={{ ...inp, flex: 1, fontSize: 12 }} type="date" value={newActionForm.dueDate} onChange={e => setNewActionForm(f => ({ ...f, dueDate: e.target.value }))} />
+                  <input style={{ ...inp, flex: 0.6, fontSize: 12 }} type="time" value={newActionForm.dueTime} onChange={e => setNewActionForm(f => ({ ...f, dueTime: e.target.value }))} />
                 </div>
-                <select style={{ ...inp, marginBottom: 6, fontSize: 10 }} value={newActionForm.priority} onChange={e => setNewActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
+                <select style={{ ...inp, marginBottom: 6, fontSize: 12 }} value={newActionForm.priority} onChange={e => setNewActionForm(f => ({ ...f, priority: e.target.value as Priority }))}>
                   {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -367,7 +367,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                           <input type="checkbox" onChange={() => completeAction(action.id)} style={{ marginTop: 2, cursor: 'pointer' }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 14, fontWeight: 600, color: '#334155' }}>{action.title}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>{action.type} • {formatDate(action.dueDate)}</div>
+                            <div style={{ fontSize: 14, color: '#64748b' }}>{action.type} • {formatDate(action.dueDate)}</div>
                           </div>
                           <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', padding: '2px 4px', borderRadius: 3, whiteSpace: 'nowrap' }}>{action.priority}</span>
                         </div>
@@ -403,7 +403,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {/* TEMPLATE SELECTOR */}
               <div>
                 <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Template</label>
-                <select style={{ ...inp, fontSize: 10 }} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
+                <select style={{ ...inp, fontSize: 12 }} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
                   <option value="">Personnalisé</option>
                   {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
@@ -424,11 +424,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {/* BODY */}
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Message</label>
-                <textarea style={{ ...inp, fontSize: 10, height: '100px', resize: 'none' }} placeholder="Écrivez votre message ici…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
+                <textarea style={{ ...inp, fontSize: 12, height: '100px', resize: 'none' }} placeholder="Écrivez votre message ici…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
               </div>
 
               {/* ACTIONS */}
-              <div style={{ display: 'flex', gap: 6, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+              <div style={{ display: 'flex', gap: 4, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
                 <button onClick={sendEmail} disabled={sendingEmail} style={{ flex: 1, ...btnPri, fontSize: 10, opacity: sendingEmail ? 0.7 : 1 }}>
                   {sendingEmail ? '⏳ Envoi...' : '✉️ Envoyer'}
                 </button>
@@ -449,14 +449,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {item.type === 'note' ? (
                     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#fafbfc' }}>
                       <div style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8', marginBottom: 2 }}>📝 NOTE</div>
-                      <p style={{ fontSize: 14, color: '#334155', whiteSpace: 'pre-wrap', margin: 0, marginBottom: 2 }}>{item.data.content}</p>
+                      <p style={{ fontSize: 18, color: '#334155', whiteSpace: 'pre-wrap', margin: 0, marginBottom: 2 }}>{item.data.content}</p>
                       <div style={{ fontSize: 7, color: '#94a3b8' }}>{formatDate(item.data.createdAt)}</div>
                     </div>
                   ) : (
                     <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#f0f4ff' }}>
                       <div style={{ fontSize: 8, fontWeight: 700, color: '#4338ca', marginBottom: 2 }}>📧 EMAIL</div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#334155', marginBottom: 1 }}>{item.data.subject}</div>
-                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>→ {item.data.to}</div>
+                      <div style={{ fontSize: 14, color: '#64748b', marginBottom: 2 }}>→ {item.data.to}</div>
                       {item.data.status === 'opened' && <span style={{ fontSize: 7, background: '#dbeafe', color: '#1d4ed8', padding: '1px 3px', borderRadius: 2, fontWeight: 500 }}>👁 Ouvert</span>}
                       {item.data.status === 'sent' && <span style={{ fontSize: 7, background: '#dcfce7', color: '#15803d', padding: '1px 3px', borderRadius: 2, fontWeight: 500 }}>✓ Envoyé</span>}
                     </div>
