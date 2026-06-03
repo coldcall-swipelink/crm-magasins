@@ -5,10 +5,18 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { dealId, storeId, importBatchId, jobTitle, title, contractType, salary, source, url } = body;
+    const { dealId, storeId, jobTitle, title, contractType, salary, source, url } = body;
 
     if (!dealId || !storeId || !jobTitle) {
       return NextResponse.json({ error: 'dealId, storeId et jobTitle sont requis' }, { status: 400 });
+    }
+
+    // Récupérer ou créer un batch "manual"
+    let batch = await prisma.importBatch.findFirst({ where: { fileName: 'manual' } });
+    if (!batch) {
+      batch = await prisma.importBatch.create({
+        data: { fileName: 'manual', totalRows: 0 },
+      });
     }
 
     // Créer un fingerprint unique pour l'offre
@@ -18,7 +26,7 @@ export async function POST(req: NextRequest) {
       data: {
         dealId,
         storeId,
-        importBatchId,
+        importBatchId: batch.id,
         jobTitle,
         title: title || jobTitle,
         contractType: contractType || '',
