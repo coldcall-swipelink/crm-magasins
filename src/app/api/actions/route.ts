@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         dealId,
         title,
         type:     type     || 'Appeler',
-        dueDate:  new Date(dueDate),
+        dueDate:  new Date(`${dueDate}T00:00:00Z`),
         dueTime:  dueTime  || '',
         priority: priority || 'normale',
         note:     note     || '',
