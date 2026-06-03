@@ -386,19 +386,45 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           )}
 
-          {/* EMAIL FORM */}
+          {/* EMAIL COMPOSER */}
           {showEmailForm && (
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', maxHeight: 250, overflowY: 'auto' }}>
-              <select style={{ ...inp, marginBottom: 5, fontSize: 10 }} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
-                <option value="">Template</option>
-                {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-              <input style={{ ...inp, marginBottom: 5, fontSize: 10 }} type="email" placeholder="To" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
-              <input style={{ ...inp, marginBottom: 5, fontSize: 10 }} placeholder="Subject" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
-              <textarea style={{ ...inp, height: 40, resize: 'none', marginBottom: 5, fontSize: 10 }} placeholder="Body" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, flex: 1, opacity: sendingEmail ? .7 : 1, fontSize: 10 }}>{sendingEmail ? '...' : '✓'}</button>
-                <button style={{ ...btnDef, flex: 1, fontSize: 10 }} onClick={() => { setShowEmailForm(false); setEmailSubject(''); setEmailBody(''); }}>✕</button>
+            <div style={{ padding: '12px', borderBottom: '1px solid #e2e8f0', background: '#fff', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              
+              {/* TEMPLATE SELECTOR */}
+              <div>
+                <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Template</label>
+                <select style={{ ...inp, fontSize: 10 }} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
+                  <option value="">Personnalisé</option>
+                  {templates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+
+              {/* TO */}
+              <div>
+                <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Destinataire</label>
+                <input style={{ ...inp, fontSize: 10, background: '#eef2ff', borderColor: '#6366f1' }} type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+              </div>
+
+              {/* SUBJECT */}
+              <div>
+                <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Sujet</label>
+                <input style={{ ...inp, fontSize: 10 }} placeholder="Ex: Suivi de votre candidature" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+              </div>
+
+              {/* BODY */}
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 8, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Message</label>
+                <textarea style={{ ...inp, fontSize: 10, height: '100px', resize: 'none' }} placeholder="Écrivez votre message ici…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
+              </div>
+
+              {/* ACTIONS */}
+              <div style={{ display: 'flex', gap: 6, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+                <button onClick={sendEmail} disabled={sendingEmail} style={{ flex: 1, ...btnPri, fontSize: 10, opacity: sendingEmail ? 0.7 : 1 }}>
+                  {sendingEmail ? '⏳ Envoi...' : '✉️ Envoyer'}
+                </button>
+                <button style={{ flex: 1, ...btnDef, fontSize: 10 }} onClick={() => { setShowEmailForm(false); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); }}>
+                  Annuler
+                </button>
               </div>
             </div>
           )}
