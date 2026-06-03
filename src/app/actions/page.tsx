@@ -77,7 +77,7 @@ export default function ActionsPage() {
     const payload = {
       title: form.title,
       type: form.type || 'Appeler',
-      dueDate: typeof form.dueDate === 'string' ? form.dueDate : form.dueDate.toISOString().slice(0, 10),
+      dueDate: form.dueDate,
       dueTime: (form as any).dueTime || '',
       priority: form.priority || 'normale',
       note: form.note || '',
