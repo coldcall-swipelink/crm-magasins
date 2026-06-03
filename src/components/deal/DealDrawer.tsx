@@ -186,8 +186,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, background: '#f8fafc' }}>
                 {[['Enseigne', brand?.name], ['Ville', store?.city]].map(([l, v]) => v && (
                   <div key={l} style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                    <span style={{ width: 70, flexShrink: 0, color: '#64748b', fontWeight: 600, fontSize: 13 }}>{l}</span>
-                    <span style={{ color: '#334155', fontSize: 14, fontWeight: 500, wordBreak: 'break-word' }}>{v}</span>
+                    <span style={{ width: 70, flexShrink: 0, color: '#64748b', fontWeight: 600, fontSize: 14 }}>{l}</span>
+                    <span style={{ color: '#334155', fontSize: 14, fontWeight: 500, wordBreak: 'break-word', fontSize: 15 }}>{v}</span>
                   </div>
                 ))}
               </div>
@@ -226,8 +226,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               ) : (
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, background: '#f8fafc' }}>
                   <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 15 }}>{contacts.contactCivilite} {contacts.contactLastName}</div>
-                  {contacts.directeur && <div style={{ color: '#64748b', fontSize: 13, marginBottom: 2 }}><strong>Dir :</strong> {contacts.directeur}</div>}
-                  {contacts.contactCalling && <div style={{ color: '#64748b', fontSize: 13, marginBottom: 2 }}><strong>Tel :</strong> {contacts.contactCalling}</div>}
+                  {contacts.directeur && <div style={{ color: '#64748b', fontSize: 14, marginBottom: 3 }}><strong>Dir :</strong> {contacts.directeur}</div>}
+                  {contacts.contactCalling && <div style={{ color: '#64748b', fontSize: 14, marginBottom: 3 }}><strong>Tel :</strong> {contacts.contactCalling}</div>}
                   {contacts.dealEmail && <div style={{ color: '#64748b', fontSize: 13 }}><strong>Email :</strong> {contacts.dealEmail}</div>}
                 </div>
               )}
@@ -241,7 +241,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {deal.jobOffers.map((offer: any) => (
                     <div key={offer.id} style={{ fontSize: 13, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #e2e8f0' }}>
                       <div style={{ fontWeight: 600, color: '#334155', fontSize: 14 }}>{offer.jobTitle}</div>
-                      {offer.firstSeenAt && <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>{formatDate(offer.firstSeenAt)}</div>}
+                      {offer.firstSeenAt && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 3 }}>{formatDate(offer.firstSeenAt)}</div>}
                     </div>
                   ))}
                 </div>
