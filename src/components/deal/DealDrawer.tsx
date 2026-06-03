@@ -56,6 +56,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
+  const [offerForm, setOF] = useState<any>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -157,6 +158,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   };
 
   const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal(); onUpdated(); };
+
+  const createOffer = async () => {
+    if (!offerForm?.jobTitle) { toast('Titre de l\'offre requis', 'error'); return; }
+    await fetch('/api/jobOffers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, storeId: deal.storeId, importBatchId: 'manual', ...offerForm }) });
+    setOF(null); fetchDeal(); onUpdated(); toast('Offre créée');
+  };
 
   const setPriority = async (priority: Priority) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority }) });
@@ -298,7 +305,24 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
           {tab === 'offers' && (
             <div>
-              {!dOffers.length && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
+              <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setOF({ title: '', jobTitle: '', contractType: '', salary: '', source: '', url: '' })}>+ Nouvelle offre</button>
+              {offerForm && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={offerForm.jobTitle || ''} onChange={e => setOF(f => ({ ...f, jobTitle: e.target.value }))} />
+                    <input style={inp} placeholder="Titre alternatif" value={offerForm.title || ''} onChange={e => setOF(f => ({ ...f, title: e.target.value }))} />
+                    <input style={inp} placeholder="Type de contrat" value={offerForm.contractType || ''} onChange={e => setOF(f => ({ ...f, contractType: e.target.value }))} />
+                    <input style={inp} placeholder="Salaire" value={offerForm.salary || ''} onChange={e => setOF(f => ({ ...f, salary: e.target.value }))} />
+                    <input style={inp} placeholder="Source" value={offerForm.source || ''} onChange={e => setOF(f => ({ ...f, source: e.target.value }))} />
+                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="URL" value={offerForm.url || ''} onChange={e => setOF(f => ({ ...f, url: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={btnPri} onClick={createOffer}>Créer</button>
+                    <button style={btnDef} onClick={() => setOF(null)}>Annuler</button>
+                  </div>
+                </div>
+              )}
+              {!dOffers.length && !offerForm && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre.</p>}
               {dOffers.map((o: any) => (
                 <div key={o.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#f8fafc', marginBottom: 8 }}>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
