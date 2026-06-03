@@ -309,12 +309,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {offerForm && (
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={offerForm.jobTitle || ''} onChange={e => setOF(f => ({ ...f, jobTitle: e.target.value }))} />
-                    <input style={inp} placeholder="Titre alternatif" value={offerForm.title || ''} onChange={e => setOF(f => ({ ...f, title: e.target.value }))} />
-                    <input style={inp} placeholder="Type de contrat" value={offerForm.contractType || ''} onChange={e => setOF(f => ({ ...f, contractType: e.target.value }))} />
-                    <input style={inp} placeholder="Salaire" value={offerForm.salary || ''} onChange={e => setOF(f => ({ ...f, salary: e.target.value }))} />
-                    <input style={inp} placeholder="Source" value={offerForm.source || ''} onChange={e => setOF(f => ({ ...f, source: e.target.value }))} />
-                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="URL" value={offerForm.url || ''} onChange={e => setOF(f => ({ ...f, url: e.target.value }))} />
+                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={offerForm.jobTitle || ''} onChange={e => setOF((f: any) => ({ ...f, jobTitle: e.target.value }))} />
+                    <input style={inp} placeholder="Titre alternatif" value={offerForm.title || ''} onChange={e => setOF((f: any) => ({ ...f, title: e.target.value }))} />
+                    <input style={inp} placeholder="Type de contrat" value={offerForm.contractType || ''} onChange={e => setOF((f: any) => ({ ...f, contractType: e.target.value }))} />
+                    <input style={inp} placeholder="Salaire" value={offerForm.salary || ''} onChange={e => setOF((f: any) => ({ ...f, salary: e.target.value }))} />
+                    <input style={inp} placeholder="Source" value={offerForm.source || ''} onChange={e => setOF((f: any) => ({ ...f, source: e.target.value }))} />
+                    <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="URL" value={offerForm.url || ''} onChange={e => setOF((f: any) => ({ ...f, url: e.target.value }))} />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button style={btnPri} onClick={createOffer}>Créer</button>
