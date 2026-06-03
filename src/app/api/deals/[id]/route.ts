@@ -31,7 +31,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
-
     const deal = await prisma.deal.update({ 
       where: { id: params.id }, 
       data,
@@ -39,7 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         store: { include: { brand: true } },
         column: true,
         collaborator: true,
-        jobOffers: true,
+        jobOffers: { orderBy: { firstSeenAt: 'desc' } },
+        actions: { orderBy: { dueDate: 'asc' } },
+        notes: { orderBy: { createdAt: 'desc' } },
       },
     });
 
@@ -48,29 +49,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const newColumn = await prisma.pipelineColumn.findUnique({
         where: { id: body.columnId },
       });
-
       console.log('Column title:', newColumn?.title);
       console.log('Is DEMO FAITE?', newColumn?.title === 'DEMO FAITE');
-
+      
       if (newColumn?.title === 'DEMO FAITE') {
         console.log('Sending webhook...');
-        // Envoyer webhook à n8n
         try {
           await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               event: 'deal_moved_to_demo_faite',
-              dealId: deal.id,
-              storeName: deal.store.name,
-              brandName: deal.store.brand?.name,
-              contactCivilite: deal.contactCivilite,
-              contactLastName: deal.contactLastName,
-              dealEmail: deal.dealEmail,
-              contactCalling: deal.contactCalling,
-              directeur: deal.directeur,
-              dealValue: deal.dealValue,
-              demoDate: deal.demoDate,
+              ...deal, // Envoie le deal complet avec toutes les relations
             }),
           });
           console.log('Webhook sent successfully');
@@ -82,6 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json(deal);
   } catch (err) {
+    console.error('PATCH error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
