@@ -73,8 +73,14 @@ export default function ActionsPage() {
   const saveAction = async () => {
     if (!form?.title || !form.dueDate || !form.dealId) { toast('Titre, date et affaire requis', 'error'); return; }
     const url = form.id ? `/api/actions/${form.id}` : '/api/actions';
-    const res = await fetch(url, { method: form.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-    if (res.ok) { setForm(null); fetchAll(); toast('Action enregistrée'); }
+    try {
+      const res = await fetch(url, { method: form.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) { toast(`Erreur: ${data.error || 'Impossible d\'enregistrer'}`, 'error'); return; }
+      setForm(null); fetchAll(); toast('Action enregistrée');
+    } catch (e) {
+      toast(`Erreur réseau: ${(e as Error).message}`, 'error');
+    }
   };
 
   const doneAction = async (id: string) => {
