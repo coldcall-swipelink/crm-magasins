@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Envoyer webhook à n8n si colonne = "DEMO FAITE"
     if (column.title === 'DEMO FAITE') {
       try {
-        await fetch('https://swipelink.app.n8n.cloud/webhook-test/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
+        await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
