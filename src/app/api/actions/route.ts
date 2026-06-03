@@ -32,12 +32,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
     }
 
+    // Traiter la date comme local (YYYY-MM-DD)
+    const dateStr = dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+
     const action = await prisma.action.create({
       data: {
         dealId,
         title,
         type:     type     || 'Appeler',
-        dueDate:  new Date(`${dueDate}T00:00:00Z`),
+        dueDate:  dateObj,
         dueTime:  dueTime  || '',
         priority: priority || 'normale',
         note:     note     || '',
