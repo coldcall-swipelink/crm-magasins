@@ -55,7 +55,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [actionForm, setAF] = useState<Partial<Action> | null>(null);
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
-  const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '' });
+  const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', contactCivilite: '', contactLastName: '' });
   const [offerForm, setOF] = useState<any>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
@@ -74,7 +74,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     if (res.ok) {
       const d = await res.json();
       setDeal(d);
-      setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '' });
+      setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '', contactCivilite: d.contactCivilite || '', contactLastName: d.contactLastName || '' });
       setEmailTo(d.dealEmail || '');
     }
     setLoading(false);
@@ -273,7 +273,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
               {editContacts ? (
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
-                  {[['Directeur', 'directeur', 'Prénom Nom'], ['Contact calling', 'contactCalling', 'Prénom Nom'], ['Email', 'dealEmail', 'contact@magasin.fr']].map(([label, key, ph]) => (
+                  {[['Civilité', 'contactCivilite', 'Monsieur'], ['Nom de famille', 'contactLastName', 'Dupont'], ['Directeur', 'directeur', 'Prénom Nom'], ['Contact calling', 'contactCalling', 'Prénom Nom'], ['Email', 'dealEmail', 'contact@magasin.fr']].map(([label, key, ph]) => (
                     <div key={key} style={{ marginBottom: 8 }}>
                       <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>{label}</label>
                       <input style={inp} placeholder={ph} value={(contacts as any)[key]} onChange={e => setContacts(c => ({ ...c, [key]: e.target.value }))} />
@@ -285,7 +285,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   </div>
                 </div>
               ) : (
-                [['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
+                [['Civilité', deal.contactCivilite], ['Nom', deal.contactLastName], ['Directeur', deal.directeur], ['Contact calling', deal.contactCalling], ['Email', deal.dealEmail]].map(([l, v]) => (
                   <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
                     <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                     <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
