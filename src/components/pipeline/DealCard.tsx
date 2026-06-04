@@ -24,6 +24,26 @@ function initials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
+function getActionBackgroundColor(actions?: any[]): string {
+  if (!actions || actions.length === 0) return '#ffffff';
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  for (const action of actions) {
+    if (action.status === 'done') continue; // Ignorer les actions complétées
+    
+    const dueDate = new Date(action.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    if (dueDate < today) return '#fce7e6'; // Rouge pastel (retard)
+    if (dueDate.getTime() === today.getTime()) return '#e0f2fe'; // Bleu ciel léger (aujourd'hui)
+    if (dueDate > today) return '#f3f4f6'; // Gris très léger (à venir)
+  }
+  
+  return '#ffffff'; // Blanc par défaut
+}
+
 export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onSelect }: Props) {
   const store = deal.store;
   const brand = store?.brand;
@@ -32,6 +52,7 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;
+  const backgroundColor = getActionBackgroundColor(deal.actions);
 
   return (
     <div
@@ -40,16 +61,26 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       onDragEnd={onDragEnd}
       onClick={onSelect}
       style={{
-        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9,
-        padding: '9px 11px', cursor: 'pointer', userSelect: 'none',
+        background: backgroundColor,
+        border: '1px solid #e2e8f0',
+        borderRadius: 9,
+        padding: '9px 11px',
+        cursor: 'pointer',
+        userSelect: 'none',
         borderLeft: `4px solid ${borderColor}`,
         outline: borderColor === '#ffffff' ? '1px solid #cbd5e1' : 'none',
         opacity: isDragging ? 0.5 : 1,
         boxShadow: movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)',
         transition: 'transform .1s, box-shadow .1s',
       }}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 3px 10px rgba(0,0,0,.1)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ''; (e.currentTarget as HTMLDivElement).style.boxShadow = movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)'; }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 3px 10px rgba(0,0,0,.1)';
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLDivElement).style.transform = '';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = movedBack ? '0 0 0 1.5px #f59e0b55' : '0 1px 3px rgba(0,0,0,.06)';
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
