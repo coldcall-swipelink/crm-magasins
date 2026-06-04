@@ -252,7 +252,7 @@ export async function runCsvImport(
   }
 
   // ── 6. Basculer TOUS les deals traités en "À appeler" ─────────────────────
-  for (const dealId of dealsToMove) {
+  for (const dealId of Array.from(dealsToMove)) {
     const deal = await prisma.deal.findUnique({ where: { id: dealId } });
     if (deal && deal.columnId !== defaultColumn.id) {
       await prisma.deal.update({
