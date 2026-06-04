@@ -72,6 +72,7 @@ export async function runCsvImport(
   let movedToCall     = 0;
   const errors: Array<{ row: number; message: string }> = [];
   const processedStoreIds = new Set<string>();
+  const dealsToMove = new Set<string>(); // Track deals à basculer
 
   for (let i = 0; i < rows.length; i++) {
     const rowNum = i + 1;
@@ -188,6 +189,7 @@ export async function runCsvImport(
       }
 
       processedStoreIds.add(store.id);
+      dealsToMove.add(deal.id); // Ajouter aux deals à basculer
 
       // ── C. Déduplication offre ───────────────────────────────────────────
       const fingerprint = buildOfferFingerprint(store.id, mapped);
@@ -213,21 +215,6 @@ export async function runCsvImport(
           },
         });
         newOffers++;
-
-        if (!isNewDeal) {
-          // ─── RÈGLE CLÉ : Magasin existant + nouvelle offre → retour en "À appeler"
-          await prisma.deal.update({
-            where: { id: deal.id },
-            data: {
-              previousColumnId:        deal.columnId,      // mémoriser l'ancienne colonne
-              columnId:                defaultColumn.id,   // → "À appeler"
-              hasNewOfferFromLastImport: true,
-              movedToCallAt:           new Date(),
-            },
-          });
-          deal = { ...deal, columnId: defaultColumn.id }; // mettre à jour l'objet local
-          movedToCall++;
-        }
       } else {
         // ─── CAS 3 : Offre déjà connue → seulement lastSeenAt ──────────────
         // Aucun changement de colonne
@@ -264,7 +251,23 @@ export async function runCsvImport(
     }
   }
 
-  // ── 6. CAS 5 : Marquer les offres disparues ───────────────────────────────
+  // ── 6. Basculer TOUS les deals traités en "À appeler" ─────────────────────
+  for (const dealId of dealsToMove) {
+    const deal = await prisma.deal.findUnique({ where: { id: dealId } });
+    if (deal && deal.columnId !== defaultColumn.id) {
+      await prisma.deal.update({
+        where: { id: dealId },
+        data: {
+          previousColumnId: deal.columnId,
+          columnId: defaultColumn.id,
+          movedToCallAt: new Date(),
+        },
+      });
+      movedToCall++;
+    }
+  }
+
+  // ── 7. CAS 5 : Marquer les offres disparues ───────────────────────────────
   // Une offre est "disparue" si son magasin n'était PAS dans cet import
   // et que l'offre était encore active avant
   const disappearedResult = await prisma.jobOffer.updateMany({
@@ -277,7 +280,7 @@ export async function runCsvImport(
   });
   const disappearedOffers = disappearedResult.count;
 
-  // ── 7. Mettre à jour le résumé du batch ──────────────────────────────────
+  // ── 8. Mettre à jour le résumé du batch ──────────────────────────────────
   await prisma.importBatch.update({
     where: { id: batch.id },
     data: {
