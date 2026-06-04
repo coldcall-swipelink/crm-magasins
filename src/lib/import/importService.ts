@@ -46,7 +46,7 @@ export async function runCsvImport(
   const defaultColumn = await prisma.pipelineColumn.findFirst({ 
     where: { 
       pipelineId: prospectionPipeline.id,
-      position: 0 
+      title: 'À appeler'
     } 
   });
   if (!defaultColumn) throw new Error('Colonne "À appeler" non trouvée dans le pipeline Prospection');
