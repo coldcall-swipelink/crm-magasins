@@ -10,10 +10,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const { columnId, position } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
-
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
-
     const deal = await prisma.deal.update({
       where: { id: params.id },
       data: {
@@ -30,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     });
 
-    // Envoyer webhook à n8n si colonne = "DEMO FAITE"
+    // Webhook DEMO FAITE
     if (column.title === 'DEMO FAITE') {
       try {
         await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
@@ -51,7 +49,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           }),
         });
       } catch (webhookErr) {
-        console.error('Webhook error:', webhookErr);
+        console.error('Webhook DEMO FAITE error:', webhookErr);
+      }
+    }
+
+    // Webhook RELANCE 1
+    if (column.title === 'RELANCE 1') {
+      try {
+        await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'deal_moved_to_relance_1',
+            dealId: deal.id,
+            storeName: deal.store.name,
+            brandName: deal.store.brand?.name,
+            contactCivilite: deal.contactCivilite,
+            contactLastName: deal.contactLastName,
+            dealEmail: deal.dealEmail,
+            contactCalling: deal.contactCalling,
+            directeur: deal.directeur,
+            dealValue: deal.dealValue,
+            demoDate: deal.demoDate,
+          }),
+        });
+      } catch (webhookErr) {
+        console.error('Webhook RELANCE 1 error:', webhookErr);
       }
     }
 
