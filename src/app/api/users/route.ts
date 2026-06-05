@@ -18,24 +18,34 @@ function pickColor(seed: string) {
 }
 
 export async function GET() {
-  const users = await prisma.user.findMany({ orderBy: { name: 'asc' } });
-  return NextResponse.json(users);
+  try {
+    const users = await prisma.user.findMany({ orderBy: { name: 'asc' } });
+    return NextResponse.json(users);
+  } catch (err) {
+    console.error('[GET /api/users]', err);
+    return NextResponse.json({ error: (err as Error).message || 'Erreur serveur' }, { status: 500 });
+  }
 }
 
 // Connexion par saisie libre du nom : retrouve l'utilisateur existant
 // (insensible à la casse) ou le crée. Idempotent.
 export async function POST(req: NextRequest) {
-  const { name, color } = await req.json();
-  const trimmed = (name || '').trim();
-  if (!trimmed) return NextResponse.json({ error: 'name requis' }, { status: 400 });
+  try {
+    const { name, color } = await req.json();
+    const trimmed = (name || '').trim();
+    if (!trimmed) return NextResponse.json({ error: 'name requis' }, { status: 400 });
 
-  const existing = await prisma.user.findFirst({
-    where: { name: { equals: trimmed, mode: 'insensitive' } },
-  });
-  if (existing) return NextResponse.json(existing);
+    const existing = await prisma.user.findFirst({
+      where: { name: { equals: trimmed, mode: 'insensitive' } },
+    });
+    if (existing) return NextResponse.json(existing);
 
-  const user = await prisma.user.create({
-    data: { name: trimmed, color: color || pickColor(trimmed) },
-  });
-  return NextResponse.json(user, { status: 201 });
+    const user = await prisma.user.create({
+      data: { name: trimmed, color: color || pickColor(trimmed) },
+    });
+    return NextResponse.json(user, { status: 201 });
+  } catch (err) {
+    console.error('[POST /api/users]', err);
+    return NextResponse.json({ error: (err as Error).message || 'Erreur serveur' }, { status: 500 });
+  }
 }

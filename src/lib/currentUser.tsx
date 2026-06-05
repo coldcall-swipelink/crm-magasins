@@ -38,7 +38,14 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Connexion impossible');
+    if (!res.ok) {
+      // Lit la réponse en texte d'abord pour ne pas planter si le corps n'est
+      // pas du JSON (ex : erreur serveur), et remonter un message exploitable.
+      const raw = await res.text();
+      let msg = `Erreur ${res.status}`;
+      try { msg = JSON.parse(raw).error || msg; } catch { if (raw) msg = raw.slice(0, 200); }
+      throw new Error(msg);
+    }
     const u: CurrentUser = await res.json();
     const compact = { id: u.id, name: u.name, color: u.color };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(compact));
