@@ -94,3 +94,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const existing = await prisma.deal.findUnique({ where: { id: params.id } });
+    if (!existing) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+
+    // Les actions, notes, emailLogs et jobOffers sont supprimés en cascade.
+    // Les importRows liés voient leur dealId mis à null (relation optionnelle).
+    await prisma.deal.delete({ where: { id: params.id } });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('DELETE error:', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}

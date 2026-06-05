@@ -170,6 +170,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated();
   };
 
+  const deleteDeal = async () => {
+    const name = deal?.store?.name || 'cette affaire';
+    if (!window.confirm(`Supprimer ${name} ? Les actions, notes, offres et emails associés seront définitivement supprimés. Cette action est irréversible.`)) return;
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast('Affaire supprimée');
+      onUpdated();
+      onClose();
+    } catch (e) {
+      toast((e as Error).message || 'Erreur lors de la suppression', 'error');
+    }
+  };
+
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,.3)', display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: 500, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -300,6 +314,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   <span style={{ color: '#334155' }}>{v}</span>
                 </div>
               ))}
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', letterSpacing: '.8px', textTransform: 'uppercase', margin: '20px 0 8px' }}>ZONE DE DANGER</div>
+              <button onClick={deleteDeal} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontWeight: 600, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                🗑 Supprimer l'affaire
+              </button>
+              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Le magasin reste dans la base, seule l'affaire (actions, notes, offres, emails) est supprimée.</p>
             </div>
           )}
 
