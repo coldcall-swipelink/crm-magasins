@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const search         = searchParams.get('search');
     const brandId        = searchParams.get('brandId');
     const collaboratorId = searchParams.get('collaboratorId');
+    const assignedUserId = searchParams.get('assignedUserId');
     const priority       = searchParams.get('priority');
     const newOnly        = searchParams.get('newOnly') === 'true';
     const newOffer       = searchParams.get('newOffer') === 'true';
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     if (newOnly)        where.isNewFromLastImport = true;
     if (newOffer)       where.hasNewOfferFromLastImport = true;
     if (collaboratorId) where.collaboratorId = collaboratorId;
+    if (assignedUserId) where.assignedUserId = assignedUserId;
 
     if (search) {
       where.store = { OR: [
@@ -41,6 +43,7 @@ export async function GET(req: NextRequest) {
         store: { include: { brand: true } },
         column: true,
         collaborator: true,
+        assignedUser: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { where: { status: 'todo' }, orderBy: { dueDate: 'asc' }, take: 1 },
         _count: { select: { jobOffers: true, actions: true } },
