@@ -79,7 +79,7 @@ export default function ImportPage() {
             <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16 }}>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Format CSV attendu</div>
               <pre style={{ fontSize: 10, color: '#475569', overflow: 'auto', background: '#f8fafc', borderRadius: 7, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre' }}>{SAMPLE}</pre>
-              <button style={{ ...btnDef, marginTop: 10, fontSize: 12 }} onClick={() => parsePreview(SAMPLE, 'exemple.csv')}>⟳ Charger l'exemple</button>
+              <button style={{ ...btnDef, marginTop: 10, fontSize: 12 }} onClick={() => parsePreview(SAMPLE, 'exemple.csv')}>⟳ Charger l&apos;exemple</button>
             </div>
           </>
         )}

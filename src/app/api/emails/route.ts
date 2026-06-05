@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Route API dynamique : exécutée à chaque requête (lit la base de données),
+// jamais pré-générée au build.
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,6 +12,17 @@ export async function POST(req: NextRequest) {
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
+
+    // Le client Resend est instancié à la demande : éviter de le créer au
+    // chargement du module empêche le build/serveur de planter quand la clé
+    // d'API n'est pas configurée.
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json(
+        { error: "Service email non configuré (RESEND_API_KEY manquante)" },
+        { status: 503 }
+      );
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { data, error } = await resend.emails.send({
       from: process.env.SMTP_FROM as string,

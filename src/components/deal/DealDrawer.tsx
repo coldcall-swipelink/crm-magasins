@@ -213,7 +213,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
           {movedBack && (
             <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>
-              <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en "À appeler"</div>
+              <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en &quot;À appeler&quot;</div>
               <div style={{ color: '#78350f' }}>Nouvelle offre détectée lors du dernier import.</div>
             </div>
           )}
@@ -338,7 +338,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                     {o.source && <span>🔗 {o.source}</span>}
                   </div>
                   <div style={{ fontSize: 10, color: '#94a3b8' }}>Vue du {formatDate(o.firstSeenAt)} au {formatDate(o.lastSeenAt)}</div>
-                  {o.url && <a href={o.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#6366f1', display: 'block', marginTop: 4 }}>→ Voir l'offre</a>}
+                  {o.url && <a href={o.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#6366f1', display: 'block', marginTop: 4 }}>→ Voir l&apos;offre</a>}
                 </div>
               ))}
             </div>
