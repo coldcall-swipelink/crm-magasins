@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Données live : ne jamais pré-générer au build (évite tout accès DB à la compilation).
+export const dynamic = 'force-dynamic';
+
 // Palette de couleurs distinctes pour les avatars utilisateurs.
 const USER_COLORS = [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
