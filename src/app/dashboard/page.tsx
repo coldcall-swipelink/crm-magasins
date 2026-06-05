@@ -26,7 +26,7 @@ export default function DashboardPage() {
         {stats.lastImportDate && <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>Dernier import : {formatDate(stats.lastImportDate)} — {stats.lastImportFileName}</div>}
 
         <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '10px 14px', marginBottom: 18, fontSize: 12, color: '#3730a3', display: 'flex', gap: 8 }}>
-          ℹ️ <span><strong>Règle active :</strong> Toute nouvelle offre détectée remet l'affaire en <strong>« À appeler »</strong>.</span>
+          ℹ️ <span><strong>Règle active :</strong> Toute nouvelle offre détectée remet l&apos;affaire en <strong>« À appeler »</strong>.</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 10 }}>

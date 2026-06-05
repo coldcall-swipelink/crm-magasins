@@ -1,6 +1,11 @@
 // src/app/api/deals/[id]/move/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { webhooks, sendWebhook } from '@/lib/config';
+
+// Route API dynamique : exécutée à chaque requête (lit la base de données),
+// jamais pré-générée au build.
+export const dynamic = 'force-dynamic';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -28,54 +33,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     });
 
+    const webhookPayload = {
+      dealId: deal.id,
+      storeName: deal.store.name,
+      brandName: deal.store.brand?.name,
+      contactCivilite: deal.contactCivilite,
+      contactLastName: deal.contactLastName,
+      dealEmail: deal.dealEmail,
+      contactCalling: deal.contactCalling,
+      directeur: deal.directeur,
+      dealValue: deal.dealValue,
+      demoDate: deal.demoDate,
+    };
+
     // Webhook DEMO FAITE
     if (column.title === 'DEMO FAITE') {
-      try {
-        await fetch('https://swipelink.app.n8n.cloud/webhook/9fb26a79-1402-4b4c-bc2e-9a0f1ed3263b', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'deal_moved_to_demo_faite',
-            dealId: deal.id,
-            storeName: deal.store.name,
-            brandName: deal.store.brand?.name,
-            contactCivilite: deal.contactCivilite,
-            contactLastName: deal.contactLastName,
-            dealEmail: deal.dealEmail,
-            contactCalling: deal.contactCalling,
-            directeur: deal.directeur,
-            dealValue: deal.dealValue,
-            demoDate: deal.demoDate,
-          }),
-        });
-      } catch (webhookErr) {
-        console.error('Webhook DEMO FAITE error:', webhookErr);
-      }
+      await sendWebhook(webhooks.demoFaite, 'DEMO FAITE', {
+        event: 'deal_moved_to_demo_faite',
+        ...webhookPayload,
+      });
     }
 
     // Webhook RELANCE 1
     if (column.title === 'RELANCE 1') {
-      try {
-        await fetch('https://swipelink.app.n8n.cloud/webhook/d1e052fd-e50f-4b47-bc1e-8db0ac9aadc1', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'deal_moved_to_relance_1',
-            dealId: deal.id,
-            storeName: deal.store.name,
-            brandName: deal.store.brand?.name,
-            contactCivilite: deal.contactCivilite,
-            contactLastName: deal.contactLastName,
-            dealEmail: deal.dealEmail,
-            contactCalling: deal.contactCalling,
-            directeur: deal.directeur,
-            dealValue: deal.dealValue,
-            demoDate: deal.demoDate,
-          }),
-        });
-      } catch (webhookErr) {
-        console.error('Webhook RELANCE 1 error:', webhookErr);
-      }
+      await sendWebhook(webhooks.relance1, 'RELANCE 1', {
+        event: 'deal_moved_to_relance_1',
+        ...webhookPayload,
+      });
     }
 
     return NextResponse.json(deal);

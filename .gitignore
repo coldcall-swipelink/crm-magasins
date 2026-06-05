@@ -7,6 +7,8 @@ node_modules/
 .next/
 out/
 build/
+next-env.d.ts
+*.tsbuildinfo
 
 # Variables d'environnement — NE JAMAIS POUSSER SUR GITHUB
 .env
@@ -16,7 +18,8 @@ build/
 .env.production.local
 
 # Prisma
-prisma/migrations/
+# Note : les migrations Prisma DOIVENT être versionnées (elles décrivent
+# l'évolution du schéma de la base). On ne les ignore donc pas.
 
 # Logs
 npm-debug.log*

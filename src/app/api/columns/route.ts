@@ -2,6 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Route API dynamique : exécutée à chaque requête (lit la base de données),
+// jamais pré-générée au build.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const cols = await prisma.pipelineColumn.findMany({
     include: { _count: { select: { deals: true } } },
