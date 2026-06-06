@@ -19,7 +19,6 @@ build/
 prisma/migrations/
 
 # Artefacts générés
-package-lock.json
 tsconfig.tsbuildinfo
 
 # Logs
