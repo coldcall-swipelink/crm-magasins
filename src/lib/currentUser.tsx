@@ -9,6 +9,12 @@ export interface CurrentUser {
 
 const STORAGE_KEY = 'crmCurrentUser';
 
+// ⚠️ PREVIEW (branche design) : authentification désactivée pour pouvoir
+// visualiser l'app sans base de données. Utilisateur « Invité » par défaut.
+// À RETIRER avant la mise en prod.
+const DISABLE_AUTH = true;
+const GUEST_USER: CurrentUser = { id: '', name: 'Invité', color: '#6366f1' };
+
 interface Ctx {
   user:   CurrentUser | null;
   ready:  boolean;                 // localStorage lu (évite le flash au démarrage)
@@ -28,7 +34,8 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setUser(JSON.parse(raw));
-    } catch { /* ignore */ }
+      else if (DISABLE_AUTH) setUser(GUEST_USER);
+    } catch { if (DISABLE_AUTH) setUser(GUEST_USER); }
     setReady(true);
   }, []);
 

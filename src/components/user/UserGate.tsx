@@ -26,6 +26,8 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
   // Avant la lecture du localStorage, on ne montre rien (pas de flash de modale).
   if (!ready) return null;
 
+  // ⚠️ PREVIEW (branche design) : un utilisateur « Invité » est toujours fourni
+  // par CurrentUserProvider, donc cet écran de connexion ne s'affiche jamais.
   if (!user) {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
