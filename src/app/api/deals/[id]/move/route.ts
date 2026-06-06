@@ -1,16 +1,16 @@
 // src/app/api/deals/[id]/move/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { DEMO_MODE } from '@/lib/demo';
+import { DEMO_MODE, demoMoveDeal } from '@/lib/demo';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
  * Le déplacement manuel est toujours prioritaire — on ne touche pas à isPresentInLastImport.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const { columnId, position } = await req.json();
+  if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
   try {
-    const { columnId, position } = await req.json();
-    if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
     const deal = await prisma.deal.update({
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json(deal);
   } catch (err) {
-    if (DEMO_MODE) return NextResponse.json({ id: params.id, demo: true });
+    if (DEMO_MODE) { demoMoveDeal(params.id, columnId); return NextResponse.json({ id: params.id, columnId, demo: true }); }
     console.error('[POST /api/deals/[id]/move]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

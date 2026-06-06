@@ -166,11 +166,23 @@ function buildDeal(s: DemoDealSeed) {
   };
 }
 
-const demoDealsFull = seeds.map(buildDeal);
+const demoSeedDeals = seeds.map(buildDeal);
+
+// Store mutable en mémoire : permet de conserver les déplacements / notes /
+// actions / emails pendant la session de preview (pas de persistance en base).
+// On le rattache à globalThis pour survivre aux rechargements de module.
+type DemoDeal = ReturnType<typeof buildDeal>;
+const globalForDemo = globalThis as unknown as { __demoDeals?: DemoDeal[] };
+function store(): DemoDeal[] {
+  if (!globalForDemo.__demoDeals) {
+    globalForDemo.__demoDeals = JSON.parse(JSON.stringify(demoSeedDeals));
+  }
+  return globalForDemo.__demoDeals!;
+}
 
 /** Liste des affaires (pour le board) : action « todo » la plus proche en premier, take 1. */
 export function demoDealList() {
-  return demoDealsFull.map(d => ({
+  return store().map(d => ({
     ...d,
     actions: d.actions.filter(a => a.status === 'todo').sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).slice(0, 1),
   }));
@@ -178,11 +190,92 @@ export function demoDealList() {
 
 /** Détail d'une affaire (pour le drawer). */
 export function getDemoDeal(id: string) {
-  return demoDealsFull.find(d => d.id === id) || demoDealsFull[0];
+  return store().find(d => d.id === id) || store()[0];
 }
 
 /** Emails d'une affaire (les plus récents en premier). */
 export function demoEmails(dealId: string) {
-  const d = demoDealsFull.find(x => x.id === dealId) || demoDealsFull[0];
+  const d = getDemoDeal(dealId);
   return [...d._emails].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+}
+
+// ---- Mutations en mémoire (mode démo) --------------------------------------
+
+export function demoMoveDeal(id: string, columnId: string) {
+  const d = getDemoDeal(id);
+  const col = demoColumns.find(c => c.id === columnId);
+  if (col) { d.columnId = columnId; d.column = col; }
+  return d;
+}
+
+export function demoPatchDeal(id: string, data: Record<string, any>) {
+  const d = getDemoDeal(id);
+  for (const [k, v] of Object.entries(data)) {
+    (d as any)[k] = v;
+    if (k === 'assignedUserId') d.assignedUser = demoUsers.find(u => u.id === v) || null;
+    if (k === 'collaboratorId') d.collaborator = (demoCollaborators.find(c => c.id === v) as any) || null;
+  }
+  return d;
+}
+
+export function demoAddNote(dealId: string, content: string, authorName: string) {
+  const d = getDemoDeal(dealId);
+  const note = { id: `note-${Date.now()}`, dealId, content, authorName, authorId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  d.notes.unshift(note as any);
+  return note;
+}
+
+export function demoSaveAction(dealId: string, payload: any) {
+  const d = getDemoDeal(dealId);
+  const user = demoUsers.find(u => u.id === payload.assignedUserId) || null;
+  if (payload.id && String(payload.id).startsWith('action-')) {
+    const a = d.actions.find(x => x.id === payload.id);
+    if (a) {
+      Object.assign(a, {
+        title: payload.title ?? a.title, type: payload.type ?? a.type,
+        dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : a.dueDate,
+        dueTime: payload.dueTime ?? a.dueTime, priority: payload.priority ?? a.priority,
+        note: payload.note ?? a.note, assignedUserId: payload.assignedUserId || null, assignedUser: user,
+      });
+      return a;
+    }
+  }
+  const action = {
+    id: `action-${Date.now()}`, dealId, title: payload.title || '', type: payload.type || 'Appeler',
+    dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : new Date().toISOString(),
+    dueTime: payload.dueTime || '', status: 'todo', priority: payload.priority || 'normale',
+    note: payload.note || '', completedAt: null, assignedUserId: payload.assignedUserId || null, assignedUser: user,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  d.actions.push(action as any);
+  return action;
+}
+
+export function demoUpdateAction(actionId: string, data: Record<string, any>) {
+  for (const d of store()) {
+    const a = d.actions.find(x => x.id === actionId);
+    if (a) {
+      Object.assign(a, data);
+      if (data.status === 'done') a.completedAt = new Date().toISOString();
+      if (data.status === 'todo') a.completedAt = null;
+      if ('dueDate' in data && data.dueDate) a.dueDate = new Date(data.dueDate).toISOString();
+      return a;
+    }
+  }
+  return { id: actionId };
+}
+
+export function demoDeleteAction(actionId: string) {
+  for (const d of store()) {
+    const i = d.actions.findIndex(x => x.id === actionId);
+    if (i >= 0) { d.actions.splice(i, 1); return; }
+  }
+}
+
+export function demoAddEmail(dealId: string, payload: any) {
+  const d = getDemoDeal(dealId);
+  const tpl = demoTemplates.find(t => t.id === payload.templateId);
+  const email = { id: `email-${Date.now()}`, dealId, to: payload.to, subject: payload.subject, body: payload.body, status: 'sent', sentAt: new Date().toISOString(), template: tpl ? { name: tpl.name } : undefined };
+  d._emails.unshift(email as any);
+  return email;
 }

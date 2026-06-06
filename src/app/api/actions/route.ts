@@ -1,7 +1,7 @@
 // src/app/api/actions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { DEMO_MODE } from '@/lib/demo';
+import { DEMO_MODE, demoSaveAction } from '@/lib/demo';
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,14 +29,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { dealId, title, type, dueDate, dueTime, priority, note, assignedUserId } = body;
+
+  if (!dealId || !title || !dueDate) {
+    return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
+  }
   try {
-    const body = await req.json();
-    const { dealId, title, type, dueDate, dueTime, priority, note, assignedUserId } = body;
-
-    if (!dealId || !title || !dueDate) {
-      return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
-    }
-
     const action = await prisma.action.create({
       data: {
         dealId,
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(action, { status: 201 });
   } catch (err) {
-    if (DEMO_MODE) return NextResponse.json({ id: `demo-action-${Date.now()}`, demo: true }, { status: 201 });
+    if (DEMO_MODE) return NextResponse.json(demoSaveAction(dealId, body), { status: 201 });
     console.error('[POST /api/actions]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { DEMO_MODE, getDemoDeal } from '@/lib/demo';
+import { DEMO_MODE, getDemoDeal, demoPatchDeal } from '@/lib/demo';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -25,16 +25,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  const allowed = ['columnId', 'priority', 'position', 'previousColumnId',
+                   'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName',
+                   'dealValue', 'demoDate', 'candidateCallDate', 'collaboratorId', 'assignedUserId'];
+  const data: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (key in body) data[key] = body[key];
+  }
   try {
-    const body = await req.json();
-    const allowed = ['columnId', 'priority', 'position', 'previousColumnId',
-                     'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName',
-                     'dealValue', 'demoDate', 'candidateCallDate', 'collaboratorId', 'assignedUserId'];
-    const data: Record<string, unknown> = {};
-    for (const key of allowed) {
-      if (key in body) data[key] = body[key];
-    }
-    const deal = await prisma.deal.update({ 
+    const deal = await prisma.deal.update({
       where: { id: params.id }, 
       data,
       include: {
@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json(deal);
   } catch (err) {
-    if (DEMO_MODE) return NextResponse.json(getDemoDeal(params.id));
+    if (DEMO_MODE) return NextResponse.json(demoPatchDeal(params.id, data));
     console.error('PATCH error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

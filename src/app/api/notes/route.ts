@@ -1,7 +1,7 @@
 // src/app/api/notes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { DEMO_MODE } from '@/lib/demo';
+import { DEMO_MODE, demoAddNote } from '@/lib/demo';
 
 export async function GET(req: NextRequest) {
   const dealId = new URL(req.url).searchParams.get('dealId');
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(note, { status: 201 });
   } catch (err) {
-    if (DEMO_MODE) return NextResponse.json({ id: `demo-note-${Date.now()}`, dealId, content, authorName, createdAt: new Date().toISOString(), demo: true }, { status: 201 });
+    if (DEMO_MODE) return NextResponse.json(demoAddNote(dealId, content, authorName || ''), { status: 201 });
     throw err;
   }
 }
