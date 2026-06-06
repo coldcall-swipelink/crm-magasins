@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { DEMO_MODE, demoEmails } from '@/lib/demo';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +10,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
 
+    // Instanciation paresseuse : évite de planter au chargement du module quand
+    // la clé API est absente (preview / build sans variables d'environnement).
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
       from: process.env.SMTP_FROM as string,
       to,
@@ -39,6 +41,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(log, { status: 201 });
   } catch (err) {
+    if (DEMO_MODE) {
+      // Mode démo : on simule un envoi réussi sans persistance ni envoi réel.
+      return NextResponse.json({ id: `demo-${Date.now()}`, status: 'sent', demo: true }, { status: 201 });
+    }
     console.error('[POST /api/emails]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
@@ -47,11 +53,16 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dealId = searchParams.get('dealId');
-  const where = dealId ? { dealId } : {};
-  const logs = await prisma.emailLog.findMany({
-    where,
-    orderBy: { sentAt: 'desc' },
-    include: { template: true },
-  });
-  return NextResponse.json(logs);
+  try {
+    const where = dealId ? { dealId } : {};
+    const logs = await prisma.emailLog.findMany({
+      where,
+      orderBy: { sentAt: 'desc' },
+      include: { template: true },
+    });
+    return NextResponse.json(logs);
+  } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoEmails(dealId || 'deal-1'));
+    throw err;
+  }
 }

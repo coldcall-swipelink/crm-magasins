@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE, getDemoDeal } from '@/lib/demo';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -18,6 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
     return NextResponse.json(deal);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(getDemoDeal(params.id));
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -92,6 +94,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json(deal);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(getDemoDeal(params.id));
     console.error('PATCH error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

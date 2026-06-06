@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBrandColor, normalizeText } from '@/lib/utils';
+import { DEMO_MODE, demoDealList } from '@/lib/demo';
 
 export async function GET(req: NextRequest) {
   try {
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(deals);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoDealList());
     console.error('[GET /api/deals]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

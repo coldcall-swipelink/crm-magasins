@@ -1,6 +1,7 @@
 // src/app/api/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE, demoUsers } from '@/lib/demo';
 
 // Données live : ne jamais pré-générer au build (évite tout accès DB à la compilation).
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ export async function GET() {
     const users = await prisma.user.findMany({ orderBy: { name: 'asc' } });
     return NextResponse.json(users);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoUsers);
     console.error('[GET /api/users]', err);
     return NextResponse.json({ error: (err as Error).message || 'Erreur serveur' }, { status: 500 });
   }

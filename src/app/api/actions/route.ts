@@ -1,6 +1,7 @@
 // src/app/api/actions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE } from '@/lib/demo';
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(actions);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json([]);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(action, { status: 201 });
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json({ id: `demo-action-${Date.now()}`, demo: true }, { status: 201 });
     console.error('[POST /api/actions]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

@@ -1,13 +1,19 @@
 // src/app/api/columns/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE, demoColumns } from '@/lib/demo';
 
 export async function GET() {
-  const cols = await prisma.pipelineColumn.findMany({
-    include: { _count: { select: { deals: true } } },
-    orderBy: { position: 'asc' },
-  });
-  return NextResponse.json(cols);
+  try {
+    const cols = await prisma.pipelineColumn.findMany({
+      include: { _count: { select: { deals: true } } },
+      orderBy: { position: 'asc' },
+    });
+    return NextResponse.json(cols);
+  } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoColumns);
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE, demoTemplates } from '@/lib/demo';
 
 export async function GET() {
-  const templates = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } });
-  return NextResponse.json(templates);
+  try {
+    const templates = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } });
+    return NextResponse.json(templates);
+  } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoTemplates);
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {

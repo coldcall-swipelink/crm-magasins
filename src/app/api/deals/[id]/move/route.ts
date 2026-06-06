@@ -1,6 +1,7 @@
 // src/app/api/deals/[id]/move/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE } from '@/lib/demo';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json(deal);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json({ id: params.id, demo: true });
     console.error('[POST /api/deals/[id]/move]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

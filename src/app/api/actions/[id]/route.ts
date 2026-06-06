@@ -1,6 +1,7 @@
 // src/app/api/actions/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE } from '@/lib/demo';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -23,6 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const action = await prisma.action.update({ where: { id: params.id }, data, include: { assignedUser: true } });
     return NextResponse.json(action);
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json({ id: params.id, demo: true });
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -32,6 +34,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     await prisma.action.delete({ where: { id: params.id } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (DEMO_MODE) return NextResponse.json({ success: true, demo: true });
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

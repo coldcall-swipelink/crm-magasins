@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEMO_MODE, demoCollaborators } from '@/lib/demo';
 
 export async function GET() {
-  const collaborators = await prisma.collaborator.findMany({
-    include: { _count: { select: { deals: true } } },
-    orderBy: { name: 'asc' },
-  });
-  return NextResponse.json(collaborators);
+  try {
+    const collaborators = await prisma.collaborator.findMany({
+      include: { _count: { select: { deals: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return NextResponse.json(collaborators);
+  } catch (err) {
+    if (DEMO_MODE) return NextResponse.json(demoCollaborators);
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {
