@@ -112,6 +112,8 @@ model Deal {
   contactLastName           String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
+  googleEventId             String?
+  googleMeetUrl             String?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?

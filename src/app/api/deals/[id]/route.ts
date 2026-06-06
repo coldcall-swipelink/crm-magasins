@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { syncDemoMeeting } from '@/lib/googleCalendar';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -87,6 +88,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         } catch (webhookErr) {
           console.error('RELANCE 1 webhook error:', webhookErr);
         }
+      }
+    }
+
+    // Démo prévue → invitation Google Meet. On déclenche quand l'affaire entre
+    // dans la colonne « Démo prévue » ou quand sa date de démo change alors
+    // qu'elle s'y trouve déjà (mise à jour de l'événement existant).
+    if (deal.column?.title === 'Démo prévue' && ('columnId' in body || 'demoDate' in body)) {
+      try {
+        await syncDemoMeeting(deal.id);
+      } catch (meetErr) {
+        console.error('Google Meet (Démo prévue) error:', meetErr);
       }
     }
 

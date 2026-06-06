@@ -23,6 +23,15 @@ function replaceVars(text: string, vars: Record<string, string>) {
   return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || '');
 }
 
+// Convertit une date ISO en valeur pour un <input type="datetime-local"> (heure locale).
+function toLocalInput(iso?: string | null) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function EmailLogItem({ log }: { log: EmailLog }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -59,6 +68,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [editContacts, setEditContacts] = useState(false);
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', contactCivilite: '', contactLastName: '' });
+  const [demoDateInput, setDemoDateInput] = useState('');
   const [offerForm, setOF] = useState<any>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -79,6 +89,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       const d = await res.json();
       setDeal(d);
       setContacts({ directeur: d.directeur || '', contactCalling: d.contactCalling || '', dealEmail: d.dealEmail || '', contactCivilite: d.contactCivilite || '', contactLastName: d.contactLastName || '' });
+      setDemoDateInput(toLocalInput(d.demoDate));
       setEmailTo(d.dealEmail || '');
     }
     setLoading(false);
@@ -137,6 +148,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const saveContacts = async () => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contacts) });
     setEditContacts(false); fetchDeal(); onUpdated(); toast('Contacts mis à jour');
+  };
+
+  const saveDemoDate = async (value: string) => {
+    setDemoDateInput(value);
+    const demoDate = value ? new Date(value).toISOString() : null;
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demoDate }) });
+    fetchDeal(); onUpdated();
+    toast(demoDate ? 'Date de la démo enregistrée' : 'Date de la démo supprimée');
   };
 
   const assignCollaborator = async (collaboratorId: string | null) => {
@@ -332,6 +351,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                     <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
                   </div>
                 ))
+              )}
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>DÉMO</div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Date de la démo</label>
+              <input type="datetime-local" style={inp} value={demoDateInput} onChange={e => saveDemoDate(e.target.value)} />
+              {deal.column?.title === 'Démo prévue' && (
+                <p style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                  Une invitation Google Meet est envoyée au contact{deal.dealEmail ? ` (${deal.dealEmail})` : ''} et à bilal@swipelink.fr à l'enregistrement de la date.
+                </p>
+              )}
+              {deal.googleMeetUrl && (
+                <a href={deal.googleMeetUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12, color: '#4f46e5', textDecoration: 'underline' }}>
+                  🔗 Ouvrir le lien Google Meet
+                </a>
               )}
 
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px' }}>CRM</div>
