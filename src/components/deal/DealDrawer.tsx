@@ -106,8 +106,23 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   const moveToColumn = async (columnId: string) => {
     if (columnId === deal?.columnId) return;
-    await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
-    fetchDeal(); onUpdated(); toast('Étape mise à jour');
+    const prevColumnId = deal?.columnId;
+    const targetCol = columns.find(c => c.id === columnId);
+    // Mise à jour optimiste : la frise reflète l'étape immédiatement.
+    setDeal((d: any) => ({ ...d, columnId, column: targetCol || d.column }));
+    try {
+      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
+      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => null);
+      // Persistance réelle : on recharge depuis le serveur. En mode démo (data.demo),
+      // on conserve l'état optimiste (rien n'est persisté côté base).
+      if (data && !data.demo) fetchDeal();
+      onUpdated();
+      toast('Étape mise à jour');
+    } catch {
+      setDeal((d: any) => ({ ...d, columnId: prevColumnId }));
+      toast('Erreur lors du changement d\'étape', 'error');
+    }
   };
 
   const addNote = async () => {
