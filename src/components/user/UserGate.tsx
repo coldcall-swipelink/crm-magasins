@@ -9,11 +9,7 @@ import { useCurrentUser } from '@/lib/currentUser';
 // uniquement en preview/test, jamais en prod), la modale est sautée et l'app
 // s'ouvre directement. L'identité reste « non connectée » (null) — les actions
 // liées à un utilisateur restent donc anonymes le temps des tests.
-//
-// ⚠️⚠️ TEST ONLY (branche claude/practical-cori-URWwR) : modale désactivée EN DUR
-// pour faciliter les tests sur la preview. AVANT MERGE EN PROD, remettre :
-//     const BYPASS_GATE = process.env.NEXT_PUBLIC_BYPASS_USER_GATE === 'true';
-const BYPASS_GATE = true;
+const BYPASS_GATE = process.env.NEXT_PUBLIC_BYPASS_USER_GATE === 'true';
 
 export default function UserGate({ children }: { children: React.ReactNode }) {
   const { user, ready, login } = useCurrentUser();
