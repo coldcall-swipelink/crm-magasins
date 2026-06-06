@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: NextRequest) {
   try {
     const { dealId, templateId, to, subject, body, attachments } = await req.json();
@@ -11,6 +9,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
 
+    // Instanciation paresseuse : évite de planter au chargement du module quand
+    // la clé API est absente (build sans variables d'environnement).
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
       from: process.env.SMTP_FROM as string,
       to,
