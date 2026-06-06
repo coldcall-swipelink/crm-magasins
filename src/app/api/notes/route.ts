@@ -12,8 +12,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { dealId, content } = await req.json();
+  const { dealId, content, authorId, authorName } = await req.json();
   if (!dealId || !content) return NextResponse.json({ error: 'dealId et content requis' }, { status: 400 });
-  const note = await prisma.note.create({ data: { dealId, content } });
+  const note = await prisma.note.create({
+    data: {
+      dealId,
+      content,
+      authorId:   authorId   || null,
+      authorName: authorName || '',
+    },
+  });
   return NextResponse.json(note, { status: 201 });
 }

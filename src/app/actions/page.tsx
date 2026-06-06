@@ -5,6 +5,7 @@ import type { Action, Deal, Priority } from '@/types';
 import { formatRelativeDate, isOverdue } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import DealDrawer from '@/components/deal/DealDrawer';
+import { useCurrentUser } from '@/lib/currentUser';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
@@ -14,13 +15,16 @@ const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 type Tab = 'todo' | 'today' | 'overdue' | 'done';
 
 interface Collaborator { id: string; name: string; color: string; }
+interface User { id: string; name: string; color: string; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 
 export default function ActionsPage() {
+  const { user: currentUser } = useCurrentUser();
   const [actions, setActions] = useState<Action[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [tab, setTab] = useState<Tab>('todo');
   const [form, setForm] = useState<Partial<Action> | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
@@ -29,14 +33,16 @@ export default function ActionsPage() {
   const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const fetchAll = useCallback(async () => {
-    const [aRes, dRes, cRes] = await Promise.all([
+    const [aRes, dRes, cRes, uRes] = await Promise.all([
       fetch('/api/actions'),
       fetch('/api/deals'),
       fetch('/api/collaborators'),
+      fetch('/api/users'),
     ]);
     if (aRes.ok) setActions(await aRes.json());
     if (dRes.ok) setDeals(await dRes.json());
     if (cRes.ok) setCollaborators(await cRes.json());
+    if (uRes.ok) setUsers(await uRes.json());
   }, []);
 
   useEffect(() => {
@@ -96,7 +102,7 @@ export default function ActionsPage() {
       <div style={{ padding: '24px', maxWidth: 860 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           <span style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Actions & Rappels</span>
-          <button style={btnPri} onClick={() => setForm({ title: '', type: 'Appeler', dueDate: now.toISOString().slice(0, 10), priority: 'normale', dealId: '', note: '', dueTime: '' } as any)}>+ Nouvelle action</button>
+          <button style={btnPri} onClick={() => setForm({ title: '', type: 'Appeler', dueDate: now.toISOString().slice(0, 10), priority: 'normale', dealId: '', note: '', dueTime: '', assignedUserId: currentUser?.id || '' } as any)}>+ Nouvelle action</button>
         </div>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -124,6 +130,10 @@ export default function ActionsPage() {
               <select style={inp} value={form.dealId || ''} onChange={e => setForm(f => ({ ...f, dealId: e.target.value }))}>
                 <option value="">— Affaire liée * —</option>
                 {deals.map(d => <option key={d.id} value={d.id}>{d.store?.name || d.id}</option>)}
+              </select>
+              <select style={inp} value={(form as any).assignedUserId || ''} onChange={e => setForm(f => ({ ...f, assignedUserId: e.target.value } as any))}>
+                <option value="">— Assignée à (utilisateur) —</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
               <textarea style={{ ...inp, height: 46, resize: 'none', gridColumn: '1/-1' }} placeholder="Note…" value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
             </div>
@@ -153,6 +163,12 @@ export default function ActionsPage() {
                   <div style={{ display: 'flex', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
                     <span style={{ background: '#eef2ff', color: '#4338ca', padding: '1px 5px', borderRadius: 3 }}>{a.type}</span>
                     <span style={{ color: '#4f46e5', fontWeight: 500, textDecoration: 'underline' }}>{deal?.store?.name || 'Affaire'}</span>
+                    {(a as any).assignedUser && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} title={`Assignée à ${(a as any).assignedUser.name}`}>
+                        <span style={{ width: 16, height: 16, borderRadius: '50%', background: (a as any).assignedUser.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials((a as any).assignedUser.name)}</span>
+                        <span style={{ color: '#64748b' }}>{(a as any).assignedUser.name}</span>
+                      </span>
+                    )}
                     {collab && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         <span style={{ width: 16, height: 16, borderRadius: '50%', background: collab.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials(collab.name)}</span>
