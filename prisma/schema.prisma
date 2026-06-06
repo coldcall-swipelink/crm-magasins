@@ -112,6 +112,7 @@ model Deal {
   contactLastName           String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
+  candidateCallDate         DateTime?
   googleEventId             String?
   googleMeetUrl             String?
   collaboratorId            String?
