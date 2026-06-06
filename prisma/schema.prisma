@@ -48,6 +48,21 @@ model Collaborator {
   deals     Deal[]
 }
 
+// Utilisateur de l'application (identité choisie à la première connexion,
+// stockée côté navigateur). Complémentaire de Collaborator : sert à savoir
+// qui est connecté, qui suit un deal, à qui une action est assignée et qui
+// rédige une note.
+model User {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  color           String   @default("#6366f1")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  assignedDeals   Deal[]
+  assignedActions Action[]
+  authoredNotes   Note[]
+}
+
 model Pipeline {
   id        String   @id @default(cuid())
   name      String   @unique
@@ -99,6 +114,8 @@ model Deal {
   demoDate                  DateTime?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
+  assignedUserId            String?
+  assignedUser              User?    @relation(fields: [assignedUserId], references: [id])
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
   jobOffers                 JobOffer[]
@@ -175,17 +192,22 @@ model Action {
   priority    String    @default("normale")
   note        String    @default("")
   completedAt DateTime?
+  assignedUserId String?
+  assignedUser   User?   @relation(fields: [assignedUserId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
 model Note {
-  id        String   @id @default(cuid())
-  dealId    String
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  dealId     String
+  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  content    String
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id])
+  authorName String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model EmailTemplate {

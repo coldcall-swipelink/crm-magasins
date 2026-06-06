@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
+import { useCurrentUser } from '@/lib/currentUser';
 
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
@@ -11,6 +12,7 @@ const btnPri: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
+interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
@@ -49,6 +51,7 @@ function EmailLogItem({ log }: { log: EmailLog }) {
 }
 
 export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
+  const { user: currentUser } = useCurrentUser();
   const [deal, setDeal] = useState<any | null>(null);
   const [tab, setTab] = useState<'info' | 'offers' | 'actions' | 'notes' | 'email'>('info');
   const [noteText, setNote] = useState('');
@@ -58,6 +61,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [contacts, setContacts] = useState({ directeur: '', contactCalling: '', dealEmail: '', contactCivilite: '', contactLastName: '' });
   const [offerForm, setOF] = useState<any>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
@@ -87,6 +91,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
   useEffect(() => { if (tab === 'email') fetchEmailLogs(); }, [tab, fetchEmailLogs]);
@@ -139,9 +144,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated(); toast('Assignation mise à jour');
   };
 
+  const assignUser = async (assignedUserId: string | null) => {
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedUserId }) });
+    fetchDeal(); onUpdated(); toast('Suivi mis à jour');
+  };
+
   const addNote = async () => {
     if (!noteText.trim()) return;
-    await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, content: noteText }) });
+    await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dealId, content: noteText, authorId: currentUser?.id || null, authorName: currentUser?.name || '' }) });
     setNote(''); fetchDeal(); onUpdated();
   };
 
@@ -202,6 +212,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const dNotes = deal.notes?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
   const todoCount = dActions.filter((a: any) => a.status === 'todo').length;
   const currentCollab = deal.collaborator as Collaborator | null;
+  const currentAssignedUser = deal.assignedUser as User | null;
 
   const TABS = [
     ['info', 'Infos'],
@@ -276,6 +287,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   <button key={c.id} onClick={() => assignCollaborator(c.id)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 5, background: currentCollab?.id === c.id ? c.color + '22' : '#f1f5f9', color: currentCollab?.id === c.id ? c.color : '#64748b', borderColor: currentCollab?.id === c.id ? c.color : '#e2e8f0', fontWeight: currentCollab?.id === c.id ? 600 : 400 }}>
                     <span style={{ width: 18, height: 18, borderRadius: '50%', background: c.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(c.name)}</span>
                     {c.name}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '14px 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>SUIVI PAR</span>
+                {currentUser && currentAssignedUser?.id !== currentUser.id && (
+                  <button onClick={() => assignUser(currentUser.id)} style={{ fontSize: 10, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>M'assigner</button>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                <button onClick={() => assignUser(null)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', background: !currentAssignedUser ? '#eef2ff' : '#f1f5f9', color: !currentAssignedUser ? '#4338ca' : '#64748b', borderColor: !currentAssignedUser ? '#6366f1' : '#e2e8f0', fontWeight: !currentAssignedUser ? 600 : 400 }}>Personne</button>
+                {users.map(u => (
+                  <button key={u.id} onClick={() => assignUser(u.id)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', border: '1px solid', display: 'flex', alignItems: 'center', gap: 5, background: currentAssignedUser?.id === u.id ? u.color + '22' : '#f1f5f9', color: currentAssignedUser?.id === u.id ? u.color : '#64748b', borderColor: currentAssignedUser?.id === u.id ? u.color : '#e2e8f0', fontWeight: currentAssignedUser?.id === u.id ? 600 : 400 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: u.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{initials(u.name)}</span>
+                    {u.name}
                   </button>
                 ))}
               </div>
@@ -366,7 +393,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
           {tab === 'actions' && (
             <div>
-              <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '', dueTime: '' } as any)}>+ Nouvelle action</button>
+              <button style={{ ...btnPri, marginBottom: 12 }} onClick={() => setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '', dueTime: '', assignedUserId: currentUser?.id || '' } as any)}>+ Nouvelle action</button>
               {actionForm && (
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
@@ -375,6 +402,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                     <select style={inp} value={actionForm.priority || 'normale'} onChange={e => setAF(f => ({ ...f, priority: e.target.value as Priority }))}>{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select>
                     <input type="date" style={inp} value={typeof actionForm.dueDate === 'string' ? actionForm.dueDate.slice(0, 10) : ''} onChange={e => setAF(f => ({ ...f, dueDate: e.target.value }))} />
                     <input type="time" style={inp} value={(actionForm as any).dueTime || ''} onChange={e => setAF(f => ({ ...f, dueTime: e.target.value } as any))} />
+                    <select style={{ ...inp, gridColumn: '1/-1' }} value={(actionForm as any).assignedUserId || ''} onChange={e => setAF(f => ({ ...f, assignedUserId: e.target.value } as any))}>
+                      <option value="">— Assignée à (utilisateur) —</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
                     <textarea style={{ ...inp, height: 40, resize: 'none', gridColumn: '1/-1' }} placeholder="Note…" value={actionForm.note || ''} onChange={e => setAF(f => ({ ...f, note: e.target.value }))} />
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -397,6 +428,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                         <span style={{ background: '#eef2ff', color: '#4338ca', padding: '1px 5px', borderRadius: 3 }}>{a.type}</span>
                         {formatRelativeDate(a.dueDate)}
                         {a.dueTime && <span>à {a.dueTime}</span>}
+                        {a.assignedUser && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <span style={{ width: 15, height: 15, borderRadius: '50%', background: a.assignedUser.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials(a.assignedUser.name)}</span>
+                            {a.assignedUser.name}
+                          </span>
+                        )}
                         {a.note && <span style={{ color: '#94a3b8' }}>{a.note.slice(0, 40)}</span>}
                       </div>
                     </div>
@@ -416,7 +453,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {dNotes.map((n: Note) => (
                 <div key={n.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#fff', marginBottom: 8 }}>
                   <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 5 }}>{n.content}</p>
-                  <p style={{ fontSize: 10, color: '#94a3b8' }}>{formatDate(n.createdAt)}</p>
+                  <p style={{ fontSize: 10, color: '#94a3b8' }}>
+                    {(n as any).authorName ? <span style={{ fontWeight: 600, color: '#64748b' }}>{(n as any).authorName}</span> : <span style={{ fontStyle: 'italic' }}>Anonyme</span>}
+                    {' · '}{formatDate(n.createdAt)}
+                  </p>
                 </div>
               ))}
             </div>

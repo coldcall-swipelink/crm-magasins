@@ -5,6 +5,14 @@ export type ActionType = 'Appeler' | 'Email' | 'Relancer' | 'Démo' | 'Autre';
 export type ActionStatus = 'todo' | 'done';
 export type OfferStatus = 'active' | 'disappeared';
 
+export interface User {
+  id:        string;
+  name:      string;
+  color:     string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Brand {
   id:        string;
   name:      string;
@@ -77,16 +85,21 @@ export interface Action {
   priority:    Priority;
   note:        string;
   completedAt: string | null;
+  assignedUserId?: string | null;
+  assignedUser?:   User | null;
   createdAt:   string;
   updatedAt:   string;
 }
 
 export interface Note {
-  id:        string;
-  dealId:    string;
-  content:   string;
-  createdAt: string;
-  updatedAt: string;
+  id:         string;
+  dealId:     string;
+  content:    string;
+  authorId?:  string | null;
+  authorName?: string;
+  author?:    User | null;
+  createdAt:  string;
+  updatedAt:  string;
 }
 
 export interface Deal {
@@ -103,6 +116,8 @@ export interface Deal {
   isPresentInLastImport:    boolean;
   movedToCallAt:            string | null;
   lastImportAt:             string | null;
+  assignedUserId?:          string | null;
+  assignedUser?:            User | null;
   createdAt:                string;
   updatedAt:                string;
   jobOffers:                JobOffer[];
