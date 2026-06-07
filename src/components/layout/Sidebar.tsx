@@ -14,43 +14,46 @@ const NAV = [
   { href: '/settings',  label: 'Paramètres',    icon: '⚙️' },
 ];
 
+// Sidebar sombre (navy/indigo) inspirée du mockup produit Swipelink :
+// fond profond, dégradé violet→bleu sur le logo et l'item actif.
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useCurrentUser();
   return (
-    <aside style={{ width: 192, flexShrink: 0, background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
-      <div style={{ padding: '14px 12px 10px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 30, height: 30, background: '#4f46e5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>⚡</div>
+    <aside style={{ width: 204, flexShrink: 0, background: '#171a3a', borderRight: '1px solid rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
+      <div style={{ padding: '16px 14px 14px', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 9 }}>
+        <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg,#7c5cff 0%,#4f6bff 100%)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#fff', flexShrink: 0, boxShadow: '0 4px 12px rgba(109,90,230,.45)' }}>S</div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>CRM Magasins</div>
-          <div style={{ fontSize: 10, color: '#94a3b8' }}>v2 · Offres emploi</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#fff', letterSpacing: '-.01em' }}>CRM Magasins</div>
+          <div style={{ fontSize: 10, color: '#8d90b3', letterSpacing: '.04em' }}>by Swipelink</div>
         </div>
       </div>
-      <nav style={{ flex: 1, padding: '8px 6px', overflowY: 'auto' }}>
+      <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
         {NAV.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link key={href} href={href} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 10px', borderRadius: 7,
+              display: 'flex', alignItems: 'center', gap: 9,
+              padding: '9px 11px', borderRadius: 9,
               fontSize: 13, fontWeight: active ? 600 : 400,
-              background: active ? '#eef2ff' : 'transparent',
-              color: active ? '#4338ca' : '#475569',
-              marginBottom: 1, textDecoration: 'none',
+              background: active ? 'rgba(124,108,240,.18)' : 'transparent',
+              color: active ? '#fff' : '#b9bbd6',
+              boxShadow: active ? 'inset 0 0 0 1px rgba(124,108,240,.35)' : 'none',
+              marginBottom: 2, textDecoration: 'none',
             }}>
-              <span>{icon}</span> {label}
+              <span style={{ opacity: active ? 1 : .85 }}>{icon}</span> {label}
             </Link>
           );
         })}
       </nav>
       {user && (
-        <div style={{ padding: '10px 12px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '11px 14px', borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: user.color, color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {initials(user.name)}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
-            <button onClick={logout} style={{ fontSize: 10, color: '#94a3b8', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+            <button onClick={logout} style={{ fontSize: 10, color: '#8d90b3', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
               Changer d'identité
             </button>
           </div>

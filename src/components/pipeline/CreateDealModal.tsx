@@ -9,7 +9,7 @@ interface Props {
   onCreated: () => void;
 }
 
-const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none', marginBottom: 8 };
+const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f7f7fb', color: '#14152b', fontSize: 13, outline: 'none', marginBottom: 8 };
 
 export default function CreateDealModal({ columns, onClose, onCreated }: Props) {
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -56,61 +56,61 @@ export default function CreateDealModal({ columns, onClose, onCreated }: Props) 
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Créer une affaire manuellement</div>
 
         {/* Magasin */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9cb5', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
           <div style={{ gridColumn: '1/-1' }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Enseigne</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Enseigne</label>
             <select style={inp} value={form.brandId} onChange={e => setForm(f => ({ ...f, brandId: e.target.value }))}>
               <option value="">— Sélectionner —</option>
               {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div style={{ gridColumn: '1/-1' }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du magasin *</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Nom du magasin *</label>
             <input style={inp} placeholder="Ex: Intermarché Nantes Sud" value={form.storeName} onChange={e => setForm(f => ({ ...f, storeName: e.target.value }))} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Ville</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Ville</label>
             <input style={inp} placeholder="Nantes" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Département</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Département</label>
             <input style={inp} placeholder="44" value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} />
           </div>
           <div style={{ gridColumn: '1/-1' }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Adresse</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Adresse</label>
             <input style={inp} placeholder="12 rue de la Paix" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
           </div>
         </div>
 
         {/* Contacts */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8, marginTop: 8 }}>CONTACTS</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9cb5', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8, marginTop: 8 }}>CONTACTS</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Directeur</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Directeur</label>
             <input style={inp} placeholder="Prénom Nom" value={form.directeur} onChange={e => setForm(f => ({ ...f, directeur: e.target.value }))} />
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Contact calling</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Contact calling</label>
             <input style={inp} placeholder="Prénom Nom" value={form.contactCalling} onChange={e => setForm(f => ({ ...f, contactCalling: e.target.value }))} />
           </div>
           <div style={{ gridColumn: '1/-1' }}>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Email</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Email</label>
             <input style={inp} type="email" placeholder="contact@magasin.fr" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           </div>
         </div>
 
         {/* CRM */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8, marginTop: 8 }}>CRM</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9cb5', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8, marginTop: 8 }}>CRM</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Colonne</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Colonne</label>
             <select style={inp} value={form.columnId} onChange={e => setForm(f => ({ ...f, columnId: e.target.value }))}>
               {sortedCols.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Priorité</label>
+            <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Priorité</label>
             <select style={inp} value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
               {['faible', 'normale', 'élevée', 'urgente'].map(p => <option key={p}>{p}</option>)}
             </select>
@@ -121,11 +121,11 @@ export default function CreateDealModal({ columns, onClose, onCreated }: Props) 
           <button
             onClick={handleSubmit}
             disabled={loading}
-            style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? .7 : 1 }}
+            style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#6d5ae6', color: '#fff', fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? .7 : 1 }}
           >
             {loading ? 'Création…' : 'Créer l\'affaire'}
           </button>
-          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, fontSize: 14, cursor: 'pointer' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', fontWeight: 500, fontSize: 14, cursor: 'pointer' }}>
             Annuler
           </button>
         </div>

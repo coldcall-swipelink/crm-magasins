@@ -10,7 +10,7 @@ interface Props {
 }
 
 function getBrandBorderColor(brandName?: string): string {
-  if (!brandName) return '#6366f1';
+  if (!brandName) return '#7c6bf0';
   const n = brandName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (n.includes('leclerc')) return '#ffffff';
   if (n.includes('super u') || n.includes('super-u') || n === 'u') return '#2563eb';
@@ -63,7 +63,7 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       onClick={onSelect}
       style={{
         background: backgroundColor,
-        border: '1px solid #e2e8f0',
+        border: '1px solid #e9e9f1',
         borderRadius: 9,
         padding: '9px 11px',
         cursor: 'pointer',
@@ -86,8 +86,8 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {brand && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: displayColor, marginBottom: 1 }}>{brand.name}</div>}
-          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#0f172a' }}>{store?.name || 'Magasin'}</div>
-          {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
+          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#14152b' }}>{store?.name || 'Magasin'}</div>
+          {store?.city && <div style={{ fontSize: 10, color: '#9a9cb5', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
         {(collaborator || assignedUser) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
@@ -106,7 +106,7 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       </div>
 
       {(deal as any).contactCalling && (
-        <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 2, fontWeight: 500 }}>📞 {(deal as any).contactCalling}</div>
+        <div style={{ fontSize: 10, color: '#6d5ae6', marginTop: 2, fontWeight: 500 }}>📞 {(deal as any).contactCalling}</div>
       )}
 
       {movedBack && (
@@ -116,7 +116,7 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       )}
 
       {offers.length > 0 && (
-        <div style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 10, color: '#6b6e89', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}{offers.length > 2 ? ` +${offers.length - 2}` : ''}
         </div>
       )}

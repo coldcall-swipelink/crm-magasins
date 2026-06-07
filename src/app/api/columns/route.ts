@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     data: {
       pipelineId,
       title,
-      color: color || '#6366f1',
+      color: color || '#7c6bf0',
       position: (maxPos._max.position ?? -1) + 1,
     },
   });

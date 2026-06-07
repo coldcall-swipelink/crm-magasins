@@ -106,50 +106,50 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const sortedCols = pipelineColumns;
   const dealsForCol = (colId: string) => deals.filter(d => d.columnId === colId).sort((a, b) => a.position - b.position);
 
-  const selStyle = (active: boolean, color = '#4f46e5'): React.CSSProperties => ({
+  const selStyle = (active: boolean, color = '#6d5ae6'): React.CSSProperties => ({
     padding: '4px 8px', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer',
     border: '1px solid', background: active ? color : '#fff',
-    color: active ? '#fff' : '#475569', borderColor: active ? color : '#e2e8f0',
+    color: active ? '#fff' : '#5b5e78', borderColor: active ? color : '#e9e9f1',
   });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+      <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e9e9f1', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 700, marginRight: 4 }}>Pipeline</span>
 
         {pipelines.length > 0 && (
           <select value={selectedPipelineId} onChange={e => setSelectedPipelineId(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, color: '#475569', cursor: 'pointer', outline: 'none' }}>
+            style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#fff', fontSize: 12, color: '#5b5e78', cursor: 'pointer', outline: 'none' }}>
             {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         )}
 
-        <input style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, width: 160, outline: 'none' }}
+        <input style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f7f7fb', fontSize: 12, width: 160, outline: 'none' }}
           placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)} />
 
         <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)}
-          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterBrand ? '#eef2ff' : '#fff', fontSize: 12, color: filterBrand ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
+          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e9e9f1', background: filterBrand ? '#f1eefe' : '#fff', fontSize: 12, color: filterBrand ? '#5a47d4' : '#5b5e78', cursor: 'pointer', outline: 'none' }}>
           <option value="">Toutes enseignes</option>
           {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
 
         <select value={filterCollab} onChange={e => setFilterCollab(e.target.value)}
-          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterCollab ? '#eef2ff' : '#fff', fontSize: 12, color: filterCollab ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
+          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e9e9f1', background: filterCollab ? '#f1eefe' : '#fff', fontSize: 12, color: filterCollab ? '#5a47d4' : '#5b5e78', cursor: 'pointer', outline: 'none' }}>
           <option value="">Tous collaborateurs</option>
           {collaborators.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
 
         <button style={selStyle(filterNew)} onClick={() => setFilterNew(!filterNew)}>✦ Nouvelles</button>
         <button style={selStyle(filterOffer, '#f59e0b')} onClick={() => setOffer(!filterOffer)}>⟳ Nouvelle offre</button>
-        <button onClick={fetchDeals} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: 12, cursor: 'pointer' }}>
+        <button onClick={fetchDeals} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f3f3f9', fontSize: 12, cursor: 'pointer' }}>
           {loading ? '⟳' : '↺'} Rafraîchir
         </button>
 
         <button onClick={() => setShowCreate(true)}
-          style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, border: 'none', background: '#6d5ae6', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           + Nouvelle affaire
         </button>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>{deals.length} affaire{deals.length > 1 ? 's' : ''}</span>
+        <span style={{ fontSize: 11, color: '#9a9cb5' }}>{deals.length} affaire{deals.length > 1 ? 's' : ''}</span>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -157,19 +157,19 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
           const colDeals = dealsForCol(col.id);
           return (
             <div key={col.id} style={{
-              background: dragOverCol === col.id ? '#eef2ff' : '#f1f5f9', borderRadius: 10,
+              background: dragOverCol === col.id ? '#f1eefe' : '#f3f3f9', borderRadius: 10,
               width: 230, flexShrink: 0, display: 'flex', flexDirection: 'column',
-              border: `1px solid ${dragOverCol === col.id ? '#6366f1' : '#e2e8f0'}`,
+              border: `1px solid ${dragOverCol === col.id ? '#7c6bf0' : '#e9e9f1'}`,
               maxHeight: 'calc(100vh - 110px)',
-              outline: dragOverCol === col.id ? '2px dashed #6366f1' : 'none',
+              outline: dragOverCol === col.id ? '2px dashed #7c6bf0' : 'none',
             }}
               onDragOver={e => onDragOver(e, col.id)}
               onDrop={e => onDrop(e, col.id)}
               onDragLeave={() => setDragOverCol(null)}>
-              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #e9e9f1', display: 'flex', alignItems: 'center', gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color, flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, fontSize: 11, flex: 1, color: '#374151' }}>{col.title}</span>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>{colDeals.length}</span>
+                <span style={{ fontSize: 11, color: '#9a9cb5' }}>{colDeals.length}</span>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5, minHeight: 50 }}>
                 {colDeals.map(deal => (

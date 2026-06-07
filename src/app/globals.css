@@ -1,14 +1,19 @@
-/* globals.css — zero Tailwind */
+/* globals.css — zero Tailwind · charte Swipelink */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
-  color: #0f172a;
-  background: #f8fafc;
+  color: #14152b;
+  background: #f7f7fb;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+* { scrollbar-width: thin; scrollbar-color: #d4d4e3 transparent; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #d4d4e3; border-radius: 4px; }
 input, select, textarea, button { font-family: inherit; font-size: 13px; }
 a { text-decoration: none; }
+::selection { background: #ddd6ff; color: #2a1f6b; }

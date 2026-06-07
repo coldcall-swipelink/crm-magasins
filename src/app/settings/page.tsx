@@ -4,10 +4,10 @@ import AppLayout from '@/components/layout/AppLayout';
 import type { Brand, PipelineColumn } from '@/types';
 import { toast } from '@/components/ui/Toast';
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 };
-const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
+const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f7f7fb', color: '#14152b', fontSize: 13, outline: 'none' };
+const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#6d5ae6', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 };
+const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
+const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
@@ -24,23 +24,23 @@ interface TemplateFormProps {
 
 function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) {
   return (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 10 }}>
+    <div style={{ background: '#f7f7fb', border: '1px solid #e9e9f1', borderRadius: 10, padding: 16, marginBottom: 10 }}>
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du template</label>
+        <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Nom du template</label>
         <input style={inp} placeholder="Ex: Première prise de contact" value={value.name}
           onChange={e => onChange('name', e.target.value)} />
       </div>
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet</label>
+        <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Sujet</label>
         <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={value.subject}
           onChange={e => onChange('subject', e.target.value)} />
       </div>
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Corps du message</label>
+        <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3 }}>Corps du message</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
           {VARIABLES.map(v => (
             <button key={v} onClick={() => onChange('body', (value.body || '') + v)}
-              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
+              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #dad3f9', background: '#f1eefe', color: '#5a47d4', cursor: 'pointer' }}>
               {v}
             </button>
           ))}
@@ -52,7 +52,7 @@ function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) 
           onChange={e => onChange('body', e.target.value)}
         />
       </div>
-      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: '#9a9cb5', marginBottom: 10 }}>
         Variables disponibles : {VARIABLES.join(' ')}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -69,11 +69,11 @@ export default function SettingsPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [newBrand, setNewBrand] = useState({ name: '', color: '#6366f1' });
+  const [newBrand, setNewBrand] = useState({ name: '', color: '#7c6bf0' });
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [newColTitle, setNewColTitle] = useState('');
-  const [newColColor, setNewColColor] = useState('#6366f1');
-  const [newCollab, setNewCollab] = useState({ name: '', email: '', color: '#6366f1' });
+  const [newColColor, setNewColColor] = useState('#7c6bf0');
+  const [newCollab, setNewCollab] = useState({ name: '', email: '', color: '#7c6bf0' });
   const [editCollab, setEditCollab] = useState<Collaborator | null>(null);
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
@@ -125,7 +125,7 @@ export default function SettingsPage() {
   const addBrand = async () => {
     if (!newBrand.name.trim()) return;
     await fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newBrand) });
-    setNewBrand({ name: '', color: '#6366f1' });
+    setNewBrand({ name: '', color: '#7c6bf0' });
     await fetchAll();
     toast('Enseigne ajoutée');
   };
@@ -206,7 +206,7 @@ export default function SettingsPage() {
   const addCollab = async () => {
     if (!newCollab.name.trim()) return;
     await fetch('/api/collaborators', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCollab) });
-    setNewCollab({ name: '', email: '', color: '#6366f1' });
+    setNewCollab({ name: '', email: '', color: '#7c6bf0' });
     await fetchAll();
     toast('Collaborateur ajouté');
   };
@@ -250,7 +250,7 @@ export default function SettingsPage() {
     toast('Supprimé');
   };
 
-  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e9e9f1', padding: '8px 12px', marginBottom: 6 };
 
   return (
     <AppLayout>
@@ -285,13 +285,13 @@ export default function SettingsPage() {
             <div key={t.id} style={row}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>📧 {t.name}</div>
-                {t.subject && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{t.subject.slice(0, 60)}{t.subject.length > 60 ? '…' : ''}</div>}
+                {t.subject && <div style={{ fontSize: 11, color: '#9a9cb5', marginTop: 2 }}>{t.subject.slice(0, 60)}{t.subject.length > 60 ? '…' : ''}</div>}
               </div>
               <button style={btnXs} onClick={() => { setEditTemplate({ ...t }); setShowNewTemplate(false); }}>✎</button>
               <button style={btnXs} onClick={() => deleteTemplate(t.id)}>🗑</button>
             </div>
           ))}
-          {!templates.length && !showNewTemplate && <div style={{ fontSize: 13, color: '#94a3b8' }}>Aucun template. Créez-en un !</div>}
+          {!templates.length && !showNewTemplate && <div style={{ fontSize: 13, color: '#9a9cb5' }}>Aucun template. Créez-en un !</div>}
         </div>
 
         {/* Collaborateurs */}
@@ -301,7 +301,7 @@ export default function SettingsPage() {
             <div key={c.id} style={row}>
               <input style={{ ...inp, flex: 1 }} placeholder="Nom" value={editCollab.name} onChange={e => setEditCollab(x => x ? { ...x, name: e.target.value } : null)} />
               <input style={{ ...inp, flex: 1 }} placeholder="Email" value={editCollab.email} onChange={e => setEditCollab(x => x ? { ...x, email: e.target.value } : null)} />
-              <input type="color" value={editCollab.color} onChange={e => setEditCollab(x => x ? { ...x, color: e.target.value } : null)} style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+              <input type="color" value={editCollab.color} onChange={e => setEditCollab(x => x ? { ...x, color: e.target.value } : null)} style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
               <button style={btnPri} onClick={saveCollab}>✓</button>
               <button style={btnDef} onClick={() => setEditCollab(null)}>✕</button>
             </div>
@@ -312,9 +312,9 @@ export default function SettingsPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
-                {c.email && <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.email}</div>}
+                {c.email && <div style={{ fontSize: 11, color: '#9a9cb5' }}>{c.email}</div>}
               </div>
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
+              <span style={{ fontSize: 11, color: '#9a9cb5' }}>{c._count?.deals ?? 0} affaires</span>
               <button style={btnXs} onClick={() => setEditCollab({ ...c })}>✎</button>
               <button style={btnXs} onClick={() => deleteCollab(c.id)}>🗑</button>
             </div>
@@ -322,7 +322,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input style={{ ...inp, flex: 1 }} placeholder="Nom du collaborateur" value={newCollab.name} onChange={e => setNewCollab(c => ({ ...c, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addCollab()} />
             <input style={{ ...inp, flex: 1 }} placeholder="Email (optionnel)" value={newCollab.email} onChange={e => setNewCollab(c => ({ ...c, email: e.target.value }))} />
-            <input type="color" value={newCollab.color} onChange={e => setNewCollab(c => ({ ...c, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+            <input type="color" value={newCollab.color} onChange={e => setNewCollab(c => ({ ...c, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
             <button style={btnPri} onClick={addCollab}>+ Ajouter</button>
           </div>
         </div>
@@ -333,7 +333,7 @@ export default function SettingsPage() {
           {brands.map(b => editBrand?.id === b.id ? (
             <div key={b.id} style={row}>
               <input style={{ ...inp, flex: 1 }} value={editBrand.name} onChange={e => setEditBrand(x => x ? { ...x, name: e.target.value } : null)} />
-              <input type="color" value={editBrand.color} onChange={e => setEditBrand(x => x ? { ...x, color: e.target.value } : null)} style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+              <input type="color" value={editBrand.color} onChange={e => setEditBrand(x => x ? { ...x, color: e.target.value } : null)} style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
               <button style={btnPri} onClick={saveBrand}>✓</button>
               <button style={btnDef} onClick={() => setEditBrand(null)}>✕</button>
             </div>
@@ -341,14 +341,14 @@ export default function SettingsPage() {
             <div key={b.id} style={row}>
               <div style={{ width: 12, height: 12, borderRadius: '50%', background: b.color }} />
               <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{b.name}</span>
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>{(b._count?.stores ?? 0)} magasins</span>
+              <span style={{ fontSize: 11, color: '#9a9cb5' }}>{(b._count?.stores ?? 0)} magasins</span>
               <button style={btnXs} onClick={() => setEditBrand({ ...b })}>✎</button>
               <button style={btnXs} onClick={() => deleteBrand(b.id)}>🗑</button>
             </div>
           ))}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input style={{ ...inp, flex: 1 }} placeholder="Nom de l'enseigne" value={newBrand.name} onChange={e => setNewBrand(b => ({ ...b, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addBrand()} />
-            <input type="color" value={newBrand.color} onChange={e => setNewBrand(b => ({ ...b, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+            <input type="color" value={newBrand.color} onChange={e => setNewBrand(b => ({ ...b, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
             <button style={btnPri} onClick={addBrand}>+ Ajouter</button>
           </div>
         </div>
@@ -359,7 +359,7 @@ export default function SettingsPage() {
           
           {pipelines.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6 }}>Sélectionner un pipeline</label>
+              <label style={{ fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 6 }}>Sélectionner un pipeline</label>
               <select 
                 value={selectedPipelineId} 
                 onChange={e => setSelectedPipelineId(e.target.value)}
@@ -380,10 +380,10 @@ export default function SettingsPage() {
                 background: '#fff',
               }}
             >
-              <input type="color" value={c.color} onChange={e => updateColColor(c.id, e.target.value)} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+              <input type="color" value={c.color} onChange={e => updateColColor(c.id, e.target.value)} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
               <span style={{ flex: 1, fontSize: 13 }}>{c.title}</span>
-              {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#eef2ff', color: '#4338ca', fontWeight: 500 }}>Par défaut</span>}
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
+              {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#f1eefe', color: '#5a47d4', fontWeight: 500 }}>Par défaut</span>}
+              <span style={{ fontSize: 11, color: '#9a9cb5' }}>{c._count?.deals ?? 0} affaires</span>
               
               <button 
                 style={{ ...btnXs, opacity: idx === 0 ? 0.5 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }} 
@@ -405,11 +405,11 @@ export default function SettingsPage() {
             </div>
           ))}
           
-          {columns.length === 0 && <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>Aucune colonne pour ce pipeline.</div>}
+          {columns.length === 0 && <div style={{ fontSize: 13, color: '#9a9cb5', marginBottom: 12 }}>Aucune colonne pour ce pipeline.</div>}
           
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input style={{ ...inp, flex: 1 }} placeholder="Titre de la colonne" value={newColTitle} onChange={e => setNewColTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && addColumn()} />
-            <input type="color" value={newColColor} onChange={e => setNewColColor(e.target.value)} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
+            <input type="color" value={newColColor} onChange={e => setNewColColor(e.target.value)} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e9e9f1', cursor: 'pointer' }} />
             <button style={btnPri} onClick={addColumn}>+ Ajouter</button>
           </div>
         </div>

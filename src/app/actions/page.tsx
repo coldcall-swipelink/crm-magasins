@@ -7,9 +7,9 @@ import { toast } from '@/components/ui/Toast';
 import DealDrawer from '@/components/deal/DealDrawer';
 import { useCurrentUser } from '@/lib/currentUser';
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
+const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f7f7fb', color: '#14152b', fontSize: 13, outline: 'none' };
+const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#6d5ae6', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
+const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 type Tab = 'todo' | 'today' | 'overdue' | 'done';
@@ -91,7 +91,7 @@ export default function ActionsPage() {
   const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchAll(); };
 
   const tabBtn = (id: Tab, label: string) => (
-    <button key={id} onClick={() => setTab(id)} style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid', background: tab === id ? '#4f46e5' : '#fff', color: tab === id ? '#fff' : '#475569', borderColor: tab === id ? '#4f46e5' : '#e2e8f0', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+    <button key={id} onClick={() => setTab(id)} style={{ padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: '1px solid', background: tab === id ? '#6d5ae6' : '#fff', color: tab === id ? '#fff' : '#5b5e78', borderColor: tab === id ? '#6d5ae6' : '#e9e9f1', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       {label}
       {id === 'overdue' && overdue > 0 && <span style={{ background: '#dc2626', color: '#fff', borderRadius: 3, padding: '0 4px', fontSize: 10 }}>{overdue}</span>}
     </button>
@@ -112,7 +112,7 @@ export default function ActionsPage() {
           {tabBtn('done', 'Terminées')}
           <div style={{ marginLeft: 'auto' }}>
             <select value={filterCollab} onChange={e => setFilterCollab(e.target.value)}
-              style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterCollab ? '#eef2ff' : '#fff', fontSize: 12, color: filterCollab ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
+              style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: filterCollab ? '#f1eefe' : '#fff', fontSize: 12, color: filterCollab ? '#5a47d4' : '#5b5e78', cursor: 'pointer', outline: 'none' }}>
               <option value="">Tous collaborateurs</option>
               {collaborators.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -120,7 +120,7 @@ export default function ActionsPage() {
         </div>
 
         {form && (
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <div style={{ background: '#f7f7fb', border: '1px solid #e9e9f1', borderRadius: 10, padding: 16, marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={form.title || ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
               <select style={inp} value={form.type || 'Appeler'} onChange={e => setForm(f => ({ ...f, type: e.target.value as Action['type'] }))}>{ACTION_TYPES.map(t => <option key={t}>{t}</option>)}</select>
@@ -144,7 +144,7 @@ export default function ActionsPage() {
           </div>
         )}
 
-        {!filtered.length && <div style={{ color: '#94a3b8', fontSize: 13, padding: '30px 0', textAlign: 'center' }}>Aucune action dans cet onglet.</div>}
+        {!filtered.length && <div style={{ color: '#9a9cb5', fontSize: 13, padding: '30px 0', textAlign: 'center' }}>Aucune action dans cet onglet.</div>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map(a => {
@@ -153,33 +153,33 @@ export default function ActionsPage() {
             const collab = collaborators.find(c => c.id === (deal as any)?.collaboratorId);
 
             return (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: `1px solid ${late ? '#fecaca' : '#e2e8f0'}`, borderRadius: 10, borderLeft: `3px solid ${late ? '#dc2626' : '#e2e8f0'}` }}>
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: `1px solid ${late ? '#fecaca' : '#e9e9f1'}`, borderRadius: 10, borderLeft: `3px solid ${late ? '#dc2626' : '#e9e9f1'}` }}>
                 <button onClick={() => a.status === 'todo' && doneAction(a.id)} style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${a.status === 'done' ? '#16a34a' : '#cbd5e1'}`, background: a.status === 'done' ? '#16a34a' : 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10 }}>
                   {a.status === 'done' && '✓'}
                 </button>
 
                 <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setSelectedDealId(a.dealId)}>
-                  <div style={{ fontSize: 13, fontWeight: 500, textDecoration: a.status === 'done' ? 'line-through' : 'none', color: a.status === 'done' ? '#94a3b8' : '#0f172a' }}>{a.title}</div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ background: '#eef2ff', color: '#4338ca', padding: '1px 5px', borderRadius: 3 }}>{a.type}</span>
-                    <span style={{ color: '#4f46e5', fontWeight: 500, textDecoration: 'underline' }}>{deal?.store?.name || 'Affaire'}</span>
+                  <div style={{ fontSize: 13, fontWeight: 500, textDecoration: a.status === 'done' ? 'line-through' : 'none', color: a.status === 'done' ? '#9a9cb5' : '#14152b' }}>{a.title}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 2, fontSize: 11, color: '#6b6e89', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ background: '#f1eefe', color: '#5a47d4', padding: '1px 5px', borderRadius: 3 }}>{a.type}</span>
+                    <span style={{ color: '#6d5ae6', fontWeight: 500, textDecoration: 'underline' }}>{deal?.store?.name || 'Affaire'}</span>
                     {(a as any).assignedUser && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }} title={`Assignée à ${(a as any).assignedUser.name}`}>
                         <span style={{ width: 16, height: 16, borderRadius: '50%', background: (a as any).assignedUser.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials((a as any).assignedUser.name)}</span>
-                        <span style={{ color: '#64748b' }}>{(a as any).assignedUser.name}</span>
+                        <span style={{ color: '#6b6e89' }}>{(a as any).assignedUser.name}</span>
                       </span>
                     )}
                     {collab && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         <span style={{ width: 16, height: 16, borderRadius: '50%', background: collab.color, color: '#fff', fontSize: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{initials(collab.name)}</span>
-                        <span style={{ color: '#64748b' }}>{collab.name}</span>
+                        <span style={{ color: '#6b6e89' }}>{collab.name}</span>
                       </span>
                     )}
-                    {a.note && <span style={{ color: '#94a3b8' }}>{a.note.slice(0, 50)}</span>}
+                    {a.note && <span style={{ color: '#9a9cb5' }}>{a.note.slice(0, 50)}</span>}
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12, color: late ? '#dc2626' : '#64748b', fontWeight: late ? 600 : 400, whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 12, color: late ? '#dc2626' : '#6b6e89', fontWeight: late ? 600 : 400, whiteSpace: 'nowrap' }}>
                   🕐 {formatRelativeDate(a.dueDate)}{(a as any).dueTime ? ` à ${(a as any).dueTime}` : ''}
                 </div>
                 <button onClick={() => setForm({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : new Date(a.dueDate).toISOString().slice(0, 10) } as any)} style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>✎</button>

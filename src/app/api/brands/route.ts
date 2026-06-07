@@ -13,6 +13,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { name, color } = await req.json();
   if (!name) return NextResponse.json({ error: 'name requis' }, { status: 400 });
-  const brand = await prisma.brand.create({ data: { name, color: color || '#6366f1' } });
+  const brand = await prisma.brand.create({ data: { name, color: color || '#7c6bf0' } });
   return NextResponse.json(brand, { status: 201 });
 }

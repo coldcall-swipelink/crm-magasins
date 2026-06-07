@@ -8,11 +8,11 @@ import { useCurrentUser } from '@/lib/currentUser';
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
-const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
-const labelStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 };
-const sectionTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '0 0 10px' };
+const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#fff', color: '#14152b', fontSize: 13, outline: 'none' };
+const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#6d5ae6', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
+const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
+const labelStyle: React.CSSProperties = { fontSize: 11, color: '#6b6e89', display: 'block', marginBottom: 3, fontWeight: 500 };
+const sectionTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#9a9cb5', letterSpacing: '.8px', textTransform: 'uppercase', margin: '0 0 10px' };
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
@@ -222,14 +222,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: '66vw', maxWidth: 1200, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: '#94a3b8' }}>Chargement…</span>
+        <span style={{ color: '#9a9cb5' }}>Chargement…</span>
       </div>
     </div>
   );
 
   const store = deal.store;
   const brand = store?.brand;
-  const bc = brand?.color || '#6366f1';
+  const bc = brand?.color || '#7c6bf0';
   const isWhite = bc === '#ffffff';
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
 
@@ -261,34 +261,34 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '66vw', maxWidth: 1200, minWidth: 720, height: '100%', background: '#f8fafc', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '66vw', maxWidth: 1200, minWidth: 720, height: '100%', background: '#f7f7fb', borderLeft: '1px solid #e9e9f1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* En-tête */}
-        <div style={{ padding: '14px 22px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, background: '#fff', borderTop: `4px solid ${bc}` }}>
+        <div style={{ padding: '14px 22px', borderBottom: '1px solid #e9e9f1', flexShrink: 0, background: '#fff', borderTop: `4px solid ${bc}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               {brand && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: isWhite ? '#2563eb' : bc, marginBottom: 2 }}>{brand.name}</div>}
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>{store?.name}</div>
-              {store?.city && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>📍 {store.city}{store.department ? `, ${store.department}` : ''}</div>}
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#14152b' }}>{store?.name}</div>
+              {store?.city && <div style={{ fontSize: 12, color: '#6b6e89', marginTop: 2 }}>📍 {store.city}{store.department ? `, ${store.department}` : ''}</div>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>✦ Nouvelle</span>}
               {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>⚠ Absente</span>}
-              <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
+              <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f7f7fb' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>
-              <button onClick={onClose} title="Fermer (Échap)" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: '#94a3b8', padding: 0, lineHeight: 1 }}>×</button>
+              <button onClick={onClose} title="Fermer (Échap)" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: '#9a9cb5', padding: 0, lineHeight: 1 }}>×</button>
             </div>
           </div>
 
           {/* Sélecteur de pipeline */}
           {pipelines.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>Pipeline</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#9a9cb5', letterSpacing: '.8px', textTransform: 'uppercase' }}>Pipeline</span>
               <select
                 value={deal.pipelineId || ''}
                 onChange={e => changePipeline(e.target.value)}
-                style={{ ...inp, width: 'auto', padding: '4px 8px', fontSize: 12, fontWeight: 600, background: '#f8fafc', color: '#4338ca' }}
+                style={{ ...inp, width: 'auto', padding: '4px 8px', fontSize: 12, fontWeight: 600, background: '#f7f7fb', color: '#5a47d4' }}
               >
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -301,8 +301,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               {sortedCols.map((c, i) => {
                 const passed = i < currentIdx;
                 const current = i === currentIdx;
-                const bg = current ? '#4338ca' : passed ? '#6366f1' : '#e2e8f0';
-                const color = current || passed ? '#fff' : '#64748b';
+                const bg = current ? '#5a47d4' : passed ? '#7c6bf0' : '#e9e9f1';
+                const color = current || passed ? '#fff' : '#6b6e89';
                 return (
                   <button
                     key={c.id}
@@ -335,12 +335,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
           {/* ===== Sous-volet gauche : infos du deal ===== */}
-          <div style={{ width: 340, flexShrink: 0, borderRight: '1px solid #e2e8f0', overflowY: 'auto', padding: '18px 18px 28px', background: '#fff' }}>
+          <div style={{ width: 340, flexShrink: 0, borderRight: '1px solid #e9e9f1', overflowY: 'auto', padding: '18px 18px 28px', background: '#fff' }}>
 
             <div style={sectionTitle}>Magasin</div>
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', gap: 8, fontSize: 12.5, marginBottom: 6, alignItems: 'center' }}>
-                <span style={{ width: 96, flexShrink: 0, color: '#94a3b8' }}>Enseigne</span>
+                <span style={{ width: 96, flexShrink: 0, color: '#9a9cb5' }}>Enseigne</span>
                 <select value={store?.brandId || ''} onChange={e => patchDeal({ brandId: e.target.value || null }, 'Enseigne mise à jour')}
                   style={{ ...inp, flex: 1, padding: '4px 8px', fontSize: 12.5 }}>
                   <option value="">— Aucune —</option>
@@ -349,7 +349,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
               </div>
               {[['Magasin', store?.name], ['Ville', store?.city], ['Département', store?.department]].map(([l, v]) => (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12.5, marginBottom: 6 }}>
-                  <span style={{ width: 96, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                  <span style={{ width: 96, flexShrink: 0, color: '#9a9cb5' }}>{l}</span>
                   <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
                 </div>
               ))}
@@ -397,12 +397,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   onChange={e => { setFields(f => ({ ...f, demoDate: e.target.value })); patchDeal({ demoDate: e.target.value ? new Date(e.target.value).toISOString() : null }); }}
                 />
                 {deal.column?.title === 'Démo prévue' && (
-                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>
+                  <p style={{ fontSize: 11, color: '#6b6e89', marginTop: 5 }}>
                     Une invitation Google Meet est envoyée au contact{deal.dealEmail ? ` (${deal.dealEmail})` : ''} et à bilal@swipelink.fr à l&apos;enregistrement de la date.
                   </p>
                 )}
                 {deal.googleMeetUrl && (
-                  <a href={deal.googleMeetUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 5, fontSize: 12, color: '#4f46e5', textDecoration: 'underline' }}>
+                  <a href={deal.googleMeetUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 5, fontSize: 12, color: '#6d5ae6', textDecoration: 'underline' }}>
                     🔗 Ouvrir le lien Google Meet
                   </a>
                 )}
@@ -436,7 +436,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             <div style={{ marginBottom: 22 }}>
               {[['Créé le', formatDate(deal.createdAt)], ['Dernier import', formatDate(deal.lastImportAt)]].map(([l, v]) => v && v !== '—' && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12.5, marginBottom: 6 }}>
-                  <span style={{ width: 96, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
+                  <span style={{ width: 96, flexShrink: 0, color: '#9a9cb5' }}>{l}</span>
                   <span style={{ color: '#334155' }}>{v}</span>
                 </div>
               ))}
@@ -459,7 +459,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* Composer : Note */}
             {composer === 'note' && (
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 22 }}>
+              <div style={{ background: '#fff', border: '1px solid #e9e9f1', borderRadius: 10, padding: 14, marginBottom: 22 }}>
                 <textarea style={{ ...inp, height: 80, resize: 'vertical', marginBottom: 10 }} placeholder="Saisir une note…" value={noteText} onChange={e => setNote(e.target.value)} autoFocus />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button style={btnPri} onClick={addNote}>Ajouter la note</button>
@@ -470,7 +470,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* Composer : Action */}
             {composer === 'action' && actionForm && (
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 22 }}>
+              <div style={{ background: '#fff', border: '1px solid #e9e9f1', borderRadius: 10, padding: 14, marginBottom: 22 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <input style={{ ...inp, gridColumn: '1/-1' }} placeholder="Titre *" value={actionForm.title || ''} onChange={e => setAF(f => ({ ...f, title: e.target.value }))} autoFocus />
                   <select style={inp} value={actionForm.type || 'Appeler'} onChange={e => setAF(f => ({ ...f, type: e.target.value as Action['type'] }))}>{ACTION_TYPES.map(t => <option key={t}>{t}</option>)}</select>
@@ -492,7 +492,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
             {/* Composer : Email */}
             {composer === 'email' && (
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 22 }}>
+              <div style={{ background: '#fff', border: '1px solid #e9e9f1', borderRadius: 10, padding: 14, marginBottom: 22 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
                     <label style={labelStyle}>Template</label>
@@ -536,9 +536,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {attachments.length > 0 && (
                     <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {attachments.map((a, i) => (
-                        <span key={i} style={{ fontSize: 11, background: '#eef2ff', color: '#4338ca', padding: '2px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span key={i} style={{ fontSize: 11, background: '#f1eefe', color: '#5a47d4', padding: '2px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                           📎 {a.name}
-                          <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 12, padding: 0 }}>×</button>
+                          <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9a9cb5', fontSize: 12, padding: 0 }}>×</button>
                         </span>
                       ))}
                     </div>
@@ -554,16 +554,16 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             {/* Actions programmées (à venir, aujourd'hui, en retard) */}
             <div style={{ marginBottom: 26 }}>
               <div style={{ ...sectionTitle, marginBottom: 12 }}>Actions programmées {todoActions.length > 0 && `(${todoActions.length})`}</div>
-              {todoActions.length === 0 && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune action programmée.</p>}
+              {todoActions.length === 0 && <p style={{ color: '#9a9cb5', fontSize: 13 }}>Aucune action programmée.</p>}
               {todoActions.map(a => {
                 const late = isOverdue(a.dueDate) && new Date(a.dueDate).toDateString() !== new Date().toDateString();
                 return (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 9, border: `1px solid ${late ? '#fecaca' : '#e2e8f0'}`, background: late ? '#fef2f2' : '#fff', marginBottom: 7 }}>
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 9, border: `1px solid ${late ? '#fecaca' : '#e9e9f1'}`, background: late ? '#fef2f2' : '#fff', marginBottom: 7 }}>
                     <button onClick={() => doneAction(a.id)} title="Marquer comme terminée" style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #cbd5e1', background: 'transparent', cursor: 'pointer', flexShrink: 0, marginTop: 1 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{a.title}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 11.5, color: late ? '#dc2626' : '#64748b', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ background: '#eef2ff', color: '#4338ca', padding: '1px 6px', borderRadius: 3 }}>{a.type}</span>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#14152b' }}>{a.title}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 11.5, color: late ? '#dc2626' : '#6b6e89', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ background: '#f1eefe', color: '#5a47d4', padding: '1px 6px', borderRadius: 3 }}>{a.type}</span>
                         <span style={{ fontWeight: late ? 700 : 400 }}>{formatRelativeDate(a.dueDate)} · {formatDate(a.dueDate)}</span>
                         {a.dueTime && <span>à {a.dueTime}</span>}
                         {a.assignedUser && (
@@ -573,7 +573,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                           </span>
                         )}
                       </div>
-                      {a.note && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{a.note}</div>}
+                      {a.note && <div style={{ fontSize: 12, color: '#6b6e89', marginTop: 4 }}>{a.note}</div>}
                     </div>
                     <button onClick={() => { setComposer('action'); setAF({ ...a, dueDate: typeof a.dueDate === 'string' ? a.dueDate.slice(0, 10) : '' }); }} style={{ ...btnDef, padding: '3px 7px', fontSize: 11 }}>✎</button>
                     <button onClick={() => deleteAction(a.id)} style={{ ...btnDef, padding: '3px 7px', fontSize: 11 }}>🗑</button>
@@ -585,7 +585,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             {/* Historique chronologique : notes, actions terminées, emails */}
             <div>
               <div style={{ ...sectionTitle, marginBottom: 12 }}>Historique</div>
-              {feed.length === 0 && <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune activité pour le moment.</p>}
+              {feed.length === 0 && <p style={{ color: '#9a9cb5', fontSize: 13 }}>Aucune activité pour le moment.</p>}
               <div style={{ position: 'relative' }}>
                 {feed.map((item, idx) => (
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
@@ -594,10 +594,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                       <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : '#dbeafe' }}>
                         {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : '📧'}
                       </div>
-                      {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
+                      {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e9e9f1', marginTop: 4 }} />}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
+                    <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e9e9f1', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
@@ -617,9 +617,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 function NoteItem({ note }: { note: Note }) {
   return (
     <>
-      <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 6, color: '#0f172a' }}>{note.content}</p>
-      <p style={{ fontSize: 10.5, color: '#94a3b8' }}>
-        {(note as any).authorName ? <span style={{ fontWeight: 600, color: '#64748b' }}>{(note as any).authorName}</span> : <span style={{ fontStyle: 'italic' }}>Anonyme</span>}
+      <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 6, color: '#14152b' }}>{note.content}</p>
+      <p style={{ fontSize: 10.5, color: '#9a9cb5' }}>
+        {(note as any).authorName ? <span style={{ fontWeight: 600, color: '#6b6e89' }}>{(note as any).authorName}</span> : <span style={{ fontStyle: 'italic' }}>Anonyme</span>}
         {' · '}{formatDate(note.createdAt)}
       </p>
     </>
@@ -631,9 +631,9 @@ function DoneActionItem({ action, onReopen, onDelete }: { action: any; onReopen:
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <button onClick={onReopen} title="Rouvrir l'action" style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #16a34a', background: '#16a34a', color: '#fff', fontSize: 10, cursor: 'pointer', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', textDecoration: 'line-through' }}>{action.title}</div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 11, color: '#94a3b8', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ background: '#f1f5f9', color: '#64748b', padding: '1px 6px', borderRadius: 3 }}>{action.type}</span>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#5b5e78', textDecoration: 'line-through' }}>{action.title}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 3, fontSize: 11, color: '#9a9cb5', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ background: '#f3f3f9', color: '#6b6e89', padding: '1px 6px', borderRadius: 3 }}>{action.type}</span>
           <span>Terminée le {formatDate(action.completedAt || action.updatedAt || action.dueDate)}</span>
           {action.assignedUser && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -642,7 +642,7 @@ function DoneActionItem({ action, onReopen, onDelete }: { action: any; onReopen:
             </span>
           )}
         </div>
-        {action.note && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{action.note}</div>}
+        {action.note && <div style={{ fontSize: 12, color: '#9a9cb5', marginTop: 4 }}>{action.note}</div>}
       </div>
       <button onClick={onDelete} style={{ ...btnDef, padding: '2px 6px', fontSize: 11 }}>🗑</button>
     </div>
@@ -654,20 +654,20 @@ function EmailLogItem({ log }: { log: EmailLog }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{log.subject}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#14152b' }}>{log.subject}</span>
         {log.status === 'opened'
           ? <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>👁 Ouvert</span>
           : <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>✓ Envoyé</span>
         }
       </div>
-      <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
-      {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}{log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
-      <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
+      <div style={{ fontSize: 11, color: '#6b6e89' }}>→ {log.to}</div>
+      {log.template && <div style={{ fontSize: 10, color: '#9a9cb5' }}>Template : {log.template.name}</div>}
+      <div style={{ fontSize: 10, color: '#9a9cb5', marginTop: 2 }}>{formatDate(log.sentAt)}{log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
+      <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#6d5ae6', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
         {expanded ? 'Masquer' : 'Voir le contenu'}
       </button>
       {expanded && (
-        <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>
+        <div style={{ marginTop: 6, padding: '10px 12px', background: '#f7f7fb', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #7c6bf0' }}>
           {log.body}
         </div>
       )}

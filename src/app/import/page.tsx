@@ -2,9 +2,9 @@
 import { useState, useRef, useCallback } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnDef: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
+const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f7f7fb', color: '#14152b', fontSize: 13, outline: 'none' };
+const btnPri: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: 'none', background: '#6d5ae6', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
+const btnDef: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: '1px solid #e9e9f1', background: '#f3f3f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 
 const SAMPLE = `enseigne;nom magasin;ville;département;adresse;poste;titre;date publication;lien;salaire;contrat;source
 Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Boucher;Boucher H/F CDI;2025-01-10;https://example.com/1;2200€/mois;CDI;Indeed
@@ -54,7 +54,7 @@ export default function ImportPage() {
     <AppLayout>
       <div style={{ padding: '24px', maxWidth: 780 }}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Importer un CSV</div>
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>Déduplication automatique par magasin et offre.</p>
+        <p style={{ fontSize: 13, color: '#6b6e89', marginBottom: 14 }}>Déduplication automatique par magasin et offre.</p>
 
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#78350f' }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Règles appliquées</div>
@@ -66,19 +66,19 @@ export default function ImportPage() {
 
         {!preview && !result && (
           <>
-            <div style={{ border: `2px dashed ${dragging ? '#6366f1' : '#cbd5e1'}`, borderRadius: 12, padding: '36px 24px', textAlign: 'center', background: dragging ? '#eef2ff' : '#f8fafc', cursor: 'pointer', marginBottom: 16, transition: 'all .15s' }}
+            <div style={{ border: `2px dashed ${dragging ? '#7c6bf0' : '#cbd5e1'}`, borderRadius: 12, padding: '36px 24px', textAlign: 'center', background: dragging ? '#f1eefe' : '#f7f7fb', cursor: 'pointer', marginBottom: 16, transition: 'all .15s' }}
               onClick={() => fileRef.current?.click()}
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>📥</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Glisser un fichier CSV ici</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>ou cliquer · séparateur , ou ;</div>
+              <div style={{ fontSize: 12, color: '#9a9cb5' }}>ou cliquer · séparateur , ou ;</div>
               <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
-            <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e9e9f1', padding: 16 }}>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Format CSV attendu</div>
-              <pre style={{ fontSize: 10, color: '#475569', overflow: 'auto', background: '#f8fafc', borderRadius: 7, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre' }}>{SAMPLE}</pre>
+              <pre style={{ fontSize: 10, color: '#5b5e78', overflow: 'auto', background: '#f7f7fb', borderRadius: 7, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre' }}>{SAMPLE}</pre>
               <button style={{ ...btnDef, marginTop: 10, fontSize: 12 }} onClick={() => parsePreview(SAMPLE, 'exemple.csv')}>⟳ Charger l'exemple</button>
             </div>
           </>
@@ -86,15 +86,15 @@ export default function ImportPage() {
 
         {preview && (
           <div>
-            <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: 16 }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>📄 {preview.fileName} — {preview.total} lignes</div>
+            <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e9e9f1', overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e9e9f1', fontWeight: 600, fontSize: 13 }}>📄 {preview.fileName} — {preview.total} lignes</div>
               <div style={{ overflow: 'auto' }}>
                 <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                  <thead><tr>{Object.keys(preview.rows[0] || {}).map(h => <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
-                  <tbody>{preview.rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j} style={{ padding: '5px 10px', borderBottom: '1px solid #f1f5f9', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</td>)}</tr>)}</tbody>
+                  <thead><tr>{Object.keys(preview.rows[0] || {}).map(h => <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: '1px solid #e9e9f1', color: '#6b6e89', whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
+                  <tbody>{preview.rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j} style={{ padding: '5px 10px', borderBottom: '1px solid #f3f3f9', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</td>)}</tr>)}</tbody>
                 </table>
               </div>
-              {preview.total > 5 && <div style={{ padding: '6px 16px', fontSize: 11, color: '#94a3b8' }}>… et {preview.total - 5} autres lignes</div>}
+              {preview.total > 5 && <div style={{ padding: '6px 16px', fontSize: 11, color: '#9a9cb5' }}>… et {preview.total - 5} autres lignes</div>}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button style={btnPri} onClick={runImport} disabled={loading}>{loading ? '⟳ Import…' : `✓ Lancer l'import (${preview.total} lignes)`}</button>

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // Palette de couleurs distinctes pour les avatars utilisateurs.
 const USER_COLORS = [
-  '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
+  '#7c6bf0', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
   '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#0ea5e9',
 ];
 
