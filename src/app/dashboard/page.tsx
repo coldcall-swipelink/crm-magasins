@@ -33,7 +33,7 @@ export default function DashboardPage() {
           <M label="Affaires totales" value={stats.totalDeals} sub={`${stats.totalStores} magasins`} />
           <M label="Nouvelles (dernier imp.)" value={stats.newDealsLastImport} color="#16a34a" />
           <M label="Rappelées en À appeler" value={stats.movedToCallLastImport} color="#4338ca" accent />
-          <M label="Offres actives" value={stats.activeOffers} sub={`${stats.disappearedOffers} disparues`} />
+          <M label="Offres" value={stats.activeOffers} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
           <M label="Actions aujourd'hui" value={stats.actionsDueToday} color="#4f46e5" />

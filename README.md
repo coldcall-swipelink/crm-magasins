@@ -157,7 +157,6 @@ Le séparateur est auto-détecté (virgule ou point-virgule).
 | Nouveau magasin | → Nouvelle affaire dans **« À appeler »** |
 | Magasin existant + **nouvelle offre** | → **Retour automatique en « À appeler »** |
 | Magasin existant + offre déjà connue | → `lastSeenAt` mis à jour, colonne inchangée |
-| Offre disparue | → Marquée `disappeared`, affaire et colonne inchangées |
 
 ### Pipeline Kanban
 

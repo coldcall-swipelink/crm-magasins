@@ -13,7 +13,7 @@ Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;Caissier;Caissier H/F;202
 Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;Employé;Employé polyvalent;2025-01-13;https://example.com/4;1700€;CDI;Hellowork`;
 
 interface Preview { fileName: string; text: string; rows: Record<string, string>[]; total: number; }
-interface ImportResult { fileName: string; createdDeals: number; updatedDeals: number; newOffers: number; movedToCall: number; disappearedOffers: number; errorCount: number; errors: { row: number; message: string }[]; }
+interface ImportResult { fileName: string; createdDeals: number; updatedDeals: number; newOffers: number; movedToCall: number; errorCount: number; errors: { row: number; message: string }[]; }
 
 export default function ImportPage() {
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -61,7 +61,6 @@ export default function ImportPage() {
           <div>✦ Nouveau magasin → <strong>« À appeler »</strong></div>
           <div>⟳ Magasin existant + nouvelle offre → <strong>retour en « À appeler »</strong></div>
           <div>= Offre déjà connue → colonne inchangée, date mise à jour</div>
-          <div>✗ Offre disparue → marquée inactive, affaire inchangée</div>
         </div>
 
         {!preview && !result && (
@@ -107,7 +106,7 @@ export default function ImportPage() {
           <div style={{ background: '#14532d', border: '1px solid #16a34a', borderRadius: 12, padding: 20, color: '#86efac' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>✓ Import terminé — {result.fileName}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-              {[['Créées', result.createdDeals, '#86efac'], ['Màj', result.updatedDeals, '#fde047'], ['Nouvelles offres', result.newOffers, '#6ee7b7'], ['Rappelées', result.movedToCall, '#c4b5fd'], ['Disparues', result.disappearedOffers, '#fca5a5'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']].map(([l, v, c]) => (
+              {[['Créées', result.createdDeals, '#86efac'], ['Màj', result.updatedDeals, '#fde047'], ['Nouvelles offres', result.newOffers, '#6ee7b7'], ['Rappelées', result.movedToCall, '#c4b5fd'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']].map(([l, v, c]) => (
                 <div key={l as string}><div style={{ fontSize: 10, color: '#86efac88', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 22, fontWeight: 700, color: c as string }}>{v}</div></div>
               ))}
             </div>

@@ -7,7 +7,6 @@
  *   2. Magasin existant + NOUVELLE offre        → retour automatique en "À appeler" (movedToCallAt + previousColumnId)
  *   3. Magasin existant + offre déjà connue     → lastSeenAt mis à jour, colonne INCHANGÉE
  *   4. Magasin existant + aucune offre nouvelle → colonne INCHANGÉE
- *   5. Offre active disparue du dernier import  → status = "disappeared", colonne INCHANGÉE
  */
 
 import { prisma } from '@/lib/prisma';
@@ -24,7 +23,6 @@ export type ImportResult = {
   updatedDeals:    number;
   newOffers:       number;
   movedToCall:     number;
-  disappearedOffers: number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
 };
@@ -71,7 +69,6 @@ export async function runCsvImport(
   let newOffers       = 0;
   let movedToCall     = 0;
   const errors: Array<{ row: number; message: string }> = [];
-  const processedStoreIds = new Set<string>();
   const dealsToMove = new Set<string>(); // Track deals à basculer
 
   for (let i = 0; i < rows.length; i++) {
@@ -188,7 +185,6 @@ export async function runCsvImport(
         updatedDeals++;
       }
 
-      processedStoreIds.add(store.id);
       dealsToMove.add(deal.id); // Ajouter aux deals à basculer
 
       // ── C. Déduplication offre ───────────────────────────────────────────
@@ -211,7 +207,6 @@ export async function runCsvImport(
             url:            mapped.url        || '',
             publishedAt:    mapped.publishedAt || '',
             fingerprint,
-            status: 'active',
           },
         });
         newOffers++;
@@ -220,7 +215,7 @@ export async function runCsvImport(
         // Aucun changement de colonne
         await prisma.jobOffer.update({
           where: { id: existingOffer.id },
-          data: { lastSeenAt: new Date(), status: 'active' },
+          data: { lastSeenAt: new Date() },
         });
       }
 
@@ -267,20 +262,7 @@ export async function runCsvImport(
     }
   }
 
-  // ── 7. CAS 5 : Marquer les offres disparues ───────────────────────────────
-  // Une offre est "disparue" si son magasin n'était PAS dans cet import
-  // et que l'offre était encore active avant
-  const disappearedResult = await prisma.jobOffer.updateMany({
-    where: {
-      status:       'active',
-      importBatchId: { not: batch.id },
-      storeId:      { in: Array.from(processedStoreIds) },
-    },
-    data: { status: 'disappeared' },
-  });
-  const disappearedOffers = disappearedResult.count;
-
-  // ── 8. Mettre à jour le résumé du batch ──────────────────────────────────
+  // ── 7. Mettre à jour le résumé du batch ──────────────────────────────────
   await prisma.importBatch.update({
     where: { id: batch.id },
     data: {
@@ -288,7 +270,6 @@ export async function runCsvImport(
       updatedDeals,
       newOffers,
       movedToCall,
-      disappearedOffers,
       errorCount: errors.length,
     },
   });
@@ -297,6 +278,6 @@ export async function runCsvImport(
     batchId: batch.id, fileName,
     totalRows: rows.length,
     createdDeals, updatedDeals, newOffers, movedToCall,
-    disappearedOffers, errorCount: errors.length, errors,
+    errorCount: errors.length, errors,
   };
 }

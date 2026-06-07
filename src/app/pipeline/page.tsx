@@ -10,7 +10,7 @@ export default async function PipelinePage() {
       include: {
         store: { include: { brand: true } },
         column: true,
-        jobOffers: { where: { status: 'active' }, orderBy: { firstSeenAt: 'desc' } },
+        jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { where: { status: 'todo' }, orderBy: { dueDate: 'asc' }, take: 1 },
       },
       orderBy: [{ columnId: 'asc' }, { position: 'asc' }],

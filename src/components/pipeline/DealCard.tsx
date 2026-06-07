@@ -48,7 +48,7 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
-  const offers = deal.jobOffers?.filter(o => o.status === 'active') ?? [];
+  const offers = deal.jobOffers ?? [];
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;

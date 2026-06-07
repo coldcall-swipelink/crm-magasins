@@ -3,7 +3,6 @@
 export type Priority = 'faible' | 'normale' | 'élevée' | 'urgente';
 export type ActionType = 'Appeler' | 'Email' | 'Relancer' | 'Démo' | 'Autre';
 export type ActionStatus = 'todo' | 'done';
-export type OfferStatus = 'active' | 'disappeared';
 
 export interface User {
   id:        string;
@@ -57,7 +56,6 @@ export interface JobOffer {
   fingerprint:     string;
   firstSeenAt:     string;
   lastSeenAt:      string;
-  status:          OfferStatus;
   createdAt:       string;
   updatedAt:       string;
 }
@@ -146,7 +144,6 @@ export interface ImportBatch {
   updatedDeals:      number;
   newOffers:         number;
   movedToCall:       number;
-  disappearedOffers: number;
   errorCount:        number;
   createdAt:         string;
   importRows?: ImportRow[];
@@ -170,7 +167,6 @@ export interface DashboardStats {
   updatedLastImport:   number;
   movedToCallLastImport: number;
   activeOffers:        number;
-  disappearedOffers:   number;
   actionsDueToday:     number;
   actionsOverdue:      number;
   dealsWithNoAction:   number;

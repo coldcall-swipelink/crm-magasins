@@ -45,7 +45,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email'>(null);
 
   // Données annexes
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
@@ -96,7 +95,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   }, [dealId]);
 
   useEffect(() => { fetchDeal(); fetchEmailLogs(); }, [fetchDeal, fetchEmailLogs]);
-  useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
@@ -414,22 +412,53 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   onChange={e => { setFields(f => ({ ...f, candidateCallDate: e.target.value })); patchDeal({ candidateCallDate: fromDateInput(e.target.value) }); }}
                 />
               </div>
-              <div style={{ marginBottom: 9 }}>
-                <label style={labelStyle}>Utilisateur assigné</label>
-                <select style={inp} value={currentAssignedUser?.id || ''} onChange={e => patchDeal({ assignedUserId: e.target.value || null }, 'Suivi mis à jour')}>
+              <div>
+                <label style={labelStyle}>Assigné à</label>
+                <select
+                  style={inp}
+                  value={currentAssignedUser?.id || (currentCollab ? `collab:${currentCollab.id}` : '')}
+                  onChange={e => {
+                    const v = e.target.value;
+                    // Valeur historique (collaborateur déjà assigné) : aucune action.
+                    if (v.startsWith('collab:')) return;
+                    // Toute (ré)assignation passe désormais par la liste des utilisateurs ;
+                    // on retire au passage l'éventuel collaborateur hérité.
+                    patchDeal({ assignedUserId: v || null, collaboratorId: null }, 'Assignation mise à jour');
+                  }}
+                >
                   <option value="">— Personne —</option>
+                  {!currentAssignedUser && currentCollab && (
+                    <option value={`collab:${currentCollab.id}`}>{currentCollab.name}</option>
+                  )}
                   {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
-              {collaborators.length > 0 && (
-                <div>
-                  <label style={labelStyle}>Collaborateur</label>
-                  <select style={inp} value={currentCollab?.id || ''} onChange={e => patchDeal({ collaboratorId: e.target.value || null }, 'Assignation mise à jour')}>
-                    <option value="">— Non assigné —</option>
-                    {collaborators.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+            </div>
+
+            <div style={sectionTitle}>Offres</div>
+            <div style={{ marginBottom: 18 }}>
+              {(deal.jobOffers ?? []).length === 0 && <p style={{ color: '#cbd5e1', fontSize: 12.5 }}>Aucune offre.</p>}
+              {(deal.jobOffers ?? []).map((o: any, i: number) => (
+                <div key={o.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '9px 11px', marginBottom: 7, background: i === 0 ? '#f5f3ff' : '#fff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a', flex: 1, minWidth: 0 }}>{o.jobTitle || o.title || 'Offre'}</span>
+                    {i === 0 && <span style={{ fontSize: 9.5, fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>DERNIÈRE</span>}
+                  </div>
+                  {(o.contractType || o.salary) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                      {o.contractType && <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 3 }}>{o.contractType}</span>}
+                      {o.salary && <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 3 }}>{o.salary}</span>}
+                    </div>
+                  )}
+                  {(o.publishedAt || o.source) && (
+                    <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+                      {o.publishedAt && <span>Publiée le {o.publishedAt}</span>}
+                      {o.source && <span>{o.publishedAt ? ' · ' : ''}{o.source}</span>}
+                    </div>
+                  )}
+                  {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#4f46e5', textDecoration: 'underline', display: 'inline-block', marginTop: 4 }}>🔗 Voir l&apos;offre</a>}
                 </div>
-              )}
+              ))}
             </div>
 
             <div style={sectionTitle}>CRM</div>

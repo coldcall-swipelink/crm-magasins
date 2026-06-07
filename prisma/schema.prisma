@@ -147,7 +147,6 @@ model JobOffer {
   fingerprint     String   @unique
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
-  status          String   @default("active")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -161,7 +160,6 @@ model ImportBatch {
   updatedDeals      Int      @default(0)
   newOffers         Int      @default(0)
   movedToCall       Int      @default(0)
-  disappearedOffers Int      @default(0)
   errorCount        Int      @default(0)
   createdAt         DateTime @default(now())
   importRows        ImportRow[]
