@@ -99,41 +99,68 @@ interface DemoEventInput {
   endIso: string;
   timeZone: string;
   attendees: string[];
-  meetingUri: string;
-  meetingCode: string;
+  // Si un espace Meet « Ouvert à tous » a pu être créé en amont, on l'attache
+  // directement. Sinon (typique compte gmail non-Workspace), on laisse Google
+  // Calendar générer le Meet via createRequest.
+  meetingUri?: string;
+  meetingCode?: string;
+  requestId?: string;
 }
 
 function buildEventBody(input: DemoEventInput) {
+  const hasSpace = Boolean(input.meetingUri && input.meetingCode);
+  const conferenceData = hasSpace
+    ? {
+        conferenceId: input.meetingCode,
+        conferenceSolution: { key: { type: 'hangoutsMeet' }, name: 'Google Meet' },
+        entryPoints: [
+          {
+            entryPointType: 'video',
+            uri: input.meetingUri,
+            label: (input.meetingUri as string).replace(/^https?:\/\//, ''),
+          },
+        ],
+      }
+    : {
+        // Repli : Google Calendar crée le Meet lui-même (marche sur gmail perso).
+        createRequest: {
+          requestId: input.requestId || `demo-${Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+
   return {
     summary: input.summary,
-    description: `Démo Swipelink — recrutements.\n\nLien Google Meet : ${input.meetingUri}`,
-    location: input.meetingUri,
+    description: hasSpace
+      ? `Démo Swipelink — recrutements.\n\nLien Google Meet : ${input.meetingUri}`
+      : 'Démo Swipelink — recrutements.',
+    ...(hasSpace ? { location: input.meetingUri } : {}),
     start: { dateTime: input.startIso, timeZone: input.timeZone },
     end: { dateTime: input.endIso, timeZone: input.timeZone },
     attendees: input.attendees.map((email) => ({ email })),
     guestsCanInviteOthers: true,
-    conferenceData: {
-      conferenceId: input.meetingCode,
-      conferenceSolution: {
-        key: { type: 'hangoutsMeet' },
-        name: 'Google Meet',
-      },
-      entryPoints: [
-        {
-          entryPointType: 'video',
-          uri: input.meetingUri,
-          label: input.meetingUri.replace(/^https?:\/\//, ''),
-        },
-      ],
-    },
+    conferenceData,
   };
+}
+
+/** Extrait l'URL du Meet depuis la réponse d'un événement Calendar. */
+function extractMeetUrl(event: CalendarEvent): string {
+  if (event?.hangoutLink) return event.hangoutLink;
+  const ep = event?.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video');
+  return ep?.uri || '';
+}
+
+interface CalendarEvent {
+  id: string;
+  hangoutLink?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
 }
 
 async function insertCalendarEvent(
   accessToken: string,
   calendarId: string,
   body: ReturnType<typeof buildEventBody>,
-): Promise<{ id: string }> {
+): Promise<CalendarEvent> {
   const url =
     `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events` +
     `?conferenceDataVersion=1&sendUpdates=all`;
@@ -149,7 +176,7 @@ async function insertCalendarEvent(
     const detail = await res.text();
     throw new Error(`Échec de création de l'événement (${res.status}): ${detail}`);
   }
-  return (await res.json()) as { id: string };
+  return (await res.json()) as CalendarEvent;
 }
 
 async function patchCalendarEvent(
@@ -157,7 +184,7 @@ async function patchCalendarEvent(
   calendarId: string,
   eventId: string,
   body: ReturnType<typeof buildEventBody>,
-): Promise<{ id: string }> {
+): Promise<CalendarEvent> {
   const url =
     `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}` +
     `?conferenceDataVersion=1&sendUpdates=all`;
@@ -173,7 +200,7 @@ async function patchCalendarEvent(
     const detail = await res.text();
     throw new Error(`Échec de mise à jour de l'événement (${res.status}): ${detail}`);
   }
-  return (await res.json()) as { id: string };
+  return (await res.json()) as CalendarEvent;
 }
 
 /** Convertit une Date en chaîne RFC3339 « locale » (sans le suffixe Z) pour le fuseau donné. */
@@ -244,14 +271,22 @@ export async function syncDemoMeeting(
   try {
     const accessToken = await getAccessToken();
 
-    // On (ré)utilise le lien Meet existant si on en a déjà créé un, sinon on
-    // crée un espace « Ouvert à tous ».
+    // On (ré)utilise le lien Meet existant si on en a déjà créé un. Sinon, on
+    // tente un espace Meet « Ouvert à tous » (accessType OPEN). Si l'API Meet
+    // refuse (fréquent sur un compte gmail non-Workspace), on bascule sur un
+    // Meet généré directement par Google Calendar : l'invitation part quand même.
     let meetingUri = deal.googleMeetUrl || '';
     let meetingCode = meetingUri ? meetingUri.split('/').pop() || '' : '';
     if (!meetingUri || !meetingCode) {
-      const space = await createOpenMeetSpace(accessToken);
-      meetingUri = space.meetingUri;
-      meetingCode = space.meetingCode;
+      try {
+        const space = await createOpenMeetSpace(accessToken);
+        meetingUri = space.meetingUri;
+        meetingCode = space.meetingCode;
+      } catch (spaceErr) {
+        console.warn('[syncDemoMeeting] espace Meet « Ouvert à tous » impossible, repli sur un Meet généré par Calendar:', spaceErr);
+        meetingUri = '';
+        meetingCode = '';
+      }
     }
 
     const body = buildEventBody({
@@ -260,28 +295,33 @@ export async function syncDemoMeeting(
       endIso: toZonedRfc3339(end, timeZone),
       timeZone,
       attendees,
-      meetingUri,
-      meetingCode,
+      meetingUri: meetingUri || undefined,
+      meetingCode: meetingCode || undefined,
+      requestId: `demo-${deal.id}`,
     });
 
     let eventId = deal.googleEventId || '';
+    let eventResp: CalendarEvent;
     if (eventId) {
       try {
-        await patchCalendarEvent(accessToken, calendarId, eventId, body);
+        eventResp = await patchCalendarEvent(accessToken, calendarId, eventId, body);
       } catch (patchErr) {
         // L'événement a peut-être été supprimé côté Google : on en recrée un.
         console.warn('[syncDemoMeeting] patch échoué, recréation:', patchErr);
-        const created = await insertCalendarEvent(accessToken, calendarId, body);
-        eventId = created.id;
+        eventResp = await insertCalendarEvent(accessToken, calendarId, body);
+        eventId = eventResp.id;
       }
     } else {
-      const created = await insertCalendarEvent(accessToken, calendarId, body);
-      eventId = created.id;
+      eventResp = await insertCalendarEvent(accessToken, calendarId, body);
+      eventId = eventResp.id;
     }
+
+    // En mode repli, c'est Calendar qui a généré le Meet : on récupère son lien.
+    if (!meetingUri) meetingUri = extractMeetUrl(eventResp);
 
     await prisma.deal.update({
       where: { id: deal.id },
-      data: { googleEventId: eventId, googleMeetUrl: meetingUri },
+      data: { googleEventId: eventId, googleMeetUrl: meetingUri || null },
     });
 
     return { ok: true, meetUrl: meetingUri };
