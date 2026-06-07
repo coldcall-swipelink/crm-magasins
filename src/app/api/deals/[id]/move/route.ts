@@ -17,6 +17,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: {
         columnId,
+        // Le pipeline suit la colonne cible (permet de changer une affaire de pipeline).
+        pipelineId: column.pipelineId,
         position: position ?? 0,
         hasNewOfferFromLastImport: false,
         previousColumnId: null,
