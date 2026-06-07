@@ -62,6 +62,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [offerForm, setOF] = useState<any>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
@@ -92,6 +93,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   useEffect(() => { fetchDeal(); }, [fetchDeal]);
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
   useEffect(() => { if (tab === 'email') fetchEmailLogs(); }, [tab, fetchEmailLogs]);
@@ -142,6 +144,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const assignCollaborator = async (collaboratorId: string | null) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collaboratorId }) });
     fetchDeal(); onUpdated(); toast('Assignation mise à jour');
+  };
+
+  const changeBrand = async (brandId: string | null) => {
+    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId }) });
+    fetchDeal(); onUpdated(); toast('Enseigne mise à jour');
   };
 
   const assignUser = async (assignedUserId: string | null) => {
@@ -273,7 +280,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           {tab === 'info' && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', marginBottom: 8 }}>MAGASIN</div>
-              {[['Enseigne', brand?.name], ['Nom', store?.name], ['Ville', store?.city], ['Département', store?.department], ['Adresse', store?.address], ['SIRET', store?.siret]].map(([l, v]) => v && (
+              <div style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5, alignItems: 'center' }}>
+                <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>Enseigne</span>
+                <select value={store?.brandId || ''} onChange={e => changeBrand(e.target.value || null)}
+                  style={{ ...inp, width: 'auto', flex: 1, padding: '4px 8px', fontSize: 12 }}>
+                  <option value="">— Aucune —</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              {[['Nom', store?.name], ['Ville', store?.city], ['Département', store?.department], ['Adresse', store?.address], ['SIRET', store?.siret]].map(([l, v]) => v && (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12, marginBottom: 5 }}>
                   <span style={{ width: 110, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                   <span style={{ color: '#334155' }}>{v}</span>

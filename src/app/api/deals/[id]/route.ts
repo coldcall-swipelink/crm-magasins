@@ -32,7 +32,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
-    const deal = await prisma.deal.update({ 
+
+    // Mise à jour optionnelle de l'enseigne (Brand) du magasin associé.
+    // brandId n'est pas un champ du Deal mais du Store lié.
+    if ('brandId' in body) {
+      const existing = await prisma.deal.findUnique({ where: { id: params.id }, select: { storeId: true } });
+      if (existing) {
+        await prisma.store.update({ where: { id: existing.storeId }, data: { brandId: body.brandId || null } });
+      }
+    }
+
+    const deal = await prisma.deal.update({
       where: { id: params.id }, 
       data,
       include: {
