@@ -7,8 +7,10 @@
 export const DEMO_MODE = true;
 
 const PIPELINE_ID = 'demo-pipe';
+const PIPELINE_ID_2 = 'demo-pipe-2';
 
-export const demoColumns = [
+// Pipeline 1 : prospection
+const pipe1Cols = [
   { id: 'col-1', pipelineId: PIPELINE_ID, title: 'SOURCING A FAIRE', position: 0, color: '#94a3b8', isDefault: true },
   { id: 'col-2', pipelineId: PIPELINE_ID, title: 'SOURCING TERMINE', position: 1, color: '#6366f1', isDefault: false },
   { id: 'col-3', pipelineId: PIPELINE_ID, title: 'PROSPECTION VALEUR', position: 2, color: '#0ea5e9', isDefault: false },
@@ -18,7 +20,20 @@ export const demoColumns = [
   { id: 'col-7', pipelineId: PIPELINE_ID, title: 'GAGNÉ', position: 6, color: '#16a34a', isDefault: false },
 ];
 
-export const demoPipelines = [{ id: PIPELINE_ID, name: 'Pipeline démo', position: 0, color: '#6366f1', columns: demoColumns }];
+// Pipeline 2 : recrutement (pour tester le changement de pipeline)
+const pipe2Cols = [
+  { id: 'col2-1', pipelineId: PIPELINE_ID_2, title: 'CANDIDATS À APPELER', position: 0, color: '#94a3b8', isDefault: true },
+  { id: 'col2-2', pipelineId: PIPELINE_ID_2, title: 'ENTRETIEN PLANIFIÉ', position: 1, color: '#0ea5e9', isDefault: false },
+  { id: 'col2-3', pipelineId: PIPELINE_ID_2, title: 'ENTRETIEN FAIT', position: 2, color: '#f59e0b', isDefault: false },
+  { id: 'col2-4', pipelineId: PIPELINE_ID_2, title: 'EMBAUCHÉ', position: 3, color: '#16a34a', isDefault: false },
+];
+
+export const demoColumns = [...pipe1Cols, ...pipe2Cols];
+
+export const demoPipelines = [
+  { id: PIPELINE_ID, name: 'Prospection', position: 0, color: '#6366f1', columns: pipe1Cols },
+  { id: PIPELINE_ID_2, name: 'Recrutement', position: 1, color: '#10b981', columns: pipe2Cols },
+];
 
 export const demoUsers = [
   { id: 'user-1', name: 'Hugo Abdelhadi', color: '#6366f1' },
@@ -204,7 +219,7 @@ export function demoEmails(dealId: string) {
 export function demoMoveDeal(id: string, columnId: string) {
   const d = getDemoDeal(id);
   const col = demoColumns.find(c => c.id === columnId);
-  if (col) { d.columnId = columnId; d.column = col; }
+  if (col) { d.columnId = columnId; d.column = col; d.pipelineId = col.pipelineId; }
   return d;
 }
 

@@ -40,6 +40,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
 
@@ -89,6 +90,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   useEffect(() => { fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/pipelines').then(r => r.json()).then(d => setPipelines(d.pipelines || [])).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
 
   // Fermeture au clavier (Échap)
@@ -104,12 +106,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     fetchDeal(); onUpdated(); if (msg) toast(msg);
   };
 
-  const moveToColumn = async (columnId: string) => {
+  const moveToColumn = async (columnId: string, msg = 'Étape mise à jour') => {
     if (columnId === deal?.columnId) return;
     const prevColumnId = deal?.columnId;
+    const prevPipelineId = deal?.pipelineId;
     const targetCol = columns.find(c => c.id === columnId);
-    // Mise à jour optimiste : la frise reflète l'étape immédiatement.
-    setDeal((d: any) => ({ ...d, columnId, column: targetCol || d.column }));
+    // Mise à jour optimiste : la frise (et le pipeline) reflètent le changement immédiatement.
+    setDeal((d: any) => ({ ...d, columnId, pipelineId: targetCol?.pipelineId ?? d.pipelineId, column: targetCol || d.column }));
     try {
       const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
       if (!res.ok) throw new Error();
@@ -118,11 +121,21 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       // on conserve l'état optimiste (rien n'est persisté côté base).
       if (data && !data.demo) fetchDeal();
       onUpdated();
-      toast('Étape mise à jour');
+      toast(msg);
     } catch {
-      setDeal((d: any) => ({ ...d, columnId: prevColumnId }));
+      setDeal((d: any) => ({ ...d, columnId: prevColumnId, pipelineId: prevPipelineId }));
       toast('Erreur lors du changement d\'étape', 'error');
     }
+  };
+
+  // Change le pipeline du deal : on le place dans la 1re étape du pipeline cible.
+  const changePipeline = (pipelineId: string) => {
+    if (pipelineId === deal?.pipelineId) return;
+    const firstCol = columns
+      .filter(c => c.pipelineId === pipelineId)
+      .sort((a, b) => a.position - b.position)[0];
+    if (!firstCol) { toast('Ce pipeline n\'a aucune étape', 'error'); return; }
+    moveToColumn(firstCol.id, 'Pipeline mis à jour');
   };
 
   const addNote = async () => {
@@ -210,7 +223,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const isWhite = bc === '#ffffff';
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
 
-  const sortedCols = [...columns].sort((a, b) => a.position - b.position);
+  // Frise : uniquement les étapes du pipeline auquel appartient le deal.
+  const sortedCols = columns
+    .filter(c => c.pipelineId === deal.pipelineId)
+    .sort((a, b) => a.position - b.position);
   const currentIdx = sortedCols.findIndex(c => c.id === deal.columnId);
 
   const allActions: any[] = deal.actions ?? [];
@@ -255,9 +271,23 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             </div>
           </div>
 
+          {/* Sélecteur de pipeline */}
+          {pipelines.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase' }}>Pipeline</span>
+              <select
+                value={deal.pipelineId || ''}
+                onChange={e => changePipeline(e.target.value)}
+                style={{ ...inp, width: 'auto', padding: '4px 8px', fontSize: 12, fontWeight: 600, background: '#f8fafc', color: '#4338ca' }}
+              >
+                {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
+
           {/* Frise chronologique du pipeline */}
           {sortedCols.length > 0 && (
-            <div style={{ display: 'flex', marginTop: 14, gap: 3, overflowX: 'auto', paddingBottom: 2 }}>
+            <div style={{ display: 'flex', marginTop: 10, gap: 3, overflowX: 'auto', paddingBottom: 2 }}>
               {sortedCols.map((c, i) => {
                 const passed = i < currentIdx;
                 const current = i === currentIdx;
