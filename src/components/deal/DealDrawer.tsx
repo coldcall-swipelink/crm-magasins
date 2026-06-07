@@ -67,6 +67,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
+  // Formulaire d'ajout manuel d'offre (null = masqué)
+  const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
+  const [savingOffer, setSavingOffer] = useState(false);
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -214,6 +217,38 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     } catch (e) {
       toast((e as Error).message || 'Erreur lors de la suppression', 'error');
     }
+  };
+
+  // Ajout manuel d'une offre rattachée à l'affaire.
+  const saveOffer = async () => {
+    if (!offerForm?.jobTitle.trim()) { toast('Intitulé du poste requis', 'error'); return; }
+    if (!deal?.storeId) { toast('Magasin introuvable', 'error'); return; }
+    setSavingOffer(true);
+    try {
+      const res = await fetch('/api/jobOffers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dealId, storeId: deal.storeId,
+          jobTitle: offerForm.jobTitle.trim(),
+          title: offerForm.jobTitle.trim(),
+          contractType: offerForm.contractType,
+          salary: offerForm.salary,
+          source: offerForm.source || 'Manuel',
+          url: offerForm.url,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setOfferForm(null); fetchDeal(); onUpdated(); toast('Offre ajoutée');
+    } catch (e) {
+      toast((e as Error).message || 'Erreur lors de l\'ajout de l\'offre', 'error');
+    } finally { setSavingOffer(false); }
+  };
+
+  const deleteOffer = async (id: string) => {
+    if (!window.confirm('Supprimer cette offre ?')) return;
+    const res = await fetch(`/api/jobOffers/${id}`, { method: 'DELETE' });
+    if (res.ok) { fetchDeal(); onUpdated(); toast('Offre supprimée'); }
+    else toast('Erreur lors de la suppression', 'error');
   };
 
   // ---- Rendu ---------------------------------------------------------------
@@ -443,6 +478,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a', flex: 1, minWidth: 0 }}>{o.jobTitle || o.title || 'Offre'}</span>
                     {i === 0 && <span style={{ fontSize: 9.5, fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>DERNIÈRE</span>}
+                    <button onClick={() => deleteOffer(o.id)} title="Supprimer l'offre" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 12, padding: 0, flexShrink: 0 }}>🗑</button>
                   </div>
                   {(o.contractType || o.salary) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, color: '#64748b', marginBottom: 4 }}>
@@ -459,6 +495,45 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {o.url && <a href={o.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#4f46e5', textDecoration: 'underline', display: 'inline-block', marginTop: 4 }}>🔗 Voir l&apos;offre</a>}
                 </div>
               ))}
+
+              {offerForm ? (
+                <div style={{ border: '1px solid #c7d2fe', borderRadius: 8, padding: 11, background: '#f8fafc' }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={labelStyle}>Intitulé du poste *</label>
+                    <input style={inp} placeholder="Ex. Boucher" value={offerForm.jobTitle} autoFocus
+                      onChange={e => setOfferForm(f => f && ({ ...f, jobTitle: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label style={labelStyle}>Type de contrat</label>
+                      <input style={inp} placeholder="CDI…" value={offerForm.contractType}
+                        onChange={e => setOfferForm(f => f && ({ ...f, contractType: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Salaire</label>
+                      <input style={inp} placeholder="—" value={offerForm.salary}
+                        onChange={e => setOfferForm(f => f && ({ ...f, salary: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={labelStyle}>Source</label>
+                    <input style={inp} placeholder="Manuel" value={offerForm.source}
+                      onChange={e => setOfferForm(f => f && ({ ...f, source: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={labelStyle}>Lien de l&apos;offre</label>
+                    <input style={inp} placeholder="https://…" value={offerForm.url}
+                      onChange={e => setOfferForm(f => f && ({ ...f, url: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={{ ...btnPri, opacity: savingOffer ? .7 : 1, cursor: savingOffer ? 'not-allowed' : 'pointer' }} onClick={saveOffer} disabled={savingOffer}>{savingOffer ? '⟳ Ajout…' : 'Ajouter'}</button>
+                    <button style={btnDef} onClick={() => setOfferForm(null)}>Annuler</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setOfferForm({ jobTitle: '', contractType: '', salary: '', source: '', url: '' })}
+                  style={{ ...btnDef, width: '100%', background: '#fff', padding: '8px 12px' }}>+ Ajouter une offre</button>
+              )}
             </div>
 
             <div style={sectionTitle}>CRM</div>
