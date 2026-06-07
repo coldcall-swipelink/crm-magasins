@@ -116,6 +116,14 @@ export interface Deal {
   isPresentInLastImport:    boolean;
   movedToCallAt:            string | null;
   lastImportAt:             string | null;
+  directeur?:               string;
+  contactCalling?:          string;
+  dealEmail?:               string;
+  contactCivilite?:         string;
+  contactLastName?:         string;
+  dealValue?:               number | null;
+  demoDate?:                string | null;
+  candidateCallDate?:       string | null;
   assignedUserId?:          string | null;
   assignedUser?:            User | null;
   createdAt:                string;

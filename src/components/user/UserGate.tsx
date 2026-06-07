@@ -4,6 +4,13 @@ import { useCurrentUser } from '@/lib/currentUser';
 
 // Écran de première connexion : tant qu'aucune identité n'est enregistrée
 // dans le navigateur, on bloque l'app avec une saisie libre du nom.
+//
+// Bypass de test : si NEXT_PUBLIC_BYPASS_USER_GATE === 'true' (à activer
+// uniquement en preview/test, jamais en prod), la modale est sautée et l'app
+// s'ouvre directement. L'identité reste « non connectée » (null) — les actions
+// liées à un utilisateur restent donc anonymes le temps des tests.
+const BYPASS_GATE = process.env.NEXT_PUBLIC_BYPASS_USER_GATE === 'true';
+
 export default function UserGate({ children }: { children: React.ReactNode }) {
   const { user, ready, login } = useCurrentUser();
   const [name, setName] = useState('');
@@ -22,6 +29,9 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   };
+
+  // Bypass de test : on ouvre l'app sans demander d'identité.
+  if (BYPASS_GATE) return <>{children}</>;
 
   // Avant la lecture du localStorage, on ne montre rien (pas de flash de modale).
   if (!ready) return null;

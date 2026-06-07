@@ -1,6 +1,7 @@
 // src/app/api/deals/[id]/move/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { syncDemoMeeting } from '@/lib/googleCalendar';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -16,6 +17,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: {
         columnId,
+        // Le pipeline suit la colonne cible (permet de changer une affaire de pipeline).
+        pipelineId: column.pipelineId,
         position: position ?? 0,
         hasNewOfferFromLastImport: false,
         previousColumnId: null,
@@ -50,6 +53,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
       } catch (webhookErr) {
         console.error('Webhook DEMO FAITE error:', webhookErr);
+      }
+    }
+
+    // Démo prévue → invitation Google Meet (contact + bilal@swipelink.fr)
+    if (column.title === 'Démo prévue') {
+      try {
+        await syncDemoMeeting(deal.id);
+      } catch (meetErr) {
+        console.error('Google Meet (Démo prévue) error:', meetErr);
       }
     }
 
