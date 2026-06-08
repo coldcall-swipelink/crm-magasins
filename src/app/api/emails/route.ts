@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 
+// Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { dealId, templateId, to, subject, body, attachments } = await req.json();
