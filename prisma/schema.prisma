@@ -31,6 +31,12 @@ model Store {
   siret            String   @default("")
   externalId       String   @default("")
   deduplicationKey String   @unique
+  // Coordonnées GPS issues du géocodage de l'adresse (API BAN data.gouv).
+  // Mises en cache pour éviter de re-géocoder à chaque ouverture de la carte.
+  latitude         Float?
+  longitude        Float?
+  geocodedAt       DateTime?
+  geocodeQuery     String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   deal             Deal?

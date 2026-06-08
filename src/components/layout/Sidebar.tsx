@@ -8,6 +8,7 @@ function initials(name: string) { return name.split(' ').map(w => w[0]).join('')
 const NAV = [
   { href: '/dashboard', label: 'Dashboard',    icon: '📊' },
   { href: '/pipeline',  label: 'Pipeline',      icon: '📋' },
+  { href: '/carte',     label: 'Carte',         icon: '🗺️' },
   { href: '/import',    label: 'Importer CSV',  icon: '📥' },
   { href: '/history',   label: 'Historique',    icon: '🕐' },
   { href: '/actions',   label: 'Actions',       icon: '✅' },
