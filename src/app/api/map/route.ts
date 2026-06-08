@@ -120,6 +120,11 @@ export async function GET() {
     return NextResponse.json({ deals: located, unlocated });
   } catch (err) {
     console.error('[GET /api/map]', err);
-    return NextResponse.json({ error: 'Erreur serveur', deals: [], unlocated: 0 }, { status: 500 });
+    // On expose le détail de l'erreur (message + code Prisma) pour faciliter
+    // le diagnostic en prod : distinguer une base injoignable (« Can't reach
+    // database server… ») d'un schéma non migré (« column … does not exist »).
+    const detail = err instanceof Error ? err.message : String(err);
+    const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: unknown }).code : undefined;
+    return NextResponse.json({ error: 'Erreur serveur', detail, code, deals: [], unlocated: 0 }, { status: 500 });
   }
 }
