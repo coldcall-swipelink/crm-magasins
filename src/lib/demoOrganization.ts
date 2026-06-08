@@ -85,6 +85,23 @@ export function buildOrganizationName(
   return c ? `${base} — ${c}` : base;
 }
 
+// Logos par enseigne (Supabase Storage). Hyper U réutilise le logo Super U.
+const STORAGE_LOGOS = 'https://qxjpkjetclwxxpqkbibv.supabase.co/storage/v1/object/public/organization-logos';
+const LOGO_INTERMARCHE = `${STORAGE_LOGOS}/a19d16d1-c221-41fb-8ba7-3f5dcac5f662-1766483959526-intermarch_sauvigny-les-bois`;
+const LOGO_SUPER_U = `${STORAGE_LOGOS}/50b358bb-08c5-4330-a70a-59aa971f3e4a-1761232565827-super_u_aiguillon_sur_mer`;
+const LOGO_LECLERC = `${STORAGE_LOGOS}/de989ba4-6350-4f23-a838-a61418d4cb0e-1779697785432-leclerc_argentan`;
+
+/** Renvoie l'URL du logo selon l'enseigne, ou null si non reconnue. */
+export function getOrganizationLogo(brandName: string | null | undefined): string | null {
+  if (!brandName) return null;
+  const n = brandName.toLowerCase().trim();
+  if (n.includes('intermarche')) return LOGO_INTERMARCHE;
+  if (n.includes('hyper u') || n.includes('hyper-u')) return LOGO_SUPER_U;
+  if (n.includes('super u') || n.includes('super-u')) return LOGO_SUPER_U;
+  if (n.includes('leclerc')) return LOGO_LECLERC;
+  return null;
+}
+
 /**
  * Crée Organization + Organization_to_plan + Recruiter dans la base produit
  * Supabase à partir de données déjà résolues (aucun accès Neon ici).
@@ -115,6 +132,7 @@ export async function createDemoOrganizationRecords(
   // 1. Organization
   const org = await insertRow<{ id: string }>('Organization', {
     name: organizationName,
+    logo: getOrganizationLogo(input.brandName),
     contact_email: input.contactEmail ?? null,
     phone_number: input.phoneNumber ?? null,
     siret: input.siret ?? null,
