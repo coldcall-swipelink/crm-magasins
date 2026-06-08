@@ -95,7 +95,7 @@ const LOGO_LECLERC = `${STORAGE_LOGOS}/de989ba4-6350-4f23-a838-a61418d4cb0e-1779
 export function getOrganizationLogo(brandName: string | null | undefined): string | null {
   if (!brandName) return null;
   const n = brandName.toLowerCase().trim();
-  if (n.includes('intermarche')) return LOGO_INTERMARCHE;
+  if (n.includes('intermarch')) return LOGO_INTERMARCHE;
   if (n.includes('hyper u') || n.includes('hyper-u')) return LOGO_SUPER_U;
   if (n.includes('super u') || n.includes('super-u')) return LOGO_SUPER_U;
   if (n.includes('leclerc')) return LOGO_LECLERC;
