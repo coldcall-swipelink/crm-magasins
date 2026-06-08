@@ -24,8 +24,29 @@ import {
 export const dynamic = 'force-dynamic';
 
 async function handle(input: DemoOrganizationInput) {
-  if (process.env.ENABLE_DEV_TEST_ROUTES !== 'true') {
-    return NextResponse.json({ error: 'Route de test désactivée' }, { status: 404 });
+  // Parsing robuste : on tolère les guillemets/espaces et plusieurs formes.
+  const rawFlag = process.env.ENABLE_DEV_TEST_ROUTES;
+  const flag = (rawFlag ?? '').trim().replace(/^["']|["']$/g, '').toLowerCase();
+  const enabled = flag === 'true' || flag === '1' || flag === 'yes';
+
+  if (!enabled) {
+    // Diagnostic (aucun secret exposé) pour comprendre pourquoi c'est désactivé.
+    return NextResponse.json(
+      {
+        error: 'Route de test désactivée',
+        diagnostic: {
+          enableFlagPresent: rawFlag !== undefined,
+          enableFlagValue: rawFlag ?? null,
+          supabaseUrlPresent: Boolean(process.env.SUPABASE_PRODUCT_URL),
+          supabaseKeyPresent: Boolean(process.env.SUPABASE_PRODUCT_SERVICE_ROLE_KEY),
+          hint:
+            rawFlag === undefined
+              ? "La variable n'atteint pas ce déploiement : vérifie le scope (Preview) et REDÉPLOIE."
+              : "La variable est présente mais ≠ true : retire d'éventuels guillemets/espaces.",
+        },
+      },
+      { status: 404 },
+    );
   }
   if (!isProductSupabaseConfigured()) {
     return NextResponse.json(
