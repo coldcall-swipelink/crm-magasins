@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useCurrentUser } from '@/lib/currentUser';
 
 // Écran de première connexion : tant qu'aucune identité n'est enregistrée
@@ -9,13 +10,19 @@ import { useCurrentUser } from '@/lib/currentUser';
 // uniquement en preview/test, jamais en prod), la modale est sautée et l'app
 // s'ouvre directement. L'identité reste « non connectée » (null) — les actions
 // liées à un utilisateur restent donc anonymes le temps des tests.
+//
+// Les routes /dev/* (pages de test) sautent TOUJOURS le gate : elles ne
+// dépendent ni de l'identité ni de la base Neon.
 const BYPASS_GATE = process.env.NEXT_PUBLIC_BYPASS_USER_GATE === 'true';
 
 export default function UserGate({ children }: { children: React.ReactNode }) {
   const { user, ready, login } = useCurrentUser();
+  const pathname = usePathname();
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const isDevRoute = pathname?.startsWith('/dev') ?? false;
 
   const submit = async () => {
     if (!name.trim()) return;
@@ -30,8 +37,9 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Bypass de test : on ouvre l'app sans demander d'identité.
-  if (BYPASS_GATE) return <>{children}</>;
+  // Bypass de test : on ouvre l'app sans demander d'identité (flag global ou
+  // route de test /dev/*).
+  if (BYPASS_GATE || isDevRoute) return <>{children}</>;
 
   // Avant la lecture du localStorage, on ne montre rien (pas de flash de modale).
   if (!ready) return null;
