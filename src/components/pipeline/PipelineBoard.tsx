@@ -4,6 +4,7 @@ import type { Deal, PipelineColumn, Brand } from '@/types';
 import DealCard from './DealCard';
 import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
+import PVModal from './PVModal';
 import { toast } from '@/components/ui/Toast';
 
 interface Collaborator { id: string; name: string; color: string; }
@@ -26,6 +27,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [loading, setLoading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [pvDealId, setPvDealId] = useState<string | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Save pipeline selection to localStorage
@@ -100,6 +102,10 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     try {
       const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId }) });
       if (!res.ok) throw new Error();
+      // Workflow « Prospection de Valeur » : à l'arrivée dans « Démo prévue »
+      // (pipeline Prospection), on demande au user si c'est une PV.
+      const targetTitle = pipelineColumns.find(c => c.id === targetColId)?.title;
+      if (targetTitle === 'Démo prévue') setPvDealId(deal.id);
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
   };
 
@@ -184,6 +190,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
 
       {selectedDeal && <DealDrawer dealId={selectedDeal.id} onClose={() => setSelected(null)} onUpdated={fetchDeals} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
+      {pvDealId && <PVModal dealId={pvDealId} onClose={() => setPvDealId(null)} onDone={() => { setPvDealId(null); fetchDeals(); }} />}
     </div>
   );
 }
