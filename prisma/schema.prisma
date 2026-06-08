@@ -115,6 +115,9 @@ model Deal {
   candidateCallDate         DateTime?
   googleEventId             String?
   googleMeetUrl             String?
+  // Id de l'Organization créée dans la base produit Supabase quand l'affaire
+  // passe en « Démo prévue » (garantit l'idempotence du provisioning).
+  supabaseOrganizationId    String?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
