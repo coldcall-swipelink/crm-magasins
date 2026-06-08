@@ -36,6 +36,10 @@ export interface Store {
   siret:            string;
   externalId:       string;
   deduplicationKey: string;
+  latitude:         number | null;
+  longitude:        number | null;
+  geocodedAt:       string | null;
+  geocodeQuery:     string;
   createdAt:        string;
   updatedAt:        string;
 }
