@@ -1,40 +1,29 @@
 'use client';
 import { useState } from 'react';
-import { toast } from '@/components/ui/Toast';
 
-// Pop-up « Prospection de Valeur » affichée quand une affaire arrive dans
-// « Démo prévue » (pipeline Prospection). Selon le choix, l'affaire est
-// dupliquée :
-//   OUI → Recrutement › SOURCING A FAIRE
-//   NON → Closing › DEMO PREVUE
+// Pop-up « Prospection de Valeur » affichée quand une affaire est déposée dans
+// « Démo prévue » (pipeline Prospection). Le board décide quoi faire :
+//   - onConfirm('oui') → persiste le déplacement puis duplique vers Recrutement
+//   - onConfirm('non') → persiste le déplacement puis duplique vers Closing
+//   - onCancel()       → annule : l'affaire repart dans sa colonne d'origine
+//
+// La pop-up ne fait QUE l'UI ; toute la logique (move + duplication) est gérée
+// par le parent pour pouvoir annuler proprement.
 
 interface Props {
-  dealId: string;
-  onClose: () => void;
-  onDone: () => void;
+  onConfirm: (choice: 'oui' | 'non') => Promise<void>;
+  onCancel: () => void;
 }
 
-export default function PVModal({ dealId, onClose, onDone }: Props) {
+export default function PVModal({ onConfirm, onCancel }: Props) {
   const [loading, setLoading] = useState<'oui' | 'non' | null>(null);
 
   const choose = async (choice: 'oui' | 'non') => {
     setLoading(choice);
     try {
-      const res = await fetch(`/api/deals/${dealId}/duplicate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choice }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Erreur');
-      toast(
-        choice === 'oui'
-          ? 'Affaire dupliquée dans Recrutement › Sourcing à faire'
-          : 'Affaire dupliquée dans Closing › Demo prevue',
-      );
-      onDone();
-    } catch (e) {
-      toast((e as Error).message || 'Erreur lors de la duplication', 'error');
+      await onConfirm(choice);
+    } catch {
+      // Le parent affiche le toast d'erreur ; on réactive les boutons.
       setLoading(null);
     }
   };
@@ -47,7 +36,7 @@ export default function PVModal({ dealId, onClose, onDone }: Props) {
 
   return (
     <div
-      onClick={loading ? undefined : onClose}
+      onClick={loading ? undefined : onCancel}
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
     >
       <div onClick={e => e.stopPropagation()} style={{ width: 470, maxWidth: '100%', background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
@@ -74,11 +63,11 @@ export default function PVModal({ dealId, onClose, onDone }: Props) {
           </button>
         </div>
         <button
-          onClick={onClose}
+          onClick={onCancel}
           disabled={loading !== null}
           style={{ marginTop: 10, width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, cursor: loading ? 'not-allowed' : 'pointer' }}
         >
-          Annuler
+          Annuler (laisser l'affaire dans sa colonne d'origine)
         </button>
       </div>
     </div>

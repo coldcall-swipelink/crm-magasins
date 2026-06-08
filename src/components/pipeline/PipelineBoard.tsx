@@ -27,7 +27,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [loading, setLoading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  const [pvDealId, setPvDealId] = useState<string | null>(null);
+  const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Save pipeline selection to localStorage
@@ -97,16 +97,59 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     e.preventDefault();
     const deal = dragDeal.current;
     if (!deal || deal.columnId === targetColId) { onDragEnd(); return; }
-    setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, columnId: targetColId } : d));
+    const originColId = deal.columnId;
     onDragEnd();
+
+    // Affichage optimiste : la carte bascule tout de suite dans la colonne cible.
+    setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, columnId: targetColId } : d));
+
+    // Workflow « Prospection de Valeur » : à l'arrivée dans « Démo prévue »
+    // (pipeline Prospection), on demande confirmation AVANT de persister, pour
+    // pouvoir annuler proprement (Meet + Supabase + duplication ne partent
+    // qu'après OUI/NON).
+    const targetTitle = pipelineColumns.find(c => c.id === targetColId)?.title;
+    if (targetTitle === 'Démo prévue') {
+      setPv({ dealId: deal.id, targetColId, originColId });
+      return;
+    }
+
+    // Autres colonnes : persistance immédiate du déplacement.
     try {
       const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId }) });
       if (!res.ok) throw new Error();
-      // Workflow « Prospection de Valeur » : à l'arrivée dans « Démo prévue »
-      // (pipeline Prospection), on demande au user si c'est une PV.
-      const targetTitle = pipelineColumns.find(c => c.id === targetColId)?.title;
-      if (targetTitle === 'Démo prévue') setPvDealId(deal.id);
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
+  };
+
+  // PV confirmée (OUI/NON) : on persiste le déplacement (déclenche Meet +
+  // Supabase) puis on duplique l'affaire vers la cible.
+  const handlePvConfirm = async (choice: 'oui' | 'non') => {
+    if (!pv) return;
+    const moveRes = await fetch(`/api/deals/${pv.dealId}/move`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: pv.targetColId }),
+    });
+    if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
+
+    const dupRes = await fetch(`/api/deals/${pv.dealId}/duplicate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choice }),
+    });
+    const data = await dupRes.json().catch(() => ({}));
+    if (!dupRes.ok || !data.ok) { toast(data.error || 'Erreur lors de la duplication', 'error'); throw new Error('dup'); }
+
+    toast(choice === 'oui'
+      ? 'Affaire dupliquée dans Recrutement › Sourcing à faire'
+      : 'Affaire dupliquée dans Closing › Demo prevue');
+    setPv(null);
+    fetchDeals();
+  };
+
+  // PV annulée : rien n'a été persisté → on remet l'affaire dans sa colonne d'origine.
+  const handlePvCancel = () => {
+    if (pv) {
+      setDeals(prev => prev.map(d => d.id === pv.dealId ? { ...d, columnId: pv.originColId } : d));
+    }
+    setPv(null);
   };
 
   const sortedCols = pipelineColumns;
@@ -190,7 +233,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
 
       {selectedDeal && <DealDrawer dealId={selectedDeal.id} onClose={() => setSelected(null)} onUpdated={fetchDeals} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
-      {pvDealId && <PVModal dealId={pvDealId} onClose={() => setPvDealId(null)} onDone={() => { setPvDealId(null); fetchDeals(); }} />}
+      {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
     </div>
   );
 }
