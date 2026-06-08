@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { darkenHex } from '@/lib/utils';
 
 export interface MapDeal {
   id: string;
@@ -19,36 +18,65 @@ export interface MapDeal {
   longitude: number;
 }
 
-// Colonnes qui modifient l'apparence de l'épingle.
-const COL_NOT_INTERESTED = 'Pas intéressé';
-const COL_DEMO = 'Démo prévue';
 const DEFAULT_COLOR = '#64748b'; // slate, pour les deals sans enseigne
 
-/** Couleur de remplissage d'un deal : couleur d'enseigne, assombrie si « Pas intéressé ». */
-export function fillColorFor(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>): string {
-  const base = deal.brandColor || DEFAULT_COLOR;
-  return deal.columnTitle === COL_NOT_INTERESTED ? darkenHex(base, 0.4) : base;
+/** Normalise un titre de colonne (minuscules, sans accents) pour une comparaison robuste. */
+function normCol(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-/** Construit l'icône épingle SVG pour un deal (couleur enseigne + contour selon l'étape). */
+export type DealStatus = 'demo' | 'lost' | 'active';
+
+/**
+ * Catégorise un deal d'après sa colonne :
+ *  - « Démo prévue »   → 'demo'   (positif)
+ *  - « Pas intéressé »  → 'lost'   (négatif)
+ *  - toute autre étape (À appeler, À rappeler, Mail à envoyer, Mail envoyé,
+ *    Laissé coordonnées, Sans offres…) → 'active' (en cours)
+ */
+export function dealStatus(columnTitle: string): DealStatus {
+  const t = normCol(columnTitle);
+  if (t === 'demo prevue') return 'demo';
+  if (t === 'pas interesse') return 'lost';
+  return 'active';
+}
+
+/** Couleur de remplissage d'un deal : sa couleur d'enseigne. */
+export function fillColorFor(deal: Pick<MapDeal, 'brandColor'>): string {
+  return deal.brandColor || DEFAULT_COLOR;
+}
+
+/**
+ * Épingle SVG affinée (forme « goutte ») colorée selon l'enseigne. Une icône
+ * au centre indique l'état : ✓ vert pour « Démo prévue », croix rouge pour
+ * « Pas intéressé », simple point coloré pour les deals en cours.
+ */
 function pinIcon(deal: MapDeal): L.DivIcon {
   const fill = fillColorFor(deal);
-  const isDemo = deal.columnTitle === COL_DEMO;
-  const stroke = isDemo ? '#16a34a' : '#ffffff';
-  const strokeWidth = isDemo ? 3 : 1.5;
+  const status = dealStatus(deal.columnTitle);
+
+  let glyph: string;
+  if (status === 'demo') {
+    glyph = `<path d="M10.6 13 l2.2 2.2 l4.6 -4.8" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  } else if (status === 'lost') {
+    glyph = `<path d="M11.2 10.2 L16.8 15.8 M16.8 10.2 L11.2 15.8" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round"/>`;
+  } else {
+    glyph = `<circle cx="14" cy="13" r="2.7" fill="${fill}"/>`;
+  }
 
   const svg = `
-    <svg width="28" height="40" viewBox="0 0 28 40" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">
-      <path d="M14 1C7.1 1 1.5 6.6 1.5 13.5C1.5 22.5 14 39 14 39C14 39 26.5 22.5 26.5 13.5C26.5 6.6 20.9 1 14 1Z"
-            fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
-      <circle cx="14" cy="13.5" r="4.5" fill="#ffffff" fill-opacity="0.92"/>
+    <svg width="28" height="40" viewBox="0 0 28 40" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1.5px 2px rgba(0,0,0,.28))">
+      <path d="M14 2 C8.5 2 4 6.5 4 12 C4 19.5 14 38 14 38 C14 38 24 19.5 24 12 C24 6.5 19.5 2 14 2 Z"
+            fill="${fill}" stroke="#ffffff" stroke-width="1.5"/>
+      <circle cx="14" cy="13" r="6.2" fill="#ffffff"/>
+      ${glyph}
     </svg>`;
 
   return L.divIcon({
     html: svg,
     className: 'deal-pin',
     iconSize: [28, 40],
-    iconAnchor: [14, 39],
+    iconAnchor: [14, 38],
     popupAnchor: [0, -34],
   });
 }

@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { S } from '@/lib/styles';
-import { darkenHex } from '@/lib/utils';
 import type { MapDeal } from './DealsMap';
 
 // Leaflet manipule `window` → chargement client uniquement (pas de SSR).
@@ -18,6 +17,20 @@ const DealsMap = dynamic(() => import('./DealsMap'), {
 const DEFAULT_COLOR = '#64748b';
 const COL_NOT_INTERESTED = 'Pas intéressé';
 const COL_DEMO = 'Démo prévue';
+
+// Pastille de légende reprenant la tête de l'épingle (point coloré, ✓ vert ou croix rouge).
+function LegendBadge({ kind }: { kind: 'active' | 'demo' | 'lost' }) {
+  const base = '#6366f1';
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
+      <circle cx="9" cy="9" r="8.5" fill={base} />
+      <circle cx="9" cy="9" r="5.2" fill="#fff" />
+      {kind === 'demo' && <path d="M6.2 9 l1.7 1.7 l3.6 -3.8" fill="none" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+      {kind === 'lost' && <path d="M6.8 6.8 L11.2 11.2 M11.2 6.8 L6.8 11.2" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" />}
+      {kind === 'active' && <circle cx="9" cy="9" r="2.1" fill={base} />}
+    </svg>
+  );
+}
 
 interface BrandEntry {
   name: string;
@@ -172,12 +185,16 @@ export default function MapView() {
           <div style={{ ...S.sectionLabel, marginTop: 20 }}>Étapes</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12, color: '#475569' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 14, height: 14, borderRadius: '50%', background: darkenHex('#6366f1', 0.4), flexShrink: 0 }} />
-              <span>« {COL_NOT_INTERESTED} » : couleur plus foncée</span>
+              <LegendBadge kind="active" />
+              <span>En cours — point coloré</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#6366f1', border: '3px solid #16a34a', flexShrink: 0 }} />
-              <span>« {COL_DEMO} » : contour vert</span>
+              <LegendBadge kind="demo" />
+              <span>« {COL_DEMO} » — ✓ vert</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <LegendBadge kind="lost" />
+              <span>« {COL_NOT_INTERESTED} » — croix rouge</span>
             </div>
           </div>
         </aside>
