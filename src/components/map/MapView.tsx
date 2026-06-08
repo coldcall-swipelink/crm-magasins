@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { S } from '@/lib/styles';
-import type { MapDeal } from './DealsMap';
+import { dotHtml, type MapDeal } from './DealsMap';
 
 // Leaflet manipule `window` → chargement client uniquement (pas de SSR).
 const DealsMap = dynamic(() => import('./DealsMap'), {
@@ -14,22 +13,10 @@ const DealsMap = dynamic(() => import('./DealsMap'), {
   ),
 });
 
-const DEFAULT_COLOR = '#64748b';
-const COL_NOT_INTERESTED = 'Pas intéressé';
-const COL_DEMO = 'Démo prévue';
+const DEFAULT_COLOR = '#94a3b8';
 
-// Pastille de légende reprenant la tête de l'épingle (point coloré, ✓ vert ou croix rouge).
-function LegendBadge({ kind }: { kind: 'active' | 'demo' | 'lost' }) {
-  const base = '#6366f1';
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" style={{ flexShrink: 0 }}>
-      <circle cx="9" cy="9" r="8.5" fill={base} />
-      <circle cx="9" cy="9" r="5.2" fill="#fff" />
-      {kind === 'demo' && <path d="M6.2 9 l1.7 1.7 l3.6 -3.8" fill="none" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
-      {kind === 'lost' && <path d="M6.8 6.8 L11.2 11.2 M11.2 6.8 L6.8 11.2" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" />}
-      {kind === 'active' && <circle cx="9" cy="9" r="2.1" fill={base} />}
-    </svg>
-  );
+function norm(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
 interface BrandEntry {
@@ -38,12 +25,17 @@ interface BrandEntry {
   count: number;
 }
 
+type Focus = { lat: number; lng: number; key: number };
+
 export default function MapView() {
   const [deals, setDeals] = useState<MapDeal[]>([]);
   const [unlocated, setUnlocated] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const [activeBrand, setActiveBrand] = useState<string | null>(null);
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +47,7 @@ export default function MapView() {
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
-          setError(data.error || 'Erreur de chargement');
+          setError(data.detail || data.error || 'Erreur de chargement');
           setDeals([]);
           setUnlocated(0);
         } else {
@@ -71,9 +63,9 @@ export default function MapView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
-  // Enseignes présentes (pour la légende et le filtre), triées par nombre de deals.
+  // Enseignes présentes (légende + filtre), triées par nombre de deals.
   const brands = useMemo<BrandEntry[]>(() => {
     const map = new Map<string, BrandEntry>();
     for (const d of deals) {
@@ -86,118 +78,162 @@ export default function MapView() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [deals]);
 
-  const visibleDeals = useMemo(
-    () => (activeBrand ? deals.filter((d) => (d.brandName || 'Sans enseigne') === activeBrand) : deals),
-    [deals, activeBrand],
+  // Filtrage par recherche (enseigne ou ville) et par enseigne active.
+  const visibleDeals = useMemo(() => {
+    const q = norm(query);
+    return deals.filter((d) => {
+      if (activeBrand && (d.brandName || 'Sans enseigne') !== activeBrand) return false;
+      if (!q) return true;
+      return (
+        norm(d.brandName || '').includes(q) ||
+        norm(d.storeName).includes(q) ||
+        norm(d.city).includes(q)
+      );
+    });
+  }, [deals, query, activeBrand]);
+
+  const dot = (deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 14) => (
+    <span
+      style={{ display: 'inline-block', width: size, height: size, flexShrink: 0 }}
+      dangerouslySetInnerHTML={{ __html: dotHtml(deal, size) }}
+    />
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={S.pageHeader}>
-        <span style={S.pageTitle}>🗺️ Carte des deals</span>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>
-          Pipeline « Prospection »
-        </span>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, color: '#64748b' }}>
-          {loading ? 'Chargement…' : `${deals.length} deal${deals.length > 1 ? 's' : ''} localisé${deals.length > 1 ? 's' : ''}`}
-          {unlocated > 0 && !loading && (
-            <span style={{ color: '#d97706' }}> · {unlocated} sans localisation</span>
-          )}
-        </span>
-      </div>
+    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+      {/* Sidebar gauche */}
+      <aside
+        style={{
+          width: 300,
+          flexShrink: 0,
+          borderRight: '1px solid #e2e8f0',
+          background: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
+      >
+        <div style={{ padding: '16px 16px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#e11d48', display: 'inline-block' }} />
+            <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.3px' }}>Carte des deals</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>Pipeline « Prospection »</div>
+        </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* Carte */}
-        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        {/* Recherche */}
+        <div style={{ padding: '0 16px' }}>
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 14 }}>🔍</span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher une enseigne ou une ville…"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '10px 12px 10px 34px',
+                borderRadius: 10,
+                border: '1px solid #e2e8f0',
+                background: '#f8fafc',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Compteur + actualiser */}
+        <div style={{ padding: '12px 16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13 }}>
+            <strong style={{ color: '#e11d48', fontWeight: 700 }}>{visibleDeals.length}</strong>{' '}
+            <span style={{ color: '#64748b' }}>deal{visibleDeals.length > 1 ? 's' : ''}</span>
+            {unlocated > 0 && <span style={{ color: '#d97706', fontSize: 11.5 }}> · {unlocated} sans loc.</span>}
+          </span>
+          <button
+            onClick={() => setReloadKey((k) => k + 1)}
+            disabled={loading}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#64748b', fontSize: 12.5, cursor: loading ? 'default' : 'pointer', padding: 0 }}
+          >
+            <span style={{ display: 'inline-block', transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform .6s' }}>↻</span>
+            Actualiser
+          </button>
+        </div>
+
+        {/* Légende enseignes */}
+        <div style={{ padding: '4px 16px 10px', display: 'flex', flexWrap: 'wrap', gap: '6px 14px', borderBottom: '1px solid #f1f5f9' }}>
+          {brands.map((b) => {
+            const active = activeBrand === b.name;
+            return (
+              <button
+                key={b.name}
+                onClick={() => setActiveBrand(active ? null : b.name)}
+                title={`${b.count} deal(s)`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+                  padding: 0, cursor: 'pointer', fontSize: 12,
+                  color: active ? '#0f172a' : '#475569', fontWeight: active ? 700 : 400,
+                  opacity: activeBrand && !active ? 0.45 : 1,
+                }}
+              >
+                <span style={{ width: 11, height: 11, borderRadius: '50%', background: b.color, display: 'inline-block', flexShrink: 0 }} />
+                {b.name}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Liste des deals */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {error ? (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontSize: 14 }}>
-              {error}
-            </div>
+            <div style={{ padding: 16, fontSize: 12.5, color: '#b91c1c', whiteSpace: 'pre-wrap' }}>{error}</div>
+          ) : visibleDeals.length === 0 && !loading ? (
+            <div style={{ padding: 16, fontSize: 12.5, color: '#94a3b8' }}>Aucun deal.</div>
           ) : (
-            <DealsMap deals={visibleDeals} />
+            visibleDeals.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setFocus({ lat: d.latitude, lng: d.longitude, key: Date.now() })}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                  padding: '9px 16px', border: 'none', borderBottom: '1px solid #f1f5f9',
+                  background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                {dot(d, 14)}
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {d.brandName || d.storeName}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 11.5, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {d.city || d.storeName}
+                  </span>
+                </span>
+              </button>
+            ))
           )}
         </div>
 
-        {/* Légende / filtre */}
-        <aside
-          style={{
-            width: 240,
-            flexShrink: 0,
-            borderLeft: '1px solid #e2e8f0',
-            background: '#fff',
-            padding: '14px 16px',
-            overflowY: 'auto',
-          }}
-        >
-          <div style={S.sectionLabel}>Enseignes</div>
-          {brands.length === 0 && !loading && (
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>Aucun deal localisé.</div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {brands.map((b) => {
-              const active = activeBrand === b.name;
-              return (
-                <button
-                  key={b.name}
-                  onClick={() => setActiveBrand(active ? null : b.name)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 8px',
-                    borderRadius: 7,
-                    border: '1px solid',
-                    borderColor: active ? '#c7d2fe' : 'transparent',
-                    background: active ? '#eef2ff' : 'transparent',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    color: '#334155',
-                    textAlign: 'left',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      background: b.color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {b.name}
-                  </span>
-                  <span style={{ color: '#94a3b8', fontWeight: 600 }}>{b.count}</span>
-                </button>
-              );
-            })}
+        {/* Légende des états */}
+        <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 7, fontSize: 11.5, color: '#475569' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {dot({ brandColor: '#64748b', columnTitle: 'active' }, 13)}
+            <span>En cours</span>
           </div>
-          {activeBrand && (
-            <button
-              onClick={() => setActiveBrand(null)}
-              style={{ ...S.btnDefault, ...S.btnSm, marginTop: 8, width: '100%', justifyContent: 'center' }}
-            >
-              Tout afficher
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {dot({ brandColor: '#64748b', columnTitle: 'Démo prévue' }, 13)}
+            <span>Démo prévue (anneau vert)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {dot({ brandColor: '#64748b', columnTitle: 'Pas intéressé' }, 13)}
+            <span>Pas intéressé (creux)</span>
+          </div>
+        </div>
+      </aside>
 
-          <div style={{ ...S.sectionLabel, marginTop: 20 }}>Étapes</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12, color: '#475569' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <LegendBadge kind="active" />
-              <span>En cours — point coloré</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <LegendBadge kind="demo" />
-              <span>« {COL_DEMO} » — ✓ vert</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <LegendBadge kind="lost" />
-              <span>« {COL_NOT_INTERESTED} » — croix rouge</span>
-            </div>
-          </div>
-        </aside>
+      {/* Carte */}
+      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        <DealsMap deals={visibleDeals} focus={focus} />
       </div>
     </div>
   );
