@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { dotHtml, type MapDeal } from './DealsMap';
+import { dotHtml, displayColor, type MapDeal } from './DealsMap';
 
 // Leaflet manipule `window` → chargement client uniquement (pas de SSR).
 const DealsMap = dynamic(() => import('./DealsMap'), {
@@ -13,10 +13,16 @@ const DealsMap = dynamic(() => import('./DealsMap'), {
   ),
 });
 
-const DEFAULT_COLOR = '#94a3b8';
-
 function norm(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+/** Convertit une couleur hex en rgba avec alpha (fond teint\u00e9 des chips actives). */
+function hexA(hex: string, a: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return `rgba(99,102,241,${a})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 interface BrandEntry {
@@ -33,7 +39,7 @@ export default function MapView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [activeBrand, setActiveBrand] = useState<string | null>(null);
+  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState<Focus | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -70,7 +76,7 @@ export default function MapView() {
     const map = new Map<string, BrandEntry>();
     for (const d of deals) {
       const name = d.brandName || 'Sans enseigne';
-      const color = d.brandColor || DEFAULT_COLOR;
+      const color = displayColor(d.brandColor);
       const entry = map.get(name) || { name, color, count: 0 };
       entry.count += 1;
       map.set(name, entry);
@@ -78,11 +84,19 @@ export default function MapView() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [deals]);
 
-  // Filtrage par recherche (enseigne ou ville) et par enseigne active.
+  const toggleBrand = (name: string) =>
+    setSelectedBrands((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  // Filtrage par recherche (enseigne ou ville) et par enseignes sélectionnées.
   const visibleDeals = useMemo(() => {
     const q = norm(query);
     return deals.filter((d) => {
-      if (activeBrand && (d.brandName || 'Sans enseigne') !== activeBrand) return false;
+      if (selectedBrands.size && !selectedBrands.has(d.brandName || 'Sans enseigne')) return false;
       if (!q) return true;
       return (
         norm(d.brandName || '').includes(q) ||
@@ -90,7 +104,7 @@ export default function MapView() {
         norm(d.city).includes(q)
       );
     });
-  }, [deals, query, activeBrand]);
+  }, [deals, query, selectedBrands]);
 
   const dot = (deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 14) => (
     <span
@@ -160,27 +174,44 @@ export default function MapView() {
           </button>
         </div>
 
-        {/* Légende enseignes */}
-        <div style={{ padding: '4px 16px 10px', display: 'flex', flexWrap: 'wrap', gap: '6px 14px', borderBottom: '1px solid #f1f5f9' }}>
-          {brands.map((b) => {
-            const active = activeBrand === b.name;
-            return (
+        {/* Filtre par enseigne (multi-sélection) */}
+        <div style={{ padding: '4px 16px 10px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', letterSpacing: '.6px', textTransform: 'uppercase' }}>
+              Filtrer par enseigne
+            </span>
+            {selectedBrands.size > 0 && (
               <button
-                key={b.name}
-                onClick={() => setActiveBrand(active ? null : b.name)}
-                title={`${b.count} deal(s)`}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
-                  padding: 0, cursor: 'pointer', fontSize: 12,
-                  color: active ? '#0f172a' : '#475569', fontWeight: active ? 700 : 400,
-                  opacity: activeBrand && !active ? 0.45 : 1,
-                }}
+                onClick={() => setSelectedBrands(new Set())}
+                style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: 11.5, cursor: 'pointer', padding: 0 }}
               >
-                <span style={{ width: 11, height: 11, borderRadius: '50%', background: b.color, display: 'inline-block', flexShrink: 0 }} />
-                {b.name}
+                Tout afficher
               </button>
-            );
-          })}
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {brands.map((b) => {
+              const active = selectedBrands.has(b.name);
+              return (
+                <button
+                  key={b.name}
+                  onClick={() => toggleBrand(b.name)}
+                  title={`${b.count} deal(s)`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12,
+                    padding: '4px 9px', borderRadius: 999,
+                    border: `1px solid ${active ? b.color : '#e2e8f0'}`,
+                    background: active ? hexA(b.color, 0.14) : '#fff',
+                    color: active ? '#0f172a' : '#475569', fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: b.color, display: 'inline-block', flexShrink: 0 }} />
+                  {b.name}
+                  <span style={{ color: '#94a3b8', fontSize: 11 }}>{b.count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Liste des deals */}

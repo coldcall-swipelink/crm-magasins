@@ -19,6 +19,24 @@ export interface MapDeal {
 }
 
 const DEFAULT_COLOR = '#94a3b8'; // slate, pour les deals sans enseigne
+const LIGHT_GREY = '#cbd5e1';    // substitut visible pour les enseignes « blanches » (ex. Leclerc)
+
+/**
+ * Couleur d'affichage d'une enseigne : sa couleur, sauf si elle est vide ou
+ * (quasi-)blanche — auquel cas on bascule sur un gris clair, sinon la pastille
+ * serait invisible sur le fond de carte clair.
+ */
+export function displayColor(hex?: string | null): string {
+  const c = (hex || '').trim();
+  if (!c) return DEFAULT_COLOR;
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(c);
+  if (!m) return c.toLowerCase() === 'white' ? LIGHT_GREY : c;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.9 ? LIGHT_GREY : '#' + h;
+}
 
 /** Normalise un titre de colonne (minuscules, sans accents) pour une comparaison robuste. */
 function normCol(s: string): string {
@@ -43,7 +61,7 @@ export function dealStatus(columnTitle: string): DealStatus {
 
 /** Pastille ronde colorée par enseigne ; l'état se lit à l'anneau vert / au creux. */
 export function dotHtml(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 16): string {
-  const color = deal.brandColor || DEFAULT_COLOR;
+  const color = displayColor(deal.brandColor);
   const status = dealStatus(deal.columnTitle);
   const common = `box-sizing:border-box;width:${size}px;height:${size}px;border-radius:50%;`;
   if (status === 'lost') {
@@ -114,7 +132,7 @@ export default function DealsMap({ deals, focus }: Props) {
               <div style={{ fontWeight: 700, marginBottom: 2 }}>{deal.storeName}</div>
               {deal.brandName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: deal.brandColor || DEFAULT_COLOR, display: 'inline-block' }} />
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: displayColor(deal.brandColor), display: 'inline-block' }} />
                   <span style={{ color: '#475569' }}>{deal.brandName}</span>
                 </div>
               )}
