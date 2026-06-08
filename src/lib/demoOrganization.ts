@@ -74,7 +74,7 @@ async function insertRow<T>(table: string, row: Record<string, unknown>): Promis
   return data[0];
 }
 
-/** Construit le nom de l'Organization : « Enseigne — Ville ». */
+/** Construit le nom de l'Organization : « Enseigne Ville » (sans tiret). */
 export function buildOrganizationName(
   brandName: string | null | undefined,
   storeName: string,
@@ -82,7 +82,7 @@ export function buildOrganizationName(
 ): string {
   const base = brandName?.trim() || storeName?.trim() || 'Organisation';
   const c = city?.trim();
-  return c ? `${base} — ${c}` : base;
+  return c ? `${base} ${c}` : base;
 }
 
 // Logos par enseigne (Supabase Storage). Hyper U réutilise le logo Super U.
