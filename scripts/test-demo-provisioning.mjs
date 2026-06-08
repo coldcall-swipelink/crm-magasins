@@ -20,7 +20,11 @@ const KEY = process.env.SUPABASE_PRODUCT_SERVICE_ROLE_KEY || '';
 const PLAN_ID = process.env.SUPABASE_PRODUCT_PLAN_ID || 'de1d4cbf-5a51-4de5-9aeb-df8119a65489';
 const RECRUITER_USER_ID =
   process.env.SUPABASE_PRODUCT_RECRUITER_USER_ID || 'e05bd473-a010-4658-b0b7-cfd5e344b919';
-const SMARTLINK_CREDITS = Number(process.env.SUPABASE_PRODUCT_SMARTLINK_CREDITS) || 3;
+const rawCredits = process.env.SUPABASE_PRODUCT_SMARTLINK_CREDITS;
+const SMARTLINK_CREDITS =
+  rawCredits != null && rawCredits.trim() !== '' && !Number.isNaN(Number(rawCredits))
+    ? Number(rawCredits)
+    : 3;
 
 if (!URL || !KEY) {
   console.error('❌ Définis SUPABASE_PRODUCT_URL et SUPABASE_PRODUCT_SERVICE_ROLE_KEY.');

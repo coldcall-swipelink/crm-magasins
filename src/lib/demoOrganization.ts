@@ -102,8 +102,13 @@ export async function createDemoOrganizationRecords(
   const planId = process.env.SUPABASE_PRODUCT_PLAN_ID || DEFAULT_PLAN_ID;
   const recruiterUserId =
     process.env.SUPABASE_PRODUCT_RECRUITER_USER_ID || DEFAULT_RECRUITER_USER_ID;
+  // Parsing robuste : on doit respecter une valeur explicite de 0 (cas du plan
+  // « One shot »), que `Number(x) || DEFAULT` écraserait car 0 est falsy.
+  const rawCredits = process.env.SUPABASE_PRODUCT_SMARTLINK_CREDITS;
   const smartlinkCredits =
-    Number(process.env.SUPABASE_PRODUCT_SMARTLINK_CREDITS) || DEFAULT_SMARTLINK_CREDITS;
+    rawCredits != null && rawCredits.trim() !== '' && !Number.isNaN(Number(rawCredits))
+      ? Number(rawCredits)
+      : DEFAULT_SMARTLINK_CREDITS;
 
   const organizationName = buildOrganizationName(input.brandName, input.storeName, input.city);
 
