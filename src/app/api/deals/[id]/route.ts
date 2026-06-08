@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
+import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -109,6 +110,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         await syncDemoMeeting(deal.id);
       } catch (meetErr) {
         console.error('Google Meet (Démo prévue) error:', meetErr);
+      }
+    }
+
+    // Démo prévue → provisioning de la base produit Supabase (Organization,
+    // plan, Recruiter). Uniquement à l'entrée dans la colonne (changement de
+    // colonne), pas sur une simple mise à jour de la date de démo. L'opération
+    // est idempotente (cf. supabaseProvisioning.ts).
+    if (deal.column?.title === 'Démo prévue' && 'columnId' in body) {
+      try {
+        await provisionDemoOrganization(deal.id);
+      } catch (provisionErr) {
+        console.error('Supabase provisioning (Démo prévue) error:', provisionErr);
       }
     }
 

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
+import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -57,11 +58,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Démo prévue → invitation Google Meet (contact + bilal@swipelink.fr)
+    // + provisioning de la base produit Supabase (Organization, plan, Recruiter).
     if (column.title === 'Démo prévue') {
       try {
         await syncDemoMeeting(deal.id);
       } catch (meetErr) {
         console.error('Google Meet (Démo prévue) error:', meetErr);
+      }
+      try {
+        await provisionDemoOrganization(deal.id);
+      } catch (provisionErr) {
+        console.error('Supabase provisioning (Démo prévue) error:', provisionErr);
       }
     }
 
