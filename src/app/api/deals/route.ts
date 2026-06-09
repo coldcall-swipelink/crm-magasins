@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBrandColor, normalizeText } from '@/lib/utils';
+import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,23 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+
+    if (USE_MOCK_DATA) {
+      const pipelineId     = searchParams.get('pipelineId');
+      const assignedUserId = searchParams.get('assignedUserId');
+      const brandId        = searchParams.get('brandId');
+      const search         = (searchParams.get('search') || '').toLowerCase();
+      let result = mockDeals;
+      if (pipelineId)     result = result.filter(d => d.pipelineId === pipelineId);
+      if (assignedUserId) result = result.filter(d => d.assignedUserId === assignedUserId);
+      if (brandId)        result = result.filter(d => d.store.brand?.id === brandId);
+      if (search)         result = result.filter(d =>
+        d.store.name.toLowerCase().includes(search) ||
+        d.store.city.toLowerCase().includes(search) ||
+        (d.store.brand ? d.store.brand.name.toLowerCase().includes(search) : false));
+      return NextResponse.json(result);
+    }
+
     const columnId       = searchParams.get('columnId');
     const pipelineId     = searchParams.get('pipelineId');
     const search         = searchParams.get('search');

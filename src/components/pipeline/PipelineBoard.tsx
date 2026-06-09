@@ -7,23 +7,21 @@ import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import { toast } from '@/components/ui/Toast';
 
-interface Collaborator { id: string; name: string; color: string; }
-interface Pipeline { id: string; name: string; columns: PipelineColumn[]; }
+interface User { id: string; name: string; color: string; }
+interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
 interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
 
 export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [selectedDeal, setSelected] = useState<Deal | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterNew, setFilterNew] = useState(false);
-  const [filterOffer, setOffer] = useState(false);
   const [filterBrand, setFilterBrand] = useState('');
-  const [filterCollab, setFilterCollab] = useState('');
+  const [filterUser, setFilterUser] = useState('');
   const [loading, setLoading] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -58,16 +56,14 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search)       params.set('search', search);
-      if (filterNew)    params.set('newOnly', 'true');
-      if (filterOffer)  params.set('newOffer', 'true');
-      if (filterBrand)  params.set('brandId', filterBrand);
-      if (filterCollab) params.set('collaboratorId', filterCollab);
+      if (search)      params.set('search', search);
+      if (filterBrand) params.set('brandId', filterBrand);
+      if (filterUser)  params.set('assignedUserId', filterUser);
       if (selectedPipelineId) params.set('pipelineId', selectedPipelineId);
       const res = await fetch(`/api/deals?${params}`);
       if (res.ok) setDeals(await res.json());
     } finally { setLoading(false); }
-  }, [search, filterNew, filterOffer, filterBrand, filterCollab, selectedPipelineId]);
+  }, [search, filterBrand, filterUser, selectedPipelineId]);
 
   // Recharger les affaires quand le pipeline change
   useEffect(() => {
@@ -84,7 +80,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
 
   useEffect(() => {
     fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {});
-    fetch('/api/collaborators').then(r => r.json()).then(setCollaborators).catch(() => {});
+    fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {});
   }, []);
 
   const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
@@ -155,50 +151,70 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const sortedCols = pipelineColumns;
   const dealsForCol = (colId: string) => deals.filter(d => d.columnId === colId).sort((a, b) => a.position - b.position);
 
-  const selStyle = (active: boolean, color = '#4f46e5'): React.CSSProperties => ({
-    padding: '4px 8px', borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-    border: '1px solid', background: active ? color : '#fff',
-    color: active ? '#fff' : '#475569', borderColor: active ? color : '#e2e8f0',
+  const fieldStyle = (active: boolean): React.CSSProperties => ({
+    height: 38, padding: '0 12px', borderRadius: 9, fontSize: 13, cursor: 'pointer', outline: 'none',
+    border: `1px solid ${active ? '#c7d2fe' : '#e2e8f0'}`,
+    background: active ? '#eef2ff' : '#fff', color: active ? '#4338ca' : '#475569',
+    fontWeight: active ? 600 : 400, transition: 'all .12s',
   });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 15, fontWeight: 700, marginRight: 4 }}>Pipeline</span>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+        {/* Sélection du pipeline — mise en avant, format « onglets » larges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px 0' }}>
+          <div style={{ display: 'inline-flex', gap: 4, background: '#f1f5f9', padding: 5, borderRadius: 12 }}>
+            {pipelines.map(p => {
+              const active = p.id === selectedPipelineId;
+              return (
+                <button key={p.id} onClick={() => setSelectedPipelineId(p.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '10px 22px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 14.5, fontWeight: 600, transition: 'all .15s',
+                    background: active ? '#fff' : 'transparent',
+                    color: active ? '#1e293b' : '#64748b',
+                    boxShadow: active ? '0 1px 4px rgba(15,23,42,0.12)' : 'none',
+                  }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: p.color || '#94a3b8', opacity: active ? 1 : 0.5 }} />
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
+            {deals.length} affaire{deals.length > 1 ? 's' : ''}
+          </span>
+        </div>
 
-        {pipelines.length > 0 && (
-          <select value={selectedPipelineId} onChange={e => setSelectedPipelineId(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, color: '#475569', cursor: 'pointer', outline: 'none' }}>
-            {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        {/* Recherche, filtres et actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 14px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#94a3b8', pointerEvents: 'none' }}>🔍</span>
+            <input style={{ height: 38, padding: '0 12px 0 32px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 13, width: 220, outline: 'none' }}
+              placeholder="Rechercher une affaire…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+
+          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={fieldStyle(!!filterBrand)}>
+            <option value="">Toutes les enseignes</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-        )}
 
-        <input style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, width: 160, outline: 'none' }}
-          placeholder="Rechercher…" value={search} onChange={e => setSearch(e.target.value)} />
+          <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={fieldStyle(!!filterUser)}>
+            <option value="">Tous les utilisateurs</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
 
-        <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)}
-          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterBrand ? '#eef2ff' : '#fff', fontSize: 12, color: filterBrand ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
-          <option value="">Toutes enseignes</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
+          <button onClick={fetchDeals} title="Rafraîchir"
+            style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
+            {loading ? '⟳' : '↺'} Rafraîchir
+          </button>
 
-        <select value={filterCollab} onChange={e => setFilterCollab(e.target.value)}
-          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterCollab ? '#eef2ff' : '#fff', fontSize: 12, color: filterCollab ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
-          <option value="">Tous collaborateurs</option>
-          {collaborators.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-
-        <button style={selStyle(filterNew)} onClick={() => setFilterNew(!filterNew)}>✦ Nouvelles</button>
-        <button style={selStyle(filterOffer, '#f59e0b')} onClick={() => setOffer(!filterOffer)}>⟳ Nouvelle offre</button>
-        <button onClick={fetchDeals} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: 12, cursor: 'pointer' }}>
-          {loading ? '⟳' : '↺'} Rafraîchir
-        </button>
-
-        <button onClick={() => setShowCreate(true)}
-          style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-          + Nouvelle affaire
-        </button>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>{deals.length} affaire{deals.length > 1 ? 's' : ''}</span>
+          <button onClick={() => setShowCreate(true)}
+            style={{ marginLeft: 'auto', height: 38, padding: '0 18px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(79,70,229,0.35)' }}>
+            + Nouvelle affaire
+          </button>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
