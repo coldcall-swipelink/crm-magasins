@@ -10,6 +10,8 @@ export interface MapDeal {
   brandName: string | null;
   brandColor: string | null;
   columnTitle: string;
+  columnColor: string;
+  columnPosition: number;
   city: string;
   postalCode: string;
   address: string;

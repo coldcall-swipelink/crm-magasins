@@ -22,6 +22,8 @@ interface MapDeal {
   brandName: string | null;
   brandColor: string | null;
   columnTitle: string;
+  columnColor: string;
+  columnPosition: number;
   city: string;
   postalCode: string;
   address: string;
@@ -104,6 +106,8 @@ export async function GET() {
         brandName: store.brand?.name ?? null,
         brandColor: store.brand?.color ?? null,
         columnTitle: deal.column.title,
+        columnColor: deal.column.color,
+        columnPosition: deal.column.position,
         city: store.city,
         postalCode: store.postalCode,
         address: store.address,
