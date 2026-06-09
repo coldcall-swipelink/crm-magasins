@@ -234,6 +234,7 @@ function toZonedRfc3339(date: Date, timeZone: string): string {
  */
 export async function syncDemoMeeting(
   dealId: string,
+  pvChoice?: 'oui' | 'non',
 ): Promise<{ ok: boolean; reason?: string; meetUrl?: string }> {
   if (!isGoogleCalendarConfigured()) {
     return { ok: false, reason: 'not_configured' };
@@ -253,11 +254,20 @@ export async function syncDemoMeeting(
   const guestEmail = process.env.GOOGLE_MEET_GUEST_EMAIL || DEFAULT_GUEST;
   const durationMin = Number(process.env.GOOGLE_MEET_DURATION_MIN) || DEFAULT_DURATION_MIN;
 
-  // Titre : « Swipelink & (enseigne) (localisation) - Recrutements »
+  // Titre de l'invitation.
+  // - Prospection de Valeur OUI (ou choix non précisé) : titre par défaut
+  //   « Swipelink & (enseigne) (localisation) - Recrutements ».
+  // - Prospection de Valeur NON : « Présentation Swipelink - (enseigne) (ville) ».
   const enseigne = deal.store.brand?.name?.trim() || deal.store.name?.trim() || '';
   const localisation =
     deal.store.city?.trim() || deal.store.department?.trim() || deal.store.postalCode?.trim() || '';
-  const summary = `Swipelink & ${enseigne} ${localisation} - Recrutements`.replace(/\s+/g, ' ').trim();
+  const summary = (
+    pvChoice === 'non'
+      ? `Présentation Swipelink - ${enseigne} ${localisation}`
+      : `Swipelink & ${enseigne} ${localisation} - Recrutements`
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // Invités : contact de l'affaire (si email valide) + bilal@swipelink.fr.
   const attendees: string[] = [];

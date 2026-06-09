@@ -10,7 +10,7 @@ import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position } = await req.json();
+    const { columnId, position, pvChoice } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // + provisioning de la base produit Supabase (Organization, plan, Recruiter).
     if (column.title === 'Démo prévue') {
       try {
-        await syncDemoMeeting(deal.id);
+        await syncDemoMeeting(deal.id, pvChoice);
       } catch (meetErr) {
         console.error('Google Meet (Démo prévue) error:', meetErr);
       }
