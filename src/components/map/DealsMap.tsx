@@ -106,9 +106,10 @@ function FlyTo({ focus }: { focus: { lat: number; lng: number; key: number } | n
 interface Props {
   deals: MapDeal[];
   focus: { lat: number; lng: number; key: number } | null;
+  onOpenDeal: (id: string) => void;
 }
 
-export default function DealsMap({ deals, focus }: Props) {
+export default function DealsMap({ deals, focus, onOpenDeal }: Props) {
   return (
     <MapContainer
       center={[46.6, 2.4]}
@@ -128,7 +129,12 @@ export default function DealsMap({ deals, focus }: Props) {
       {deals.map((deal) => (
         <Marker key={deal.id} position={[deal.latitude, deal.longitude]} icon={dotIcon(deal)}>
           <Popup>
-            <div style={{ fontSize: 13, lineHeight: 1.5, minWidth: 170 }}>
+            <div
+              role="button"
+              onClick={() => onOpenDeal(deal.id)}
+              title="Ouvrir la fiche du deal"
+              style={{ fontSize: 13, lineHeight: 1.5, minWidth: 180, cursor: 'pointer' }}
+            >
               <div style={{ fontWeight: 700, marginBottom: 2 }}>{deal.storeName}</div>
               {deal.brandName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -143,6 +149,9 @@ export default function DealsMap({ deals, focus }: Props) {
                 <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: '#f1f5f9', color: '#334155' }}>
                   {deal.columnTitle}
                 </span>
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 7, borderTop: '1px solid #eef2f6', color: '#4f46e5', fontWeight: 600, fontSize: 12 }}>
+                Ouvrir la fiche →
               </div>
             </div>
           </Popup>
