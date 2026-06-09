@@ -186,29 +186,36 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
           </span>
         </div>
 
-        {/* Recherche, filtres et actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 14px', flexWrap: 'wrap' }}>
+        {/* Filtres (gauche) · Recherche (centre) · Actions (droite) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 14px' }}>
+          {/* Gauche : filtres */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={fieldStyle(!!filterBrand)}>
+              <option value="">Toutes les enseignes</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+
+            <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={fieldStyle(!!filterUser)}>
+              <option value="">Tous les utilisateurs</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+
+          {/* Centre : recherche */}
           <DealSearch onSelect={setOpenDealId} />
 
-          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={fieldStyle(!!filterBrand)}>
-            <option value="">Toutes les enseignes</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          {/* Droite : actions */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minWidth: 0 }}>
+            <button onClick={fetchDeals} title="Rafraîchir"
+              style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
+              {loading ? '⟳' : '↺'} Rafraîchir
+            </button>
 
-          <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={fieldStyle(!!filterUser)}>
-            <option value="">Tous les utilisateurs</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-
-          <button onClick={fetchDeals} title="Rafraîchir"
-            style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
-            {loading ? '⟳' : '↺'} Rafraîchir
-          </button>
-
-          <button onClick={() => setShowCreate(true)}
-            style={{ marginLeft: 'auto', height: 38, padding: '0 18px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(79,70,229,0.35)' }}>
-            + Nouvelle affaire
-          </button>
+            <button onClick={() => setShowCreate(true)}
+              style={{ height: 38, padding: '0 18px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(79,70,229,0.35)', whiteSpace: 'nowrap' }}>
+              + Nouvelle affaire
+            </button>
+          </div>
         </div>
       </div>
 

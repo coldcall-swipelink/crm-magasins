@@ -78,58 +78,79 @@ export default function DealSearch({ onSelect }: Props) {
   const term = q.trim();
 
   return (
-    <div ref={boxRef} style={{ position: 'relative' }}>
-      <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#94a3b8', pointerEvents: 'none' }}>🔍</span>
-      <input
-        value={q}
-        onChange={e => setQ(e.target.value)}
-        onKeyDown={onKey}
-        onFocus={() => { if (results.length) setOpen(true); }}
-        placeholder="Rechercher une affaire…"
-        style={{ height: 38, padding: '0 12px 0 32px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 13, width: 240, outline: 'none' }}
-      />
+    // zIndex élevé quand ouvert pour que l'input reste au-dessus du fond assombri.
+    <div ref={boxRef} style={{ position: 'relative', zIndex: open ? 62 : 'auto' }}>
+      {/* Barre de recherche — reste dans le header, au-dessus du voile (zIndex 2). */}
+      <div style={{ position: 'relative', zIndex: 2 }}>
+        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#94a3b8', pointerEvents: 'none' }}>🔍</span>
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          onKeyDown={onKey}
+          onFocus={() => { if (results.length) setOpen(true); }}
+          placeholder="Rechercher une affaire…"
+          style={{ height: 38, padding: '0 12px 0 32px', borderRadius: 9, border: `1px solid ${open ? '#c7d2fe' : '#e2e8f0'}`, background: open ? '#fff' : '#f8fafc', fontSize: 13, width: 340, maxWidth: '100%', outline: 'none', boxShadow: open ? '0 1px 6px rgba(79,70,229,0.18)' : 'none' }}
+        />
+      </div>
 
       {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50,
-          width: 380, maxWidth: '90vw', background: '#fff', borderRadius: 11,
-          border: '1px solid #e2e8f0', boxShadow: '0 12px 32px rgba(15,23,42,0.16)',
-          overflow: 'hidden',
-        }}>
-          {loading && results.length === 0 && (
-            <div style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>Recherche…</div>
-          )}
-          {!loading && results.length === 0 && term.length >= 2 && (
-            <div style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>Aucune affaire trouvée pour « {term} »</div>
-          )}
-          {results.map((r, i) => {
-            const brand = r.store?.brand;
-            const dot = brand?.color || r.column?.color || '#94a3b8';
-            const sub = [brand?.name, r.store?.city && `${r.store.city}${r.store?.department ? ` (${r.store.department})` : ''}`, r.column?.title]
-              .filter(Boolean).join(' · ');
-            return (
-              <button
-                key={r.id}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => choose(r)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-                  padding: '9px 14px', border: 'none', cursor: 'pointer',
-                  background: i === active ? '#f1f5f9' : '#fff',
-                  borderTop: i === 0 ? 'none' : '1px solid #f1f5f9',
-                }}
-              >
-                <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: dot, border: dot.toLowerCase() === '#ffffff' ? '1px solid #cbd5e1' : 'none' }} />
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {highlight(r.store?.name || 'Affaire', term)}
-                  </span>
-                  {sub && <span style={{ display: 'block', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {/* Voile assombri — un clic referme. */}
+          <div onMouseDown={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 1 }} />
+
+          {/* Panneau de résultats — au milieu de l'écran. */}
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 3,
+            width: 560, maxWidth: '92vw', maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+            background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0',
+            boxShadow: '0 24px 60px rgba(15,23,42,0.28)', overflow: 'hidden',
+          }}>
+            {/* Entête du panneau : rappel du terme recherché. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+              <span style={{ fontSize: 14, color: '#94a3b8' }}>🔍</span>
+              <span style={{ fontSize: 13, color: '#475569', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {term ? <>Résultats pour « <strong style={{ color: '#0f172a' }}>{term}</strong> »</> : 'Rechercher une affaire'}
+              </span>
+              <kbd style={{ fontSize: 11, color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 5, padding: '1px 6px', background: '#f8fafc' }}>Échap</kbd>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loading && results.length === 0 && (
+                <div style={{ padding: '16px', fontSize: 13, color: '#94a3b8' }}>Recherche…</div>
+              )}
+              {!loading && results.length === 0 && term.length >= 2 && (
+                <div style={{ padding: '16px', fontSize: 13, color: '#94a3b8' }}>Aucune affaire trouvée pour « {term} »</div>
+              )}
+              {results.map((r, i) => {
+                const brand = r.store?.brand;
+                const dot = brand?.color || r.column?.color || '#94a3b8';
+                const sub = [brand?.name, r.store?.city && `${r.store.city}${r.store?.department ? ` (${r.store.department})` : ''}`, r.column?.title]
+                  .filter(Boolean).join(' · ');
+                return (
+                  <button
+                    key={r.id}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => choose(r)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
+                      padding: '11px 16px', border: 'none', cursor: 'pointer',
+                      background: i === active ? '#f1f5f9' : '#fff',
+                      borderTop: i === 0 ? 'none' : '1px solid #f1f5f9',
+                    }}
+                  >
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: dot, border: dot.toLowerCase() === '#ffffff' ? '1px solid #cbd5e1' : 'none' }} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {highlight(r.store?.name || 'Affaire', term)}
+                      </span>
+                      {sub && <span style={{ display: 'block', fontSize: 11.5, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
