@@ -31,6 +31,12 @@ model Store {
   siret            String   @default("")
   externalId       String   @default("")
   deduplicationKey String   @unique
+  // Coordonnées GPS issues du géocodage de l'adresse (API BAN data.gouv).
+  // Mises en cache pour éviter de re-géocoder à chaque ouverture de la carte.
+  latitude         Float?
+  longitude        Float?
+  geocodedAt       DateTime?
+  geocodeQuery     String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   deal             Deal?
@@ -46,6 +52,21 @@ model Collaborator {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deals     Deal[]
+}
+
+// Utilisateur de l'application (identité choisie à la première connexion,
+// stockée côté navigateur). Complémentaire de Collaborator : sert à savoir
+// qui est connecté, qui suit un deal, à qui une action est assignée et qui
+// rédige une note.
+model User {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  color           String   @default("#6366f1")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  assignedDeals   Deal[]
+  assignedActions Action[]
+  authoredNotes   Note[]
 }
 
 model Pipeline {
@@ -97,8 +118,16 @@ model Deal {
   contactLastName           String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
+  candidateCallDate         DateTime?
+  googleEventId             String?
+  googleMeetUrl             String?
+  // Id de l'Organization créée dans la base produit Supabase quand l'affaire
+  // passe en « Démo prévue » (garantit l'idempotence du provisioning).
+  supabaseOrganizationId    String?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
+  assignedUserId            String?
+  assignedUser              User?    @relation(fields: [assignedUserId], references: [id])
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
   jobOffers                 JobOffer[]
@@ -127,7 +156,6 @@ model JobOffer {
   fingerprint     String   @unique
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
-  status          String   @default("active")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -141,7 +169,6 @@ model ImportBatch {
   updatedDeals      Int      @default(0)
   newOffers         Int      @default(0)
   movedToCall       Int      @default(0)
-  disappearedOffers Int      @default(0)
   errorCount        Int      @default(0)
   createdAt         DateTime @default(now())
   importRows        ImportRow[]
@@ -175,17 +202,22 @@ model Action {
   priority    String    @default("normale")
   note        String    @default("")
   completedAt DateTime?
+  assignedUserId String?
+  assignedUser   User?   @relation(fields: [assignedUserId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
 model Note {
-  id        String   @id @default(cuid())
-  dealId    String
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  dealId     String
+  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  content    String
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id])
+  authorName String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model EmailTemplate {

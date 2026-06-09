@@ -2,8 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Route dépendante de la base : jamais de pré-génération statique au build
-// (sinon une base injoignable au moment du build fait échouer le déploiement).
+// Données live : ne jamais pré-générer au build (évite tout accès DB à la compilation).
 export const dynamic = 'force-dynamic';
 
 export async function GET() {

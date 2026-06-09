@@ -2,8 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Route dépendante de la base : jamais de pré-génération statique au build
-// (sinon une base injoignable au moment du build fait échouer le déploiement).
+// Données live : ne jamais pré-générer au build (évite tout accès DB à la compilation).
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -13,7 +12,7 @@ export async function GET() {
 
   const [
     totalDeals, totalStores, newDeals, updatedDeals, movedToCall,
-    activeOffers, disappearedOffers,
+    activeOffers,
     actionsDueToday, actionsOverdue, dealsWithNoAction,
     lastBatch, brands, importHistory,
   ] = await Promise.all([
@@ -22,8 +21,7 @@ export async function GET() {
     prisma.deal.count({ where: { isNewFromLastImport: true } }),
     prisma.deal.count({ where: { hasNewOfferFromLastImport: true, isNewFromLastImport: false } }),
     prisma.deal.count({ where: { movedToCallAt: { not: null }, isNewFromLastImport: false } }),
-    prisma.jobOffer.count({ where: { status: 'active' } }),
-    prisma.jobOffer.count({ where: { status: 'disappeared' } }),
+    prisma.jobOffer.count(),
     prisma.action.count({ where: { status: 'todo', dueDate: { gte: startOfDay, lt: endOfDay } } }),
     prisma.action.count({ where: { status: 'todo', dueDate: { lt: startOfDay } } }),
     prisma.deal.count({ where: { actions: { none: { status: 'todo' } } } }),
@@ -54,7 +52,7 @@ export async function GET() {
     newDealsLastImport:     newDeals,
     updatedLastImport:      updatedDeals,
     movedToCallLastImport:  movedToCall,
-    activeOffers, disappearedOffers,
+    activeOffers,
     actionsDueToday, actionsOverdue, dealsWithNoAction,
     topBrands,
     lastImportDate:     lastBatch?.importedAt?.toISOString() ?? null,

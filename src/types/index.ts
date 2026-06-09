@@ -3,7 +3,14 @@
 export type Priority = 'faible' | 'normale' | 'élevée' | 'urgente';
 export type ActionType = 'Appeler' | 'Email' | 'Relancer' | 'Démo' | 'Autre';
 export type ActionStatus = 'todo' | 'done';
-export type OfferStatus = 'active' | 'disappeared';
+
+export interface User {
+  id:        string;
+  name:      string;
+  color:     string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface Brand {
   id:        string;
@@ -29,6 +36,10 @@ export interface Store {
   siret:            string;
   externalId:       string;
   deduplicationKey: string;
+  latitude:         number | null;
+  longitude:        number | null;
+  geocodedAt:       string | null;
+  geocodeQuery:     string;
   createdAt:        string;
   updatedAt:        string;
 }
@@ -49,7 +60,6 @@ export interface JobOffer {
   fingerprint:     string;
   firstSeenAt:     string;
   lastSeenAt:      string;
-  status:          OfferStatus;
   createdAt:       string;
   updatedAt:       string;
 }
@@ -77,16 +87,21 @@ export interface Action {
   priority:    Priority;
   note:        string;
   completedAt: string | null;
+  assignedUserId?: string | null;
+  assignedUser?:   User | null;
   createdAt:   string;
   updatedAt:   string;
 }
 
 export interface Note {
-  id:        string;
-  dealId:    string;
-  content:   string;
-  createdAt: string;
-  updatedAt: string;
+  id:         string;
+  dealId:     string;
+  content:    string;
+  authorId?:  string | null;
+  authorName?: string;
+  author?:    User | null;
+  createdAt:  string;
+  updatedAt:  string;
 }
 
 export interface Deal {
@@ -103,6 +118,16 @@ export interface Deal {
   isPresentInLastImport:    boolean;
   movedToCallAt:            string | null;
   lastImportAt:             string | null;
+  directeur?:               string;
+  contactCalling?:          string;
+  dealEmail?:               string;
+  contactCivilite?:         string;
+  contactLastName?:         string;
+  dealValue?:               number | null;
+  demoDate?:                string | null;
+  candidateCallDate?:       string | null;
+  assignedUserId?:          string | null;
+  assignedUser?:            User | null;
   createdAt:                string;
   updatedAt:                string;
   jobOffers:                JobOffer[];
@@ -123,7 +148,6 @@ export interface ImportBatch {
   updatedDeals:      number;
   newOffers:         number;
   movedToCall:       number;
-  disappearedOffers: number;
   errorCount:        number;
   createdAt:         string;
   importRows?: ImportRow[];
@@ -147,7 +171,6 @@ export interface DashboardStats {
   updatedLastImport:   number;
   movedToCallLastImport: number;
   activeOffers:        number;
-  disappearedOffers:   number;
   actionsDueToday:     number;
   actionsOverdue:      number;
   dealsWithNoAction:   number;

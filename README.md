@@ -80,6 +80,13 @@ npm run db:migrate
 > npm run db:push
 > ```
 
+> **Onglet « Carte »** : le schéma `Store` inclut des colonnes `latitude` /
+> `longitude` (géocodage mis en cache). Après une mise à jour, relancez
+> `npm run db:migrate` (ou `npm run db:push`) pour créer ces colonnes. Le
+> géocodage des adresses utilise l'API publique gratuite de la Base Adresse
+> Nationale (`api-adresse.data.gouv.fr`, aucune clé requise) et la carte
+> s'appuie sur OpenStreetMap.
+
 Vérifiez que Prisma a bien généré les tables :
 ```bash
 npm run db:studio
@@ -157,7 +164,6 @@ Le séparateur est auto-détecté (virgule ou point-virgule).
 | Nouveau magasin | → Nouvelle affaire dans **« À appeler »** |
 | Magasin existant + **nouvelle offre** | → **Retour automatique en « À appeler »** |
 | Magasin existant + offre déjà connue | → `lastSeenAt` mis à jour, colonne inchangée |
-| Offre disparue | → Marquée `disappeared`, affaire et colonne inchangées |
 
 ### Pipeline Kanban
 

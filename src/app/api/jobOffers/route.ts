@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
         source: source || 'manual',
         url: url || '',
         fingerprint,
-        status: 'active',
       },
     });
 

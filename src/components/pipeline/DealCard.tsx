@@ -48,10 +48,11 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
-  const offers = deal.jobOffers?.filter(o => o.status === 'active') ?? [];
+  const offers = deal.jobOffers ?? [];
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;
+  const assignedUser = (deal as any).assignedUser;
   const backgroundColor = getActionBackgroundColor(deal.actions);
 
   return (
@@ -88,9 +89,18 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
           <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#0f172a' }}>{store?.name || 'Magasin'}</div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
-        {collaborator && (
-          <div title={collaborator.name} style={{ width: 22, height: 22, borderRadius: '50%', background: collaborator.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {initials(collaborator.name)}
+        {(collaborator || assignedUser) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+            {assignedUser && (
+              <div title={`Suivi par ${assignedUser.name}`} style={{ width: 22, height: 22, borderRadius: '50%', background: assignedUser.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + assignedUser.color }}>
+                {initials(assignedUser.name)}
+              </div>
+            )}
+            {collaborator && (
+              <div title={collaborator.name} style={{ width: 22, height: 22, borderRadius: '50%', background: collaborator.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {initials(collaborator.name)}
+              </div>
+            )}
           </div>
         )}
       </div>

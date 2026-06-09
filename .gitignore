@@ -18,6 +18,9 @@ build/
 # Prisma
 prisma/migrations/
 
+# Artefacts générés
+tsconfig.tsbuildinfo
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

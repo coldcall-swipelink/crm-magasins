@@ -1,8 +1,13 @@
 // src/app/api/brands/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { USE_MOCK_DATA, mockBrands } from '@/lib/mockData';
+
+// Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  if (USE_MOCK_DATA) return NextResponse.json(mockBrands);
   const brands = await prisma.brand.findMany({
     include: { _count: { select: { stores: true } } },
     orderBy: { name: 'asc' },
