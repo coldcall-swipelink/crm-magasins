@@ -16,6 +16,11 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Accès direct sans s'identifier : même effet que le bypass par variable
+  // d'environnement, mais déclenché côté client (utile pour tester/consulter
+  // l'app quand on ne peut pas définir NEXT_PUBLIC_BYPASS_USER_GATE).
+  // L'identité reste « non connectée » (null) — les actions restent anonymes.
+  const [skipped, setSkipped] = useState(false);
 
   const submit = async () => {
     if (!name.trim()) return;
@@ -31,7 +36,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
   };
 
   // Bypass de test : on ouvre l'app sans demander d'identité.
-  if (BYPASS_GATE) return <>{children}</>;
+  if (BYPASS_GATE || skipped) return <>{children}</>;
 
   // Avant la lecture du localStorage, on ne montre rien (pas de flash de modale).
   if (!ready) return null;
@@ -61,6 +66,13 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
             style={{ width: '100%', padding: '11px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: 14, cursor: loading || !name.trim() ? 'not-allowed' : 'pointer', opacity: loading || !name.trim() ? .6 : 1 }}
           >
             {loading ? 'Connexion…' : 'Continuer'}
+          </button>
+          <button
+            onClick={() => setSkipped(true)}
+            disabled={loading}
+            style={{ width: '100%', marginTop: 10, padding: '6px', background: 'none', border: 'none', color: '#94a3b8', fontSize: 12.5, cursor: loading ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}
+          >
+            Accéder sans m'identifier
           </button>
         </div>
       </div>
