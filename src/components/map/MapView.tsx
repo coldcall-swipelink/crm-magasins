@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import DealDrawer from '@/components/deal/DealDrawer';
 import { dotHtml, displayColor, type MapDeal } from './DealsMap';
 
 // Leaflet manipule `window` → chargement client uniquement (pas de SSR).
@@ -41,6 +42,7 @@ export default function MapView() {
   const [query, setQuery] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState<Focus | null>(null);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -264,8 +266,21 @@ export default function MapView() {
 
       {/* Carte */}
       <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-        <DealsMap deals={visibleDeals} focus={focus} />
+        <DealsMap deals={visibleDeals} focus={focus} onOpenDeal={setSelectedDealId} />
       </div>
+
+      {/* Fiche détaillée du deal (ouverte au clic sur la bulle).
+          Wrapper à z-index élevé : les couches Leaflet montent jusqu'à ~1000,
+          le drawer (z-index 40 en interne) doit passer au-dessus. */}
+      {selectedDealId && (
+        <div style={{ position: 'relative', zIndex: 2000 }}>
+          <DealDrawer
+            dealId={selectedDealId}
+            onClose={() => setSelectedDealId(null)}
+            onUpdated={() => setReloadKey((k) => k + 1)}
+          />
+        </div>
+      )}
     </div>
   );
 }
