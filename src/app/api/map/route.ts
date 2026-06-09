@@ -9,7 +9,12 @@ const PIPELINE_NAME = 'Prospection';
 
 // Nombre de magasins géocodés en parallèle (la BAN tolère bien plus, mais on
 // reste poli ; le résultat est de toute façon mis en cache en base).
-const GEOCODE_CONCURRENCY = 5;
+const GEOCODE_CONCURRENCY = 12;
+
+// Plafond de géocodages par requête : borne le temps de réponse même avec
+// beaucoup de nouveaux magasins. Le reste est géocodé aux chargements suivants
+// (chaque adresse n'étant géocodée qu'une seule fois, succès comme échec).
+const GEOCODE_MAX_PER_REQUEST = 150;
 
 interface MapDeal {
   id: string;
@@ -45,39 +50,30 @@ export async function GET() {
       },
     });
 
-    // 1. Détermine les magasins à (re)géocoder : pas encore localisés, ou dont
-    //    l'adresse a changé depuis le dernier géocodage.
+    // 1. Magasins à géocoder : uniquement ceux dont l'adresse n'a PAS encore
+    //    été tentée pour cette valeur exacte (geocodeQuery). Un échec est
+    //    mémorisé (geocodeQuery enregistré, coordonnées laissées nulles) afin de
+    //    ne JAMAIS le retenter à chaque chargement — c'était la cause des temps
+    //    de chargement très longs avec beaucoup de deals.
     const toGeocode = deals
       .map((d) => d.store)
       .filter((store, idx, arr) => arr.findIndex((s) => s.id === store.id) === idx)
       .map((store) => ({ store, query: buildGeocodeQuery(store) }))
-      .filter(({ store, query }) => {
-        if (!query) return false;
-        const needsCoords = store.latitude == null || store.longitude == null;
-        const queryChanged = store.geocodeQuery !== query;
-        return needsCoords || queryChanged;
-      });
+      .filter(({ store, query }) => query && store.geocodeQuery !== query)
+      .slice(0, GEOCODE_MAX_PER_REQUEST);
 
-    // 2. Géocode par petits lots concurrents et persiste les coordonnées.
+    // 2. Géocode par lots concurrents ; persiste la tentative (succès OU échec).
     const coordsById = new Map<string, { latitude: number; longitude: number }>();
-    for (const { store } of toGeocode) {
-      if (store.latitude != null && store.longitude != null) {
-        coordsById.set(store.id, { latitude: store.latitude, longitude: store.longitude });
-      }
-    }
-
     for (let i = 0; i < toGeocode.length; i += GEOCODE_CONCURRENCY) {
       const batch = toGeocode.slice(i, i + GEOCODE_CONCURRENCY);
       await Promise.all(
         batch.map(async ({ store, query }) => {
           const result = await geocodeQuery(query);
-          if (!result) return;
-          coordsById.set(store.id, result);
+          if (result) coordsById.set(store.id, result);
           await prisma.store.update({
             where: { id: store.id },
             data: {
-              latitude: result.latitude,
-              longitude: result.longitude,
+              ...(result ? { latitude: result.latitude, longitude: result.longitude } : {}),
               geocodeQuery: query,
               geocodedAt: new Date(),
             },
