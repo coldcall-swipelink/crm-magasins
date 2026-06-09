@@ -2,6 +2,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Route dépendante de la base : jamais de pré-génération statique au build
+// (sinon une base injoignable au moment du build fait échouer le déploiement).
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
