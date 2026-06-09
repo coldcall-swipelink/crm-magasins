@@ -1,6 +1,7 @@
 // src/app/api/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { USE_MOCK_DATA, mockUsers } from '@/lib/mockData';
 
 // Données live : ne jamais pré-générer au build (évite tout accès DB à la compilation).
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,7 @@ function pickColor(seed: string) {
 }
 
 export async function GET() {
+  if (USE_MOCK_DATA) return NextResponse.json(mockUsers);
   try {
     const users = await prisma.user.findMany({ orderBy: { name: 'asc' } });
     return NextResponse.json(users);
