@@ -13,14 +13,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if ('dueTime'  in body) data.dueTime  = body.dueTime;
     if ('priority' in body) data.priority = body.priority;
     if ('note'     in body) data.note     = body.note;
-    if ('assignedUserId' in body) data.assignedUserId = body.assignedUserId || null;
     if ('status'   in body) {
       data.status = body.status;
       if (body.status === 'done') data.completedAt = new Date();
       if (body.status === 'todo') data.completedAt = null;
     }
 
-    const action = await prisma.action.update({ where: { id: params.id }, data, include: { assignedUser: true } });
+    const action = await prisma.action.update({ where: { id: params.id }, data });
     return NextResponse.json(action);
   } catch (err) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

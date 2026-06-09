@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncDemoMeeting } from '@/lib/googleCalendar';
-import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -11,9 +9,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         store: { include: { brand: true } },
         column: true,
         collaborator: true,
-        assignedUser: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
-        actions: { orderBy: { dueDate: 'asc' }, include: { assignedUser: true } },
+        actions: { orderBy: { dueDate: 'asc' } },
         notes: { orderBy: { createdAt: 'desc' } },
       },
     });
@@ -29,31 +26,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json();
     const allowed = ['columnId', 'priority', 'position', 'previousColumnId',
                      'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName',
-                     'dealValue', 'demoDate', 'candidateCallDate', 'collaboratorId', 'assignedUserId'];
+                     'dealValue', 'demoDate', 'collaboratorId'];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
-
-    // Mise à jour optionnelle de l'enseigne (Brand) du magasin associé.
-    // brandId n'est pas un champ du Deal mais du Store lié.
-    if ('brandId' in body) {
-      const existing = await prisma.deal.findUnique({ where: { id: params.id }, select: { storeId: true } });
-      if (existing) {
-        await prisma.store.update({ where: { id: existing.storeId }, data: { brandId: body.brandId || null } });
-      }
-    }
-
-    const deal = await prisma.deal.update({
+    const deal = await prisma.deal.update({ 
       where: { id: params.id }, 
       data,
       include: {
         store: { include: { brand: true } },
         column: true,
         collaborator: true,
-        assignedUser: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
-        actions: { orderBy: { dueDate: 'asc' }, include: { assignedUser: true } },
+        actions: { orderBy: { dueDate: 'asc' } },
         notes: { orderBy: { createdAt: 'desc' } },
       },
     });
@@ -102,48 +88,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
-    // Démo prévue → invitation Google Meet. On déclenche quand l'affaire entre
-    // dans la colonne « Démo prévue » ou quand sa date de démo change alors
-    // qu'elle s'y trouve déjà (mise à jour de l'événement existant).
-    if (deal.column?.title === 'Démo prévue' && ('columnId' in body || 'demoDate' in body)) {
-      try {
-        await syncDemoMeeting(deal.id);
-      } catch (meetErr) {
-        console.error('Google Meet (Démo prévue) error:', meetErr);
-      }
-    }
-
-    // Démo prévue → provisioning de la base produit Supabase (Organization,
-    // plan, Recruiter). Uniquement à l'entrée dans la colonne (changement de
-    // colonne), pas sur une simple mise à jour de la date de démo. L'opération
-    // est idempotente (cf. supabaseProvisioning.ts).
-    if (deal.column?.title === 'Démo prévue' && 'columnId' in body) {
-      try {
-        await provisionDemoOrganization(deal.id);
-      } catch (provisionErr) {
-        console.error('Supabase provisioning (Démo prévue) error:', provisionErr);
-      }
-    }
-
     return NextResponse.json(deal);
   } catch (err) {
     console.error('PATCH error:', err);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
-  }
-}
-
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const existing = await prisma.deal.findUnique({ where: { id: params.id } });
-    if (!existing) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
-
-    // Les actions, notes, emailLogs et jobOffers sont supprimés en cascade.
-    // Les importRows liés voient leur dealId mis à null (relation optionnelle).
-    await prisma.deal.delete({ where: { id: params.id } });
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('DELETE error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

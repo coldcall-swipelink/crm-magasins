@@ -27,6 +27,7 @@ export default function HistoryPage() {
                   {b.updatedDeals > 0 && <span style={{ color: '#64748b' }}>⟳{b.updatedDeals} màj</span>}
                   {b.newOffers > 0 && <span style={{ color: '#d97706' }}>✦{b.newOffers} offres</span>}
                   {(b.movedToCall || 0) > 0 && <span style={{ color: '#6366f1' }}>↩{b.movedToCall} rappelées</span>}
+                  {b.disappearedOffers > 0 && <span style={{ color: '#dc2626' }}>✗{b.disappearedOffers} disparues</span>}
                   {b.errorCount > 0 && <span style={{ color: '#dc2626' }}>⚠{b.errorCount} err.</span>}
                 </div>
                 <span style={{ color: '#94a3b8' }}>{expanded === b.id ? '▲' : '▼'}</span>

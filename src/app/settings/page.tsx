@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import type { Brand, PipelineColumn } from '@/types';
 import { toast } from '@/components/ui/Toast';
@@ -78,8 +78,6 @@ export default function SettingsPage() {
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
-  const [savingCols, setSavingCols] = useState(false);
-  const colorTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const fetchAll = useCallback(async () => {
     const [bRes, pRes, collRes, tRes] = await Promise.all([
@@ -147,102 +145,61 @@ export default function SettingsPage() {
     toast('Supprimée');
   };
   
-  // Met à jour une colonne du pipeline courant dans l'état local (optimiste).
-  const patchColumnState = (colId: string, patch: Partial<PipelineColumn>) => {
-    setPipelines(prev => prev.map(p =>
-      p.id === selectedPipelineId
-        ? { ...p, columns: p.columns.map(c => (c.id === colId ? { ...c, ...patch } : c)) }
-        : p
-    ));
-  };
-
   const addColumn = async () => {
     if (!newColTitle.trim() || !selectedPipelineId) return;
-    const res = await fetch('/api/columns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pipelineId: selectedPipelineId, title: newColTitle.trim(), color: newColColor }),
+    await fetch('/api/columns', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ pipelineId: selectedPipelineId, title: newColTitle, color: newColColor }) 
     });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      toast(data.error || 'Erreur lors de la création', 'error');
-      return;
-    }
     setNewColTitle('');
     await fetchAll();
     toast('Colonne ajoutée');
   };
-
+  
   const deleteColumn = async (id: string) => {
-    // Optimiste : on retire la colonne tout de suite, rollback si le serveur refuse.
-    const snapshot = pipelines;
-    setPipelines(prev => prev.map(p =>
-      p.id === selectedPipelineId ? { ...p, columns: p.columns.filter(c => c.id !== id) } : p
-    ));
     const res = await fetch(`/api/columns/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setPipelines(snapshot);
-      toast(data.error || 'Suppression impossible', 'error');
-      return;
-    }
+    const data = await res.json();
+    if (!res.ok) { toast(data.error, 'error'); return; }
     await fetchAll();
     toast('Colonne supprimée');
   };
+  
+  const updateColColor = async (id: string, color: string) => {
+    await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color }) });
+  };
 
-  // Couleur : MAJ instantanée de l'UI + persistance debouncée (le color-picker
-  // émet beaucoup d'événements pendant le glissement → on n'envoie qu'à la fin).
-  const updateColColor = (id: string, color: string) => {
-    patchColumnState(id, { color });
-    clearTimeout(colorTimers.current[id]);
-    colorTimers.current[id] = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/columns/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ color }),
-        });
-        if (!res.ok) throw new Error();
-      } catch {
-        toast('Erreur enregistrement de la couleur', 'error');
-        await fetchAll();
-      }
-    }, 400);
+  const updateColPosition = async (id: string, newPosition: number) => {
+    await fetch(`/api/columns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: newPosition }) });
   };
 
   const moveColumn = async (colId: string, direction: 'up' | 'down') => {
-    if (savingCols) return; // évite les opérations concurrentes (clics rapides)
-    const ordered = [...columns];
-    const idx = ordered.findIndex(c => c.id === colId);
-    const target = direction === 'up' ? idx - 1 : idx + 1;
-    if (idx < 0 || target < 0 || target >= ordered.length) return;
-
-    // Échange les deux colonnes puis renumérote les positions 0..n-1 (évite
-    // les collisions / trous de position).
-    [ordered[idx], ordered[target]] = [ordered[target], ordered[idx]];
-    const renumbered = ordered.map((c, i) => ({ ...c, position: i }));
-
-    // MAJ instantanée de l'UI.
-    setPipelines(prev => prev.map(p =>
-      p.id === selectedPipelineId ? { ...p, columns: renumbered } : p
-    ));
-
-    // Persiste en parallèle ; resynchronise sur le serveur en cas d'échec.
-    setSavingCols(true);
-    try {
-      const results = await Promise.all(renumbered.map(c =>
-        fetch(`/api/columns/${c.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: c.position }),
-        })
-      ));
-      if (results.some(r => !r.ok)) throw new Error();
-    } catch {
-      toast('Erreur lors du réordonnancement', 'error');
-      await fetchAll();
-    } finally {
-      setSavingCols(false);
+    const sorted = [...columns].map(c => ({ ...c })); // Deep copy
+    const idx = sorted.findIndex(c => c.id === colId);
+    
+    if (direction === 'up' && idx > 0) {
+      const tempPos = sorted[idx].position;
+      sorted[idx].position = sorted[idx - 1].position;
+      sorted[idx - 1].position = tempPos;
+      [sorted[idx], sorted[idx - 1]] = [sorted[idx - 1], sorted[idx]];
+    } else if (direction === 'down' && idx < sorted.length - 1) {
+      const tempPos = sorted[idx].position;
+      sorted[idx].position = sorted[idx + 1].position;
+      sorted[idx + 1].position = tempPos;
+      [sorted[idx], sorted[idx + 1]] = [sorted[idx + 1], sorted[idx]];
+    } else {
+      return;
+    }
+    
+    // Update UI instantly
+    const updated = pipelines.map(p => 
+      p.id === selectedPipelineId ? { ...p, columns: sorted } : p
+    );
+    setPipelines(updated);
+    
+    // Save to API
+    for (let i = 0; i < sorted.length; i++) {
+      await updateColPosition(sorted[i].id, sorted[i].position);
     }
   };
 
@@ -428,18 +385,18 @@ export default function SettingsPage() {
               {c.position === 0 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: '#eef2ff', color: '#4338ca', fontWeight: 500 }}>Par défaut</span>}
               <span style={{ fontSize: 11, color: '#94a3b8' }}>{c._count?.deals ?? 0} affaires</span>
               
-              <button
-                style={{ ...btnXs, opacity: (idx === 0 || savingCols) ? 0.5 : 1, cursor: (idx === 0 || savingCols) ? 'not-allowed' : 'pointer' }}
-                onClick={() => moveColumn(c.id, 'up')}
-                disabled={idx === 0 || savingCols}
+              <button 
+                style={{ ...btnXs, opacity: idx === 0 ? 0.5 : 1, cursor: idx === 0 ? 'not-allowed' : 'pointer' }} 
+                onClick={() => moveColumn(c.id, 'up')} 
+                disabled={idx === 0} 
                 title="Monter"
               >
                 ↑
               </button>
-              <button
-                style={{ ...btnXs, opacity: (idx === columns.length - 1 || savingCols) ? 0.5 : 1, cursor: (idx === columns.length - 1 || savingCols) ? 'not-allowed' : 'pointer' }}
-                onClick={() => moveColumn(c.id, 'down')}
-                disabled={idx === columns.length - 1 || savingCols}
+              <button 
+                style={{ ...btnXs, opacity: idx === columns.length - 1 ? 0.5 : 1, cursor: idx === columns.length - 1 ? 'not-allowed' : 'pointer' }} 
+                onClick={() => moveColumn(c.id, 'down')} 
+                disabled={idx === columns.length - 1} 
                 title="Descendre"
               >
                 ↓

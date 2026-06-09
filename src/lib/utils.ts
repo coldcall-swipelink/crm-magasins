@@ -48,18 +48,6 @@ export function generateBrandColor(name: string): string {
   return PALETTE[idx];
 }
 
-/** Assombrit une couleur hex (#rrggbb) d'un facteur 0→1 (0.3 = 30 % plus sombre) */
-export function darkenHex(hex: string, amount = 0.35): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
-  if (!m) return hex;
-  const num = parseInt(m[1], 16);
-  const factor = Math.max(0, Math.min(1, 1 - amount));
-  const r = Math.round(((num >> 16) & 0xff) * factor);
-  const g = Math.round(((num >> 8) & 0xff) * factor);
-  const b = Math.round((num & 0xff) * factor);
-  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
-}
-
 /** Formate une date en français */
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '—';

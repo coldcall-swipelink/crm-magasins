@@ -2,9 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   const cols = await prisma.pipelineColumn.findMany({
     include: { _count: { select: { deals: true } } },

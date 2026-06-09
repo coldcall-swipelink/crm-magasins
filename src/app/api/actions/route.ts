@@ -2,9 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -17,10 +14,7 @@ export async function GET(req: NextRequest) {
 
     const actions = await prisma.action.findMany({
       where,
-      include: {
-        deal: { include: { store: { select: { name: true, city: true } } } },
-        assignedUser: true,
-      },
+      include: { deal: { include: { store: { select: { name: true, city: true } } } } },
       orderBy: { dueDate: 'asc' },
     });
     return NextResponse.json(actions);
@@ -32,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { dealId, title, type, dueDate, dueTime, priority, note, assignedUserId } = body;
+    const { dealId, title, type, dueDate, dueTime, priority, note } = body;
 
     if (!dealId || !title || !dueDate) {
       return NextResponse.json({ error: 'dealId, title et dueDate sont requis' }, { status: 400 });
@@ -48,9 +42,7 @@ export async function POST(req: NextRequest) {
         priority: priority || 'normale',
         note:     note     || '',
         status:   'todo',
-        assignedUserId: assignedUserId || null,
       },
-      include: { assignedUser: true },
     });
     return NextResponse.json(action, { status: 201 });
   } catch (err) {

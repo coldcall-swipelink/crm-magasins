@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'CRM Magasins',
@@ -14,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" style={{ height: '100%' }}>
       <body style={{ height: '100%', margin: 0 }}>
-        <Providers>{children}</Providers>
+        {children}
       </body>
     </html>
   );

@@ -1,12 +1,11 @@
 // src/app/api/import/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { runCsvImport, runTargetedCsvImport } from '@/lib/import/importService';
+import { runCsvImport } from '@/lib/import/importService';
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const columnId = formData.get('columnId');
 
     if (!file) {
       return NextResponse.json({ error: 'Aucun fichier fourni.' }, { status: 400 });
@@ -17,12 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const text = await file.text();
-
-    // Import ciblé (sans offres) si une colonne de destination est fournie ;
-    // sinon import normal (avec offres, règles métier complètes).
-    const result = columnId && typeof columnId === 'string'
-      ? await runTargetedCsvImport(text, file.name, columnId)
-      : await runCsvImport(text, file.name);
+    const result = await runCsvImport(text, file.name);
 
     return NextResponse.json(result, { status: 200 });
   } catch (err) {

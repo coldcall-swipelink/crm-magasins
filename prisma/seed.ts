@@ -75,6 +75,7 @@ async function main() {
       updatedDeals: 0,
       newOffers: 8,
       movedToCall: 0,
+      disappearedOffers: 0,
       errorCount: 0,
     },
   });
@@ -189,6 +190,7 @@ async function main() {
           url: offer.url,
           publishedAt: offer.publishedAt,
           fingerprint: fp,
+          status: 'active',
         },
       });
     }

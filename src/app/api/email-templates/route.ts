@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   const templates = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } });
   return NextResponse.json(templates);
