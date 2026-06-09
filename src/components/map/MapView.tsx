@@ -261,6 +261,10 @@ export default function MapView() {
             {dot({ brandColor: '#64748b', columnTitle: 'Pas intéressé' }, 13)}
             <span>Pas intéressé (creux)</span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {dot({ brandColor: '#64748b', columnTitle: 'Sans offres' }, 13)}
+            <span>Sans offres (pointillé blanc)</span>
+          </div>
         </div>
       </aside>
 
