@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Deal, PipelineColumn, Brand } from '@/types';
 import DealCard from './DealCard';
+import DealSearch from './DealSearch';
 import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
@@ -17,9 +18,8 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [users, setUsers] = useState<User[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
-  const [selectedDeal, setSelected] = useState<Deal | null>(null);
+  const [openDealId, setOpenDealId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,14 +56,13 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search)      params.set('search', search);
       if (filterBrand) params.set('brandId', filterBrand);
       if (filterUser)  params.set('assignedUserId', filterUser);
       if (selectedPipelineId) params.set('pipelineId', selectedPipelineId);
       const res = await fetch(`/api/deals?${params}`);
       if (res.ok) setDeals(await res.json());
     } finally { setLoading(false); }
-  }, [search, filterBrand, filterUser, selectedPipelineId]);
+  }, [filterBrand, filterUser, selectedPipelineId]);
 
   // Recharger les affaires quand le pipeline change
   useEffect(() => {
@@ -187,33 +186,36 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
           </span>
         </div>
 
-        {/* Recherche, filtres et actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 14px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#94a3b8', pointerEvents: 'none' }}>🔍</span>
-            <input style={{ height: 38, padding: '0 12px 0 32px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 13, width: 220, outline: 'none' }}
-              placeholder="Rechercher une affaire…" value={search} onChange={e => setSearch(e.target.value)} />
+        {/* Filtres (gauche) · Recherche (centre) · Actions (droite) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 14px' }}>
+          {/* Gauche : filtres */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={fieldStyle(!!filterBrand)}>
+              <option value="">Toutes les enseignes</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+
+            <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={fieldStyle(!!filterUser)}>
+              <option value="">Tous les utilisateurs</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
           </div>
 
-          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={fieldStyle(!!filterBrand)}>
-            <option value="">Toutes les enseignes</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          {/* Centre : recherche */}
+          <DealSearch onSelect={setOpenDealId} />
 
-          <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={fieldStyle(!!filterUser)}>
-            <option value="">Tous les utilisateurs</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          {/* Droite : actions */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minWidth: 0 }}>
+            <button onClick={fetchDeals} title="Rafraîchir"
+              style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
+              {loading ? '⟳' : '↺'} Rafraîchir
+            </button>
 
-          <button onClick={fetchDeals} title="Rafraîchir"
-            style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
-            {loading ? '⟳' : '↺'} Rafraîchir
-          </button>
-
-          <button onClick={() => setShowCreate(true)}
-            style={{ marginLeft: 'auto', height: 38, padding: '0 18px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(79,70,229,0.35)' }}>
-            + Nouvelle affaire
-          </button>
+            <button onClick={() => setShowCreate(true)}
+              style={{ height: 38, padding: '0 18px', borderRadius: 9, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(79,70,229,0.35)', whiteSpace: 'nowrap' }}>
+              + Nouvelle affaire
+            </button>
+          </div>
         </div>
       </div>
 
@@ -239,7 +241,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
               <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5, minHeight: 50 }}>
                 {colDeals.map(deal => (
                   <DealCard key={deal.id} deal={deal} isDragging={draggingId === deal.id}
-                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => setSelected(deal)} />
+                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => setOpenDealId(deal.id)} />
                 ))}
               </div>
             </div>
@@ -247,7 +249,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
         })}
       </div>
 
-      {selectedDeal && <DealDrawer dealId={selectedDeal.id} onClose={() => setSelected(null)} onUpdated={fetchDeals} />}
+      {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
     </div>
