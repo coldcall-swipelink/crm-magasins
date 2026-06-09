@@ -4,6 +4,7 @@ import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
+import PVModal from '@/components/pipeline/PVModal';
 
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
@@ -71,6 +72,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
   const [savingOffer, setSavingOffer] = useState(false);
 
+  // Pop-up « Prospection de Valeur » : déclenchée quand on déplace l'affaire vers
+  // « Démo prévue » depuis la frise/le sélecteur de pipeline (mêmes effets que sur le board).
+  const [pv, setPv] = useState<{ targetColId: string; originColId: string; originPipelineId: string; originColumn: any } | null>(null);
+
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
     if (res.ok) {
@@ -121,9 +126,19 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     if (columnId === deal?.columnId) return;
     const prevColumnId = deal?.columnId;
     const prevPipelineId = deal?.pipelineId;
+    const prevColumn = deal?.column;
     const targetCol = columns.find(c => c.id === columnId);
     // Mise à jour optimiste : la frise (et le pipeline) reflètent le changement immédiatement.
     setDeal((d: any) => ({ ...d, columnId, pipelineId: targetCol?.pipelineId ?? d.pipelineId, column: targetCol || d.column }));
+
+    // Workflow « Prospection de Valeur » : à l'arrivée dans « Démo prévue », on
+    // demande confirmation AVANT de persister (Meet + Supabase + duplication ne
+    // partent qu'après OUI/NON), comme sur la frise du board.
+    if (targetCol?.title === 'Démo prévue') {
+      setPv({ targetColId: columnId, originColId: prevColumnId, originPipelineId: prevPipelineId, originColumn: prevColumn });
+      return;
+    }
+
     try {
       const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
       if (!res.ok) throw new Error();
@@ -137,6 +152,38 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
       setDeal((d: any) => ({ ...d, columnId: prevColumnId, pipelineId: prevPipelineId }));
       toast('Erreur lors du changement d\'étape', 'error');
     }
+  };
+
+  // PV confirmée (OUI/NON) : on persiste le déplacement (déclenche Meet +
+  // Supabase) puis on duplique l'affaire vers la cible.
+  const handlePvConfirm = async (choice: 'oui' | 'non') => {
+    if (!pv) return;
+    const moveRes = await fetch(`/api/deals/${dealId}/move`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: pv.targetColId, pvChoice: choice }),
+    });
+    if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
+
+    const dupRes = await fetch(`/api/deals/${dealId}/duplicate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choice }),
+    });
+    const data = await dupRes.json().catch(() => ({}));
+    if (!dupRes.ok || !data.ok) { toast(data.error || 'Erreur lors de la duplication', 'error'); throw new Error('dup'); }
+
+    toast(choice === 'oui'
+      ? 'Affaire dupliquée dans Recrutement › Sourcing à faire'
+      : 'Affaire dupliquée dans Closing › Demo prevue');
+    setPv(null);
+    fetchDeal(); onUpdated();
+  };
+
+  // PV annulée : rien n'a été persisté → on remet l'affaire dans sa colonne d'origine.
+  const handlePvCancel = () => {
+    if (pv) {
+      setDeal((d: any) => ({ ...d, columnId: pv.originColId, pipelineId: pv.originPipelineId, column: pv.originColumn }));
+    }
+    setPv(null);
   };
 
   // Change le pipeline du deal : on le place dans la 1re étape du pipeline cible.
@@ -293,6 +340,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const currentCollab = deal.collaborator as Collaborator | null;
 
   return (
+    <>
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '66vw', maxWidth: 1200, minWidth: 720, height: '100%', background: '#f8fafc', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -715,6 +763,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
         </div>
       </div>
     </div>
+    {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
+    </>
   );
 }
 
