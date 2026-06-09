@@ -25,6 +25,7 @@ interface ImportResult {
   fileName: string;
   createdDeals: number;
   updatedDeals?: number;
+  updatedBrands?: number;
   newOffers?: number;
   movedToCall?: number;
   skippedExisting?: number;
@@ -188,12 +189,13 @@ export default function ImportPage() {
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>✓ Import terminé — {result.fileName}{result.columnTitle ? ` → « ${result.columnTitle} »` : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
               {(result.columnTitle
-                ? [['Créées', result.createdDeals, '#86efac'], ['Ignorées (déjà présentes)', result.skippedExisting ?? 0, '#fde047'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
+                ? [['Créées', result.createdDeals, '#86efac'], ['Enseigne corrigée', result.updatedBrands ?? 0, '#67e8f9'], ['Ignorées (déjà présentes)', result.skippedExisting ?? 0, '#fde047'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
                 : [['Créées', result.createdDeals, '#86efac'], ['Màj', result.updatedDeals ?? 0, '#fde047'], ['Nouvelles offres', result.newOffers ?? 0, '#6ee7b7'], ['Rappelées', result.movedToCall ?? 0, '#c4b5fd'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
               ).map(([l, v, c]) => (
                 <div key={l as string}><div style={{ fontSize: 10, color: '#86efac88', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 22, fontWeight: 700, color: c as string }}>{v}</div></div>
               ))}
             </div>
+            {result.columnTitle && (result.updatedBrands || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a5f3fc', marginBottom: 12 }}><strong>{result.updatedBrands} enseigne{(result.updatedBrands || 0) > 1 ? 's' : ''}</strong> renseignée{(result.updatedBrands || 0) > 1 ? 's' : ''} sur des magasins existants (sans doublon).</div>}
             {result.columnTitle && (result.skippedExisting || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fde68a', marginBottom: 12 }}><strong>{result.skippedExisting} magasin{(result.skippedExisting || 0) > 1 ? 's' : ''}</strong> déjà présent{(result.skippedExisting || 0) > 1 ? 's' : ''} — ignoré{(result.skippedExisting || 0) > 1 ? 's' : ''}.</div>}
             {!result.columnTitle && (result.movedToCall || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a7f3d0', marginBottom: 12 }}><strong>{result.movedToCall} affaire{(result.movedToCall || 0) > 1 ? 's' : ''}</strong> avec nouvelles offres replacées en « À appeler ».</div>}
             {result.errorCount > 0 && <div style={{ background: 'rgba(220,38,38,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fca5a5', marginBottom: 12 }}>⚠ {result.errorCount} erreur(s)</div>}

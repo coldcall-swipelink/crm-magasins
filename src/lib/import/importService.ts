@@ -296,6 +296,7 @@ export type TargetedImportResult = {
   fileName:        string;
   totalRows:       number;
   createdDeals:    number;
+  updatedBrands:   number;
   skippedExisting: number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
@@ -316,6 +317,7 @@ export async function runTargetedCsvImport(
   const batch = await prisma.importBatch.create({ data: { fileName, totalRows: rows.length } });
 
   let createdDeals = 0;
+  let updatedBrands = 0;
   let skippedExisting = 0;
   const errors: Array<{ row: number; message: string }> = [];
 
@@ -344,22 +346,58 @@ export async function runTargetedCsvImport(
         }
       }
 
-      // Déduplication magasin → si déjà connu, on ignore (création des nouveaux uniquement).
+      // Déduplication magasin.
       const dedupKey = buildDeduplicationKey(mapped);
-      const existing = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
+      let existing = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
 
-      if (existing) {
-        skippedExisting++;
-        await prisma.importRow.create({
-          data: {
-            importBatchId: batch.id,
-            rowNumber:     rowNum,
-            rawData:       rows[i] as object,
-            status:        'skipped',
-            storeId:       existing.id,
-            errorMessage:  'Magasin déjà présent — ignoré',
+      // Repêchage du cas « enseigne oubliée » : un import précédent sans enseigne
+      // a produit une clé différente (k:|ville|nom). On retrouve le magasin par
+      // nom normalisé + ville, à condition qu'il n'ait PAS encore d'enseigne,
+      // pour pouvoir corriger l'enseigne manquante sans créer de doublon.
+      const normName = normalizeStoreName(mapped);
+      if (!existing && brand && normName) {
+        existing = await prisma.store.findFirst({
+          where: {
+            brandId: null,
+            normalizedName: normName,
+            city: { equals: mapped.city || '', mode: 'insensitive' },
           },
         });
+      }
+
+      if (existing) {
+        // Magasin déjà présent : on ne crée rien et on ne déplace pas le deal.
+        // Seule exception : renseigner / corriger l'enseigne si elle est fournie
+        // et différente (clé de dédup réalignée au passage).
+        if (brand && existing.brandId !== brand.id) {
+          await prisma.store.update({
+            where: { id: existing.id },
+            data: { brandId: brand.id, deduplicationKey: dedupKey },
+          });
+          updatedBrands++;
+          await prisma.importRow.create({
+            data: {
+              importBatchId: batch.id,
+              rowNumber:     rowNum,
+              rawData:       rows[i] as object,
+              status:        'ok',
+              storeId:       existing.id,
+              errorMessage:  'Enseigne mise à jour',
+            },
+          });
+        } else {
+          skippedExisting++;
+          await prisma.importRow.create({
+            data: {
+              importBatchId: batch.id,
+              rowNumber:     rowNum,
+              rawData:       rows[i] as object,
+              status:        'skipped',
+              storeId:       existing.id,
+              errorMessage:  'Magasin déjà présent — ignoré',
+            },
+          });
+        }
         continue;
       }
 
@@ -423,13 +461,13 @@ export async function runTargetedCsvImport(
 
   await prisma.importBatch.update({
     where: { id: batch.id },
-    data: { createdDeals, updatedDeals: 0, newOffers: 0, movedToCall: 0, errorCount: errors.length },
+    data: { createdDeals, updatedDeals: updatedBrands, newOffers: 0, movedToCall: 0, errorCount: errors.length },
   });
 
   return {
     batchId: batch.id, fileName,
     totalRows: rows.length,
-    createdDeals, skippedExisting,
+    createdDeals, updatedBrands, skippedExisting,
     errorCount: errors.length, errors,
     columnTitle: column.title,
   };
