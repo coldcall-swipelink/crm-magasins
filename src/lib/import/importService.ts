@@ -281,3 +281,156 @@ export async function runCsvImport(
     errorCount: errors.length, errors,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import CIBLÉ (sans offres) — place les NOUVEAUX magasins dans une colonne
+// précise du pipeline. Variante volontairement isolée de l'import normal :
+//   • pas de colonne JobOffer (CSV sans offres),
+//   • pas de remise à zéro des flags « dernier import » (ne perturbe pas le
+//     suivi de l'import d'offres),
+//   • pas de règle « nouvelle offre → retour À appeler »,
+//   • les magasins DÉJÀ présents sont ignorés (création des nouveaux seulement).
+// ─────────────────────────────────────────────────────────────────────────────
+export type TargetedImportResult = {
+  batchId:         string;
+  fileName:        string;
+  totalRows:       number;
+  createdDeals:    number;
+  skippedExisting: number;
+  errorCount:      number;
+  errors:          Array<{ row: number; message: string }>;
+  columnTitle:     string;
+};
+
+export async function runTargetedCsvImport(
+  csvText: string,
+  fileName: string,
+  columnId: string,
+): Promise<TargetedImportResult> {
+  const rows = parseCsv(csvText);
+  if (rows.length === 0) throw new Error('Le fichier CSV est vide ou non lisible.');
+
+  const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
+  if (!column) throw new Error('Colonne de destination introuvable.');
+
+  const batch = await prisma.importBatch.create({ data: { fileName, totalRows: rows.length } });
+
+  let createdDeals = 0;
+  let skippedExisting = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  // Position de départ : à la suite des affaires déjà dans la colonne cible.
+  let position = await prisma.deal.count({ where: { columnId } });
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowNum = i + 1;
+    try {
+      const mapped: MappedRow = mapCsvRow(rows[i]);
+
+      if (!mapped.brand && !mapped.storeName && !mapped.city) {
+        throw new Error('Ligne sans données identifiables (enseigne, magasin ou ville manquants)');
+      }
+
+      // Enseigne (trouvée ou créée).
+      let brand = null;
+      if (mapped.brand?.trim()) {
+        brand = await prisma.brand.findFirst({
+          where: { name: { equals: mapped.brand.trim(), mode: 'insensitive' } },
+        });
+        if (!brand) {
+          brand = await prisma.brand.create({
+            data: { name: mapped.brand.trim(), color: generateBrandColor(mapped.brand) },
+          });
+        }
+      }
+
+      // Déduplication magasin → si déjà connu, on ignore (création des nouveaux uniquement).
+      const dedupKey = buildDeduplicationKey(mapped);
+      const existing = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
+
+      if (existing) {
+        skippedExisting++;
+        await prisma.importRow.create({
+          data: {
+            importBatchId: batch.id,
+            rowNumber:     rowNum,
+            rawData:       rows[i] as object,
+            status:        'skipped',
+            storeId:       existing.id,
+            errorMessage:  'Magasin déjà présent — ignoré',
+          },
+        });
+        continue;
+      }
+
+      const store = await prisma.store.create({
+        data: {
+          brandId:         brand?.id ?? null,
+          name:            mapped.storeName || mapped.brand || 'Inconnu',
+          normalizedName:  normalizeStoreName(mapped),
+          city:            mapped.city       || '',
+          postalCode:      mapped.postalCode || '',
+          department:      mapped.department || '',
+          address:         mapped.address    || '',
+          siret:           mapped.siret      || '',
+          externalId:      mapped.externalId || '',
+          deduplicationKey: dedupKey,
+        },
+      });
+
+      const deal = await prisma.deal.create({
+        data: {
+          pipelineId:                column.pipelineId,
+          storeId:                   store.id,
+          columnId:                  column.id,
+          priority:                  'normale',
+          position:                  position++,
+          isNewFromLastImport:       false,
+          hasNewOfferFromLastImport: false,
+          isPresentInLastImport:     true,
+          lastImportAt:              new Date(),
+          directeur:                 mapped.directeur     || '',
+          contactCalling:            mapped.contactCalling || '',
+          dealEmail:                 mapped.dealEmail      || '',
+        },
+      });
+      createdDeals++;
+
+      await prisma.importRow.create({
+        data: {
+          importBatchId: batch.id,
+          rowNumber:     rowNum,
+          rawData:       rows[i] as object,
+          status:        'ok',
+          storeId:       store.id,
+          dealId:        deal.id,
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ row: rowNum, message: msg });
+      await prisma.importRow.create({
+        data: {
+          importBatchId: batch.id,
+          rowNumber:     rowNum,
+          rawData:       rows[i] as object,
+          status:        'error',
+          errorMessage:  msg,
+        },
+      });
+    }
+  }
+
+  await prisma.importBatch.update({
+    where: { id: batch.id },
+    data: { createdDeals, updatedDeals: 0, newOffers: 0, movedToCall: 0, errorCount: errors.length },
+  });
+
+  return {
+    batchId: batch.id, fileName,
+    totalRows: rows.length,
+    createdDeals, skippedExisting,
+    errorCount: errors.length, errors,
+    columnTitle: column.title,
+  };
+}
