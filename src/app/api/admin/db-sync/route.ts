@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Route de synchronisation de schéma EXÉCUTÉE PAR LE RUNTIME (qui, lui, joint la
-// base — contrairement au build). Elle applique uniquement des ajouts de
-// colonnes en `ADD COLUMN IF NOT EXISTS` : les colonnes déjà présentes sont
-// ignorées, aucune suppression, aucune perte de données.
-//
-// À usage ponctuel : protégée par un token, et à retirer une fois la base à jour.
+// Route de synchronisation de schéma EXÉCUTÉE PAR LE RUNTIME (qui joint la base,
+// contrairement au build). Strictement additif : CREATE TABLE / ADD COLUMN /
+// CREATE INDEX en « IF NOT EXISTS ». Aucune suppression, aucune perte de données.
+// Couvre le schéma de la version récente (modèle User, colonnes carte/calendar…).
+// À usage ponctuel : protégée par token, à retirer une fois la base à jour.
 export const dynamic = 'force-dynamic';
 
 const TOKEN = 'sync-crm-2026';
 
 const STATEMENTS: string[] = [
+  "CREATE TABLE IF NOT EXISTS \"Brand\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Brand_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Store\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Store_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Collaborator\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Collaborator_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"User\" (\"id\" TEXT NOT NULL, CONSTRAINT \"User_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Pipeline\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Pipeline_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"PipelineColumn\" (\"id\" TEXT NOT NULL, CONSTRAINT \"PipelineColumn_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Deal\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Deal_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"JobOffer\" (\"id\" TEXT NOT NULL, CONSTRAINT \"JobOffer_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"ImportBatch\" (\"id\" TEXT NOT NULL, CONSTRAINT \"ImportBatch_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"ImportRow\" (\"id\" TEXT NOT NULL, CONSTRAINT \"ImportRow_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Action\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Action_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"Note\" (\"id\" TEXT NOT NULL, CONSTRAINT \"Note_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"EmailTemplate\" (\"id\" TEXT NOT NULL, CONSTRAINT \"EmailTemplate_pkey\" PRIMARY KEY (\"id\"));",
+  "CREATE TABLE IF NOT EXISTS \"EmailLog\" (\"id\" TEXT NOT NULL, CONSTRAINT \"EmailLog_pkey\" PRIMARY KEY (\"id\"));",
   "ALTER TABLE \"Brand\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
   "ALTER TABLE \"Brand\" ADD COLUMN IF NOT EXISTS \"name\" TEXT;",
   "ALTER TABLE \"Brand\" ADD COLUMN IF NOT EXISTS \"color\" TEXT NOT NULL DEFAULT '#6366f1';",
@@ -30,6 +43,10 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"siret\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"externalId\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"deduplicationKey\" TEXT;",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"latitude\" DOUBLE PRECISION;",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"longitude\" DOUBLE PRECISION;",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"geocodedAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"geocodeQuery\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"Collaborator\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
@@ -38,6 +55,11 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Collaborator\" ADD COLUMN IF NOT EXISTS \"color\" TEXT NOT NULL DEFAULT '#6366f1';",
   "ALTER TABLE \"Collaborator\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Collaborator\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"name\" TEXT;",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"color\" TEXT NOT NULL DEFAULT '#6366f1';",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"Pipeline\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
   "ALTER TABLE \"Pipeline\" ADD COLUMN IF NOT EXISTS \"name\" TEXT;",
   "ALTER TABLE \"Pipeline\" ADD COLUMN IF NOT EXISTS \"position\" INTEGER NOT NULL DEFAULT 0;",
@@ -71,7 +93,12 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"contactLastName\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"dealValue\" DOUBLE PRECISION;",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"demoDate\" TIMESTAMP(3);",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"candidateCallDate\" TIMESTAMP(3);",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"googleEventId\" TEXT;",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"googleMeetUrl\" TEXT;",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"supabaseOrganizationId\" TEXT;",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"collaboratorId\" TEXT;",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"assignedUserId\" TEXT;",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
@@ -89,7 +116,6 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"fingerprint\" TEXT;",
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"firstSeenAt\" TIMESTAMP(3);",
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"lastSeenAt\" TIMESTAMP(3);",
-  "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"status\" TEXT NOT NULL DEFAULT 'active';",
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"JobOffer\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
@@ -100,7 +126,6 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"updatedDeals\" INTEGER NOT NULL DEFAULT 0;",
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"newOffers\" INTEGER NOT NULL DEFAULT 0;",
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"movedToCall\" INTEGER NOT NULL DEFAULT 0;",
-  "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"disappearedOffers\" INTEGER NOT NULL DEFAULT 0;",
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"errorCount\" INTEGER NOT NULL DEFAULT 0;",
   "ALTER TABLE \"ImportBatch\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"ImportRow\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
@@ -122,11 +147,14 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"priority\" TEXT NOT NULL DEFAULT 'normale';",
   "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"note\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"completedAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"assignedUserId\" TEXT;",
   "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Action\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
   "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
   "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"content\" TEXT;",
+  "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"authorId\" TEXT;",
+  "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"authorName\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Note\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"EmailTemplate\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
@@ -145,7 +173,8 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"resendId\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"openedAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"sentAt\" TIMESTAMP(3);",
-  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);"
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");"
 ];
 
 export async function GET(req: NextRequest) {
