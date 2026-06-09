@@ -126,7 +126,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     if (!pv) return;
     const moveRes = await fetch(`/api/deals/${pv.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: pv.targetColId }),
+      body: JSON.stringify({ columnId: pv.targetColId, pvChoice: choice }),
     });
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
 
