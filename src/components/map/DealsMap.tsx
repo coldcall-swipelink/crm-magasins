@@ -43,19 +43,21 @@ function normCol(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-export type DealStatus = 'demo' | 'lost' | 'active';
+export type DealStatus = 'demo' | 'lost' | 'sansoffres' | 'active';
 
 /**
  * Catégorise un deal d'après sa colonne :
- *  - « Démo prévue »   → 'demo'   (pastille + anneau vert)
- *  - « Pas intéressé »  → 'lost'   (pastille creuse, estompée)
+ *  - « Démo prévue »   → 'demo'        (pastille + anneau vert)
+ *  - « Pas intéressé »  → 'lost'        (pastille creuse, estompée)
+ *  - « Sans offres »    → 'sansoffres'  (pastille pleine + contour pointillé blanc)
  *  - toute autre étape (À appeler, À rappeler, Mail à envoyer/envoyé,
- *    Laissé coordonnées, Sans offres…) → 'active' (pastille pleine)
+ *    Laissé coordonnées…) → 'active' (pastille pleine)
  */
 export function dealStatus(columnTitle: string): DealStatus {
   const t = normCol(columnTitle);
   if (t === 'demo prevue') return 'demo';
   if (t === 'pas interesse') return 'lost';
+  if (t === 'sans offres') return 'sansoffres';
   return 'active';
 }
 
@@ -69,6 +71,11 @@ export function dotHtml(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size 
   }
   if (status === 'demo') {
     return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 0 0 2.5px #16a34a,0 1px 2px rgba(0,0,0,.4);"></div>`;
+  }
+  if (status === 'sansoffres') {
+    // Contour pointillé blanc ; fin liseré sombre extérieur pour que les
+    // pointillés blancs ressortent sur le fond de carte clair.
+    return `<div style="${common}background:${color};border:2px dashed #ffffff;box-shadow:0 0 0 1px rgba(15,23,42,.3),0 1px 2px rgba(0,0,0,.4);"></div>`;
   }
   return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.4);"></div>`;
 }
