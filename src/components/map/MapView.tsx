@@ -41,6 +41,7 @@ export default function MapView() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
+  const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState<Focus | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -86,6 +87,25 @@ export default function MapView() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [deals]);
 
+  // Étapes (colonnes) présentes, ordonnées selon la position dans le pipeline.
+  const stages = useMemo(() => {
+    const map = new Map<string, { title: string; color: string; position: number; count: number }>();
+    for (const d of deals) {
+      const entry = map.get(d.columnTitle) || { title: d.columnTitle, color: d.columnColor || '#94a3b8', position: d.columnPosition, count: 0 };
+      entry.count += 1;
+      map.set(d.columnTitle, entry);
+    }
+    return Array.from(map.values()).sort((a, b) => a.position - b.position);
+  }, [deals]);
+
+  const toggleColumn = (title: string) =>
+    setSelectedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+
   const toggleBrand = (name: string) =>
     setSelectedBrands((prev) => {
       const next = new Set(prev);
@@ -99,6 +119,7 @@ export default function MapView() {
     const q = norm(query);
     return deals.filter((d) => {
       if (selectedBrands.size && !selectedBrands.has(d.brandName || 'Sans enseigne')) return false;
+      if (selectedColumns.size && !selectedColumns.has(d.columnTitle)) return false;
       if (!q) return true;
       return (
         norm(d.brandName || '').includes(q) ||
@@ -106,7 +127,7 @@ export default function MapView() {
         norm(d.city).includes(q)
       );
     });
-  }, [deals, query, selectedBrands]);
+  }, [deals, query, selectedBrands, selectedColumns]);
 
   const dot = (deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 14) => (
     <span
@@ -210,6 +231,46 @@ export default function MapView() {
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: b.color, display: 'inline-block', flexShrink: 0 }} />
                   {b.name}
                   <span style={{ color: '#94a3b8', fontSize: 11 }}>{b.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Filtre par étape (multi-sélection) */}
+        <div style={{ padding: '8px 16px 10px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', letterSpacing: '.6px', textTransform: 'uppercase' }}>
+              Filtrer par étape
+            </span>
+            {selectedColumns.size > 0 && (
+              <button
+                onClick={() => setSelectedColumns(new Set())}
+                style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: 11.5, cursor: 'pointer', padding: 0 }}
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {stages.map((s) => {
+              const active = selectedColumns.has(s.title);
+              return (
+                <button
+                  key={s.title}
+                  onClick={() => toggleColumn(s.title)}
+                  title={`${s.count} deal(s)`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12,
+                    padding: '4px 9px', borderRadius: 999,
+                    border: `1px solid ${active ? s.color : '#e2e8f0'}`,
+                    background: active ? hexA(s.color, 0.14) : '#fff',
+                    color: active ? '#0f172a' : '#475569', fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block', flexShrink: 0 }} />
+                  {s.title}
+                  <span style={{ color: '#94a3b8', fontSize: 11 }}>{s.count}</span>
                 </button>
               );
             })}
