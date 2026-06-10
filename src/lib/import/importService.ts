@@ -11,7 +11,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { generateBrandColor, normalizeText } from '@/lib/utils';
-import { parseCsv, mapCsvRow, type MappedRow } from './csvParser';
+import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParser';
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
 
@@ -193,11 +193,15 @@ export async function runCsvImport(
       // On ne crée la note QUE pour les affaires nouvellement créées, afin
       // d'éviter de dupliquer la note à chaque réimport d'un magasin connu.
       if (isNewDeal && mapped.note?.trim()) {
+        const noteDate = parseImportDate(mapped.noteDate);
         await prisma.note.create({
           data: {
             dealId:     deal.id,
             content:    mapped.note.trim(),
             authorName: mapped.noteAuthor?.trim() || 'Import',
+            // Conserve la date d'origine (reprise ancien CRM) si fournie ;
+            // sinon Prisma applique @default(now()).
+            ...(noteDate && { createdAt: noteDate }),
           },
         });
         createdNotes++;
@@ -454,11 +458,13 @@ export async function runTargetedCsvImport(
 
       // Note de reprise (CSV) sur la nouvelle affaire, si fournie.
       if (mapped.note?.trim()) {
+        const noteDate = parseImportDate(mapped.noteDate);
         await prisma.note.create({
           data: {
             dealId:     deal.id,
             content:    mapped.note.trim(),
             authorName: mapped.noteAuthor?.trim() || 'Import',
+            ...(noteDate && { createdAt: noteDate }),
           },
         });
         createdNotes++;
