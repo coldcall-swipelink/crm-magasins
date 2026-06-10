@@ -83,6 +83,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   directeur:      ['directeur', 'director', 'responsable'],
   contactCalling: ['contact calling', 'contact', 'interlocuteur'],
   dealEmail:      ['email', 'mail', 'e-mail', 'courriel'],
+  note:           ['note', 'notes', 'commentaire', 'commentaires', 'remarque', 'remarques', 'note interne'],
+  noteAuthor:     ['auteur note', 'auteur', 'author', 'redacteur', 'rédacteur'],
 };
 
 export type MappedRow = {
@@ -105,6 +107,8 @@ export type MappedRow = {
   directeur: string;
   contactCalling: string;
   dealEmail: string;
+  note: string;
+  noteAuthor: string;
 };
 
 /** Mappe une ligne CSV brute vers les champs métier */
