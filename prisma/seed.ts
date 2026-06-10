@@ -208,8 +208,7 @@ async function main() {
 
   // 5. Actions de démonstration
   console.log('  → Création des actions exemple');
-  const deals = await prisma.deal.findMany({ take: 3 });
-  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const deals = await prisma.deal.findMany({ take: 3 });  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
   const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7);
 
@@ -224,12 +223,26 @@ async function main() {
     await prisma.action.create({ data: { dealId: deals[2].id, title: 'Premier contact téléphonique', type: 'Appeler', dueDate: new Date(), status: 'todo', priority: 'normale', note: 'Appeler en matinée' } });
   }
 
+  // 6. Notes de démonstration (reprise ancien CRM)
+  console.log('  → Création des notes exemple');
+  const allDeals = await prisma.deal.findMany({ take: 4 });
+  const demoNotes = [
+    { content: 'Repris de l\'ancien CRM — client historique depuis 2021.', authorName: 'Marie' },
+    { content: 'Directeur joignable uniquement le matin. Devis envoyé en janvier.', authorName: 'Paul' },
+    { content: 'Intéressé par une démo, à recontacter à la rentrée.', authorName: 'Marie' },
+    { content: 'Ne pas appeler avant septembre (travaux en cours).', authorName: 'Import' },
+  ];
+  for (let i = 0; i < allDeals.length && i < demoNotes.length; i++) {
+    await prisma.note.create({ data: { dealId: allDeals[i].id, ...demoNotes[i] } });
+  }
+
   console.log('✅ Seed terminé avec succès !');
   console.log(`   - 1 pipeline (Prospection)`);
   console.log(`   - ${DEFAULT_COLUMNS.length} colonnes pipeline`);
   console.log(`   - ${BRANDS.length} enseignes`);
   console.log(`   - ${demoDeals.length} affaires avec offres`);
   console.log('   - 4 actions de rappel');
+  console.log('   - 4 notes de reprise');
 }
 
 main()
