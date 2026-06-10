@@ -8,17 +8,17 @@ const btnDef: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, bord
 
 type Mode = 'normal' | 'targeted';
 
-const SAMPLE = `enseigne;nom magasin;ville;département;adresse;poste;titre;date publication;lien;salaire;contrat;source;note;auteur note
-Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Boucher;Boucher H/F CDI;2025-01-10;https://example.com/1;2200€/mois;CDI;Indeed;Déjà contacté en 2024, rappeler le directeur;Marie
-Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Manager Rayon;Resp. rayon frais;2025-01-11;https://example.com/2;2800€/mois;CDI;Indeed;Intéressé par une démo;Marie
-Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;Caissier;Caissier H/F;2025-01-12;;1600€;CDD;Pôle Emploi;;
-Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;Employé;Employé polyvalent;2025-01-13;https://example.com/4;1700€;CDI;Hellowork;Ne pas appeler avant septembre;Paul`;
+const SAMPLE = `enseigne;nom magasin;ville;département;adresse;poste;titre;date publication;lien;salaire;contrat;source;note;auteur note;date note
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Boucher;Boucher H/F CDI;2025-01-10;https://example.com/1;2200€/mois;CDI;Indeed;Déjà contacté en 2024, rappeler le directeur;Marie;2024-11-03 10:20:00
+Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Manager Rayon;Resp. rayon frais;2025-01-11;https://example.com/2;2800€/mois;CDI;Indeed;Intéressé par une démo;Marie;2024-12-12 15:11:41
+Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;Caissier;Caissier H/F;2025-01-12;;1600€;CDD;Pôle Emploi;;;
+Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;Employé;Employé polyvalent;2025-01-13;https://example.com/4;1700€;CDI;Hellowork;Ne pas appeler avant septembre;Paul;2025-02-01 08:00:00`;
 
-const SAMPLE_TARGETED = `enseigne;nom magasin;ville;département;adresse;note;auteur note
-Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Repris de l'ancien CRM — client historique;Marie
-Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Devis envoyé en janvier;Paul
-Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;;
-Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;À recontacter;Marie`;
+const SAMPLE_TARGETED = `enseigne;nom magasin;ville;département;adresse;note;auteur note;date note
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Repris de l'ancien CRM — client historique;Marie;2024-12-12 15:11:41
+Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Devis envoyé en janvier;Paul;2025-01-08 09:30:00
+Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;;;
+Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;À recontacter;Marie;2025-02-20 14:05:00`;
 
 interface Preview { fileName: string; text: string; rows: Record<string, string>[]; total: number; }
 interface ImportResult {
@@ -137,6 +137,7 @@ export default function ImportPage() {
             <div>⏭ Magasin déjà présent → <strong>ignoré</strong> (deals existants non modifiés)</div>
             <div>🗂 CSV sans colonnes d'offres (poste, titre, date, lien…)</div>
             <div>📝 Colonne <strong>note</strong> facultative → reprise des notes de l'ancien CRM</div>
+            <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>) → date d'origine conservée</div>
           </div>
         ) : (
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#78350f' }}>
@@ -145,6 +146,7 @@ export default function ImportPage() {
             <div>⟳ Magasin existant + nouvelle offre → <strong>retour en « À appeler »</strong></div>
             <div>= Offre déjà connue → colonne inchangée, date mise à jour</div>
             <div>📝 Colonne <strong>note</strong> facultative → ajoutée aux <strong>nouvelles</strong> affaires</div>
+            <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>) → date d'origine conservée</div>
           </div>
         )}
 

@@ -88,6 +88,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   dealEmail:      ['email', 'mail', 'e-mail', 'courriel'],
   note:           ['note', 'notes', 'commentaire', 'commentaires', 'remarque', 'remarques', 'note interne'],
   noteAuthor:     ['auteur note', 'auteur', 'author', 'redacteur', 'rédacteur'],
+  noteDate:       ['date note', 'note date', 'date_note', 'date de la note', 'date commentaire', 'date de note', 'datenote'],
 };
 
 export type MappedRow = {
@@ -112,7 +113,30 @@ export type MappedRow = {
   dealEmail: string;
   note: string;
   noteAuthor: string;
+  noteDate: string;
 };
+
+/** Parse une date/heure d'import au format « 2024-12-12 15:11:41 » (heure et
+ *  secondes facultatives). Accepte aussi « 2024-12-12 » et le séparateur « T ».
+ *  Renvoie null si la valeur est vide ou non reconnue. */
+export function parseImportDate(value: string): Date | null {
+  const v = (value || '').trim();
+  if (!v) return null;
+
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) {
+    const [, y, mo, d, h, mi, s] = m;
+    const date = new Date(
+      Number(y), Number(mo) - 1, Number(d),
+      Number(h ?? 0), Number(mi ?? 0), Number(s ?? 0),
+    );
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  // Repli : laisser le moteur JS tenter d'autres formats reconnus.
+  const fallback = new Date(v);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
 
 /** Mappe une ligne CSV brute vers les champs métier */
 export function mapCsvRow(row: CsvRow): MappedRow {
