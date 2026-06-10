@@ -23,6 +23,7 @@ export type ImportResult = {
   updatedDeals:    number;
   newOffers:       number;
   movedToCall:     number;
+  createdNotes:    number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
 };
@@ -68,6 +69,7 @@ export async function runCsvImport(
   let updatedDeals    = 0;
   let newOffers       = 0;
   let movedToCall     = 0;
+  let createdNotes    = 0;
   const errors: Array<{ row: number; message: string }> = [];
   const dealsToMove = new Set<string>(); // Track deals à basculer
 
@@ -187,6 +189,20 @@ export async function runCsvImport(
 
       dealsToMove.add(deal.id); // Ajouter aux deals à basculer
 
+      // ── B bis. Note de reprise (CSV) ─────────────────────────────────────
+      // On ne crée la note QUE pour les affaires nouvellement créées, afin
+      // d'éviter de dupliquer la note à chaque réimport d'un magasin connu.
+      if (isNewDeal && mapped.note?.trim()) {
+        await prisma.note.create({
+          data: {
+            dealId:     deal.id,
+            content:    mapped.note.trim(),
+            authorName: mapped.noteAuthor?.trim() || 'Import',
+          },
+        });
+        createdNotes++;
+      }
+
       // ── C. Déduplication offre ───────────────────────────────────────────
       const fingerprint = buildOfferFingerprint(store.id, mapped);
       const existingOffer = await prisma.jobOffer.findUnique({ where: { fingerprint } });
@@ -277,7 +293,7 @@ export async function runCsvImport(
   return {
     batchId: batch.id, fileName,
     totalRows: rows.length,
-    createdDeals, updatedDeals, newOffers, movedToCall,
+    createdDeals, updatedDeals, newOffers, movedToCall, createdNotes,
     errorCount: errors.length, errors,
   };
 }
@@ -298,6 +314,7 @@ export type TargetedImportResult = {
   createdDeals:    number;
   updatedBrands:   number;
   skippedExisting: number;
+  createdNotes:    number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
   columnTitle:     string;
@@ -319,6 +336,7 @@ export async function runTargetedCsvImport(
   let createdDeals = 0;
   let updatedBrands = 0;
   let skippedExisting = 0;
+  let createdNotes = 0;
   const errors: Array<{ row: number; message: string }> = [];
 
   // Position de départ : à la suite des affaires déjà dans la colonne cible.
@@ -434,6 +452,18 @@ export async function runTargetedCsvImport(
       });
       createdDeals++;
 
+      // Note de reprise (CSV) sur la nouvelle affaire, si fournie.
+      if (mapped.note?.trim()) {
+        await prisma.note.create({
+          data: {
+            dealId:     deal.id,
+            content:    mapped.note.trim(),
+            authorName: mapped.noteAuthor?.trim() || 'Import',
+          },
+        });
+        createdNotes++;
+      }
+
       await prisma.importRow.create({
         data: {
           importBatchId: batch.id,
@@ -467,7 +497,7 @@ export async function runTargetedCsvImport(
   return {
     batchId: batch.id, fileName,
     totalRows: rows.length,
-    createdDeals, updatedBrands, skippedExisting,
+    createdDeals, updatedBrands, skippedExisting, createdNotes,
     errorCount: errors.length, errors,
     columnTitle: column.title,
   };

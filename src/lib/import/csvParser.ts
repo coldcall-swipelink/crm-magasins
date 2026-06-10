@@ -2,8 +2,11 @@
 
 export type CsvRow = Record<string, string>;
 
-/** Parse une ligne CSV en gérant les guillemets et les séparateurs , ou ; */
-function parseCsvLine(line: string): string[] {
+/** Parse une ligne CSV en gérant les guillemets, sur le séparateur fourni (, ou ;)
+ *  On ne découpe QUE sur le séparateur détecté : ainsi un champ de texte libre
+ *  (ex. une note « Devis signé, à relancer ») peut contenir l'autre caractère
+ *  sans être coupé par erreur. */
+function parseCsvLine(line: string, sep: ',' | ';'): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -13,7 +16,7 @@ function parseCsvLine(line: string): string[] {
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
       else { inQuotes = !inQuotes; }
-    } else if ((char === ',' || char === ';') && !inQuotes) {
+    } else if (char === sep && !inQuotes) {
       result.push(current.trim());
       current = '';
     } else {
@@ -42,14 +45,14 @@ export function parseCsv(text: string): CsvRow[] {
   }
 
   const sep = detectSeparator(lines[0]);
-  const rawHeaders = parseCsvLine(lines[0]);
+  const rawHeaders = parseCsvLine(lines[0], sep);
   const headers = rawHeaders.map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
 
   const rows: CsvRow[] = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    const values = parseCsvLine(line);
+    const values = parseCsvLine(line, sep);
     if (values.every(v => !v)) continue;
 
     const row: CsvRow = {};
@@ -83,6 +86,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   directeur:      ['directeur', 'director', 'responsable'],
   contactCalling: ['contact calling', 'contact', 'interlocuteur'],
   dealEmail:      ['email', 'mail', 'e-mail', 'courriel'],
+  note:           ['note', 'notes', 'commentaire', 'commentaires', 'remarque', 'remarques', 'note interne'],
+  noteAuthor:     ['auteur note', 'auteur', 'author', 'redacteur', 'rédacteur'],
 };
 
 export type MappedRow = {
@@ -105,6 +110,8 @@ export type MappedRow = {
   directeur: string;
   contactCalling: string;
   dealEmail: string;
+  note: string;
+  noteAuthor: string;
 };
 
 /** Mappe une ligne CSV brute vers les champs métier */
