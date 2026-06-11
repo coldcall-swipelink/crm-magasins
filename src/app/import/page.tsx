@@ -15,10 +15,11 @@ Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;Caissier;Caissier H/F;202
 Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;Employé;Employé polyvalent;2025-01-13;https://example.com/4;1700€;CDI;Hellowork;Ne pas appeler avant septembre;Paul;2025-02-01 08:00:00`;
 
 const SAMPLE_TARGETED = `enseigne;nom magasin;ville;département;adresse;note;auteur note;date note
-Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Repris de l'ancien CRM — client historique;Marie;2024-12-12 15:11:41
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Premier appel, pas de réponse;Marie;2024-11-03 10:20:00
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Rappelé, RDV pris;Marie;2024-12-12 15:11:41
+Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Démo réalisée, très intéressé;Paul;2025-01-20 09:00:00
 Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Devis envoyé en janvier;Paul;2025-01-08 09:30:00
-Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;;;
-Carrefour;Carrefour Market Lyon;Lyon;69;22 rue Garibaldi;À recontacter;Marie;2025-02-20 14:05:00`;
+Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;;;`;
 
 interface Preview { fileName: string; text: string; rows: Record<string, string>[]; total: number; }
 interface ImportResult {
@@ -138,6 +139,7 @@ export default function ImportPage() {
             <div>🗂 CSV sans colonnes d'offres (poste, titre, date, lien…)</div>
             <div>📝 Colonne <strong>note</strong> facultative → reprise des notes de l'ancien CRM</div>
             <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>) → date d'origine conservée</div>
+            <div>📚 Plusieurs notes ? <strong>une ligne par note</strong> (mêmes infos magasin répétées) — notes dédupliquées</div>
           </div>
         ) : (
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#78350f' }}>
@@ -145,8 +147,9 @@ export default function ImportPage() {
             <div>✦ Nouveau magasin → <strong>« À appeler »</strong></div>
             <div>⟳ Magasin existant + nouvelle offre → <strong>retour en « À appeler »</strong></div>
             <div>= Offre déjà connue → colonne inchangée, date mise à jour</div>
-            <div>📝 Colonne <strong>note</strong> facultative → ajoutée aux <strong>nouvelles</strong> affaires</div>
+            <div>📝 Colonne <strong>note</strong> facultative → rattachée à l'affaire</div>
             <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>) → date d'origine conservée</div>
+            <div>📚 Plusieurs notes ? <strong>une ligne par note</strong> (mêmes infos magasin répétées) — notes dédupliquées</div>
           </div>
         )}
 

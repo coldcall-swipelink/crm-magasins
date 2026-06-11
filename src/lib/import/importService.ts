@@ -15,6 +15,42 @@ import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParse
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
 
+/**
+ * Crée la note d'une ligne CSV sur une affaire, avec déduplication.
+ * Format « long » : une ligne = une note. Un même magasin peut donc apparaître
+ * sur plusieurs lignes, chacune ajoutant sa propre note (avec sa date/auteur).
+ *
+ * Déduplication (pour qu'un réimport du même fichier ne crée pas de doublons) :
+ *   • si une date est fournie → clé = affaire + contenu + date
+ *   • sinon                   → clé = affaire + contenu
+ *
+ * Renvoie true si une note a été créée, false si rien à faire ou doublon.
+ */
+async function createImportNote(dealId: string, mapped: MappedRow): Promise<boolean> {
+  const content = mapped.note?.trim();
+  if (!content) return false;
+
+  const noteDate = parseImportDate(mapped.noteDate);
+  const existing = await prisma.note.findFirst({
+    where: noteDate
+      ? { dealId, content, createdAt: noteDate }
+      : { dealId, content },
+  });
+  if (existing) return false;
+
+  await prisma.note.create({
+    data: {
+      dealId,
+      content,
+      authorName: mapped.noteAuthor?.trim() || 'Import',
+      // Conserve la date d'origine (reprise ancien CRM) si fournie ;
+      // sinon Prisma applique @default(now()).
+      ...(noteDate && { createdAt: noteDate }),
+    },
+  });
+  return true;
+}
+
 export type ImportResult = {
   batchId:         string;
   fileName:        string;
@@ -101,7 +137,6 @@ export async function runCsvImport(
       const dedupKey = buildDeduplicationKey(mapped);
       let store = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
       let deal;
-      let isNewDeal = false;
 
       if (!store) {
         // ─── CAS 1 : Nouveau magasin ────────────────────────────────────────
@@ -140,7 +175,6 @@ export async function runCsvImport(
           },
         });
         createdDeals++;
-        isNewDeal = true;
       } else {
         // Magasin connu → mettre à jour et récupérer l'affaire
         await prisma.store.update({
@@ -190,22 +224,10 @@ export async function runCsvImport(
       dealsToMove.add(deal.id); // Ajouter aux deals à basculer
 
       // ── B bis. Note de reprise (CSV) ─────────────────────────────────────
-      // On ne crée la note QUE pour les affaires nouvellement créées, afin
-      // d'éviter de dupliquer la note à chaque réimport d'un magasin connu.
-      if (isNewDeal && mapped.note?.trim()) {
-        const noteDate = parseImportDate(mapped.noteDate);
-        await prisma.note.create({
-          data: {
-            dealId:     deal.id,
-            content:    mapped.note.trim(),
-            authorName: mapped.noteAuthor?.trim() || 'Import',
-            // Conserve la date d'origine (reprise ancien CRM) si fournie ;
-            // sinon Prisma applique @default(now()).
-            ...(noteDate && { createdAt: noteDate }),
-          },
-        });
-        createdNotes++;
-      }
+      // Format « long » : chaque ligne ajoute sa note à l'affaire (même si
+      // l'affaire existe déjà / lignes suivantes d'un même magasin), avec
+      // déduplication pour éviter les doublons au réimport.
+      if (await createImportNote(deal.id, mapped)) createdNotes++;
 
       // ── C. Déduplication offre ───────────────────────────────────────────
       const fingerprint = buildOfferFingerprint(store.id, mapped);
@@ -387,97 +409,71 @@ export async function runTargetedCsvImport(
         });
       }
 
+      let store;
+      let deal;
+
       if (existing) {
-        // Magasin déjà présent : on ne crée rien et on ne déplace pas le deal.
-        // Seule exception : renseigner / corriger l'enseigne si elle est fournie
-        // et différente (clé de dédup réalignée au passage).
+        // Magasin déjà présent : on ne crée pas de nouvelle affaire et on ne la
+        // déplace pas. On peut toutefois corriger l'enseigne si elle est fournie
+        // et différente (clé de dédup réalignée au passage), et — format « long »
+        // oblige — y rattacher la note de la ligne.
         if (brand && existing.brandId !== brand.id) {
           await prisma.store.update({
             where: { id: existing.id },
             data: { brandId: brand.id, deduplicationKey: dedupKey },
           });
           updatedBrands++;
-          await prisma.importRow.create({
-            data: {
-              importBatchId: batch.id,
-              rowNumber:     rowNum,
-              rawData:       rows[i] as object,
-              status:        'ok',
-              storeId:       existing.id,
-              errorMessage:  'Enseigne mise à jour',
-            },
-          });
         } else {
           skippedExisting++;
-          await prisma.importRow.create({
-            data: {
-              importBatchId: batch.id,
-              rowNumber:     rowNum,
-              rawData:       rows[i] as object,
-              status:        'skipped',
-              storeId:       existing.id,
-              errorMessage:  'Magasin déjà présent — ignoré',
-            },
-          });
         }
-        continue;
-      }
-
-      const store = await prisma.store.create({
-        data: {
-          brandId:         brand?.id ?? null,
-          name:            mapped.storeName || mapped.brand || 'Inconnu',
-          normalizedName:  normalizeStoreName(mapped),
-          city:            mapped.city       || '',
-          postalCode:      mapped.postalCode || '',
-          department:      mapped.department || '',
-          address:         mapped.address    || '',
-          siret:           mapped.siret      || '',
-          externalId:      mapped.externalId || '',
-          deduplicationKey: dedupKey,
-        },
-      });
-
-      const deal = await prisma.deal.create({
-        data: {
-          pipelineId:                column.pipelineId,
-          storeId:                   store.id,
-          columnId:                  column.id,
-          priority:                  'normale',
-          position:                  position++,
-          isNewFromLastImport:       false,
-          hasNewOfferFromLastImport: false,
-          isPresentInLastImport:     true,
-          lastImportAt:              new Date(),
-          directeur:                 mapped.directeur     || '',
-          contactCalling:            mapped.contactCalling || '',
-          dealEmail:                 mapped.dealEmail      || '',
-        },
-      });
-      createdDeals++;
-
-      // Note de reprise (CSV) sur la nouvelle affaire, si fournie.
-      if (mapped.note?.trim()) {
-        const noteDate = parseImportDate(mapped.noteDate);
-        await prisma.note.create({
+        store = existing;
+        deal = await prisma.deal.findUnique({ where: { storeId: store.id } });
+      } else {
+        store = await prisma.store.create({
           data: {
-            dealId:     deal.id,
-            content:    mapped.note.trim(),
-            authorName: mapped.noteAuthor?.trim() || 'Import',
-            ...(noteDate && { createdAt: noteDate }),
+            brandId:         brand?.id ?? null,
+            name:            mapped.storeName || mapped.brand || 'Inconnu',
+            normalizedName:  normalizeStoreName(mapped),
+            city:            mapped.city       || '',
+            postalCode:      mapped.postalCode || '',
+            department:      mapped.department || '',
+            address:         mapped.address    || '',
+            siret:           mapped.siret      || '',
+            externalId:      mapped.externalId || '',
+            deduplicationKey: dedupKey,
           },
         });
-        createdNotes++;
+
+        deal = await prisma.deal.create({
+          data: {
+            pipelineId:                column.pipelineId,
+            storeId:                   store.id,
+            columnId:                  column.id,
+            priority:                  'normale',
+            position:                  position++,
+            isNewFromLastImport:       false,
+            hasNewOfferFromLastImport: false,
+            isPresentInLastImport:     true,
+            lastImportAt:              new Date(),
+            directeur:                 mapped.directeur     || '',
+            contactCalling:            mapped.contactCalling || '',
+            dealEmail:                 mapped.dealEmail      || '',
+          },
+        });
+        createdDeals++;
       }
+
+      // Note de reprise (CSV) — une ligne = une note, dédupliquée.
+      if (deal && await createImportNote(deal.id, mapped)) createdNotes++;
 
       await prisma.importRow.create({
         data: {
           importBatchId: batch.id,
           rowNumber:     rowNum,
           rawData:       rows[i] as object,
-          status:        'ok',
+          status:        existing ? 'skipped' : 'ok',
           storeId:       store.id,
-          dealId:        deal.id,
+          dealId:        deal?.id ?? null,
         },
       });
     } catch (err) {
