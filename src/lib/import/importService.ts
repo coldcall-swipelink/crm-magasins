@@ -504,3 +504,96 @@ export async function runTargetedCsvImport(
     columnTitle: column.title,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import de NOTES seules — rattache des notes à des affaires DÉJÀ existantes.
+// Pensé pour l'étape 2 d'une reprise (les deals ont été importés au préalable).
+//   • aucune création d'affaire ni de magasin,
+//   • correspondance par clé de déduplication (enseigne + ville + magasin, ou
+//     SIRET / id externe si fournis) — exactement comme à la création des deals,
+//   • format « long » : une ligne = une note (auteur + date facultatifs),
+//   • magasin/affaire introuvable → ligne ignorée (comptée), pas d'erreur.
+// ─────────────────────────────────────────────────────────────────────────────
+export type NotesImportResult = {
+  notesMode:    true;
+  batchId:      string;
+  fileName:     string;
+  totalRows:    number;
+  createdNotes: number;
+  matchedDeals: number;
+  notFound:     number;
+  errorCount:   number;
+  errors:       Array<{ row: number; message: string }>;
+};
+
+export async function runNotesImport(
+  csvText: string,
+  fileName: string,
+): Promise<NotesImportResult> {
+  const rows = parseCsv(csvText);
+  if (rows.length === 0) throw new Error('Le fichier CSV est vide ou non lisible.');
+
+  const batch = await prisma.importBatch.create({ data: { fileName, totalRows: rows.length } });
+
+  let createdNotes = 0;
+  let notFound = 0;
+  const matched = new Set<string>();
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowNum = i + 1;
+    try {
+      const mapped: MappedRow = mapCsvRow(rows[i]);
+
+      if (!mapped.brand && !mapped.storeName) {
+        throw new Error('Ligne sans magasin identifiable (enseigne ou nom magasin requis)');
+      }
+      if (!mapped.note?.trim()) {
+        await prisma.importRow.create({
+          data: { importBatchId: batch.id, rowNumber: rowNum, rawData: rows[i] as object, status: 'skipped', errorMessage: 'Ligne sans note' },
+        });
+        continue;
+      }
+
+      // Correspondance avec un magasin/affaire existant (aucune création).
+      const dedupKey = buildDeduplicationKey(mapped);
+      const store = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
+      const deal = store ? await prisma.deal.findUnique({ where: { storeId: store.id } }) : null;
+
+      if (!deal) {
+        notFound++;
+        await prisma.importRow.create({
+          data: { importBatchId: batch.id, rowNumber: rowNum, rawData: rows[i] as object, status: 'skipped', storeId: store?.id ?? null, errorMessage: 'Affaire introuvable — note ignorée' },
+        });
+        continue;
+      }
+
+      if (await createImportNote(deal.id, mapped)) {
+        createdNotes++;
+        matched.add(deal.id);
+      }
+      await prisma.importRow.create({
+        data: { importBatchId: batch.id, rowNumber: rowNum, rawData: rows[i] as object, status: 'ok', storeId: store!.id, dealId: deal.id },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ row: rowNum, message: msg });
+      await prisma.importRow.create({
+        data: { importBatchId: batch.id, rowNumber: rowNum, rawData: rows[i] as object, status: 'error', errorMessage: msg },
+      });
+    }
+  }
+
+  await prisma.importBatch.update({
+    where: { id: batch.id },
+    data: { createdDeals: 0, updatedDeals: 0, newOffers: 0, movedToCall: 0, errorCount: errors.length },
+  });
+
+  return {
+    notesMode: true,
+    batchId: batch.id, fileName,
+    totalRows: rows.length,
+    createdNotes, matchedDeals: matched.size, notFound,
+    errorCount: errors.length, errors,
+  };
+}

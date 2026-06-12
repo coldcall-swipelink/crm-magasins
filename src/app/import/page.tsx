@@ -6,7 +6,7 @@ const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRad
 const btnPri: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 const btnDef: React.CSSProperties = { padding: '8px 16px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 
-type Mode = 'normal' | 'targeted';
+type Mode = 'normal' | 'targeted' | 'notes';
 
 const SAMPLE = `enseigne;nom magasin;ville;département;adresse;poste;titre;date publication;lien;salaire;contrat;source;note;auteur note;date note
 Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Boucher;Boucher H/F CDI;2025-01-10;https://example.com/1;2200€/mois;CDI;Indeed;Déjà contacté en 2024, rappeler le directeur;Marie;2024-11-03 10:20:00
@@ -21,6 +21,11 @@ Intermarché;Intermarché Nantes Sud;Nantes;44;12 rue de la Paix;Démo réalisé
 Leclerc;E.Leclerc Rennes;Rennes;35;45 av de Bretagne;Devis envoyé en janvier;Paul;2025-01-08 09:30:00
 Super U;Super U Bordeaux;Bordeaux;33;8 bd des Capucins;;;`;
 
+const SAMPLE_NOTES = `enseigne;nom magasin;note;auteur note;date note
+Intermarché;Intermarché Nantes Sud;Premier appel, pas de réponse;Marie;2024-11-03 10:20:00
+Intermarché;Intermarché Nantes Sud;Rappelé, RDV pris;Marie;2024-12-12 15:11:41
+Leclerc;E.Leclerc Rennes;Devis envoyé en janvier;Paul;2025-01-08 09:30:00`;
+
 interface Preview { fileName: string; text: string; rows: Record<string, string>[]; total: number; }
 interface ImportResult {
   fileName: string;
@@ -32,6 +37,9 @@ interface ImportResult {
   skippedExisting?: number;
   createdNotes?: number;
   columnTitle?: string;
+  notesMode?: boolean;
+  matchedDeals?: number;
+  notFound?: number;
   errorCount: number;
   errors: { row: number; message: string }[];
 }
@@ -101,6 +109,7 @@ export default function ImportPage() {
       const fd = new FormData();
       fd.append('file', new Blob([preview.text], { type: 'text/csv' }), preview.fileName);
       if (mode === 'targeted') fd.append('columnId', targetColumnId);
+      if (mode === 'notes') fd.append('mode', 'notes');
       const res = await fetch('/api/import', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -109,7 +118,8 @@ export default function ImportPage() {
   };
 
   const isTargeted = mode === 'targeted';
-  const sample = isTargeted ? SAMPLE_TARGETED : SAMPLE;
+  const isNotes = mode === 'notes';
+  const sample = isNotes ? SAMPLE_NOTES : isTargeted ? SAMPLE_TARGETED : SAMPLE;
   const columns = pipelines.find(p => p.id === selectedPipelineId)?.columns || [];
   const targetColumnTitle = columns.find(c => c.id === targetColumnId)?.title || '';
   const selectedPipelineName = pipelines.find(p => p.id === selectedPipelineId)?.name || '';
@@ -136,6 +146,10 @@ export default function ImportPage() {
             <div style={{ fontWeight: 600, fontSize: 13, color: mode === 'targeted' ? '#4338ca' : '#0f172a' }}>🎯 Import ciblé (sans offres)</div>
             <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>Place les nouveaux magasins dans une colonne choisie</div>
           </button>
+          <button style={modeBtn('notes')} onClick={() => { setMode('notes'); setResult(null); }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: mode === 'notes' ? '#4338ca' : '#0f172a' }}>🗒️ Import de notes</div>
+            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>Rattache des notes aux affaires existantes</div>
+          </button>
         </div>
 
         {/* Sélecteurs pipeline + étape (mode ciblé) */}
@@ -159,7 +173,16 @@ export default function ImportPage() {
         )}
 
         {/* Règles selon le mode */}
-        {isTargeted ? (
+        {isNotes ? (
+          <div style={{ background: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#9d174d' }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Import de notes</div>
+            <div>🗒️ Rattache chaque note à une <strong>affaire existante</strong> (aucun deal créé)</div>
+            <div>🔗 Correspondance par <strong>enseigne + nom magasin</strong> (ou SIRET / id magasin si présents)</div>
+            <div>📚 <strong>Une ligne par note</strong> — notes dédupliquées (réimport sans doublon)</div>
+            <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>)</div>
+            <div>⏭ Magasin introuvable → ligne <strong>ignorée</strong> (signalée dans le résumé)</div>
+          </div>
+        ) : isTargeted ? (
           <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#3730a3' }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Import ciblé</div>
             <div>🎯 Nouveaux magasins → <strong>{selectedPipelineName || '…'}</strong> · étape <strong>« {targetColumnTitle || '…'} »</strong></div>
@@ -188,15 +211,15 @@ export default function ImportPage() {
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]); }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>{isTargeted ? '🎯' : '📥'}</div>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>{isNotes ? '🗒️' : isTargeted ? '🎯' : '📥'}</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Glisser un fichier CSV ici</div>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>ou cliquer · séparateur , ou ;</div>
               <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
             <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Format CSV attendu{isTargeted ? ' (sans offres)' : ''}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Format CSV attendu{isNotes ? ' (notes)' : isTargeted ? ' (sans offres)' : ''}</div>
               <pre style={{ fontSize: 10, color: '#475569', overflow: 'auto', background: '#f8fafc', borderRadius: 7, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre' }}>{sample}</pre>
-              <button style={{ ...btnDef, marginTop: 10, fontSize: 12 }} onClick={() => parsePreview(sample, isTargeted ? 'exemple-cible.csv' : 'exemple.csv')}>⟳ Charger l'exemple</button>
+              <button style={{ ...btnDef, marginTop: 10, fontSize: 12 }} onClick={() => parsePreview(sample, isNotes ? 'exemple-notes.csv' : isTargeted ? 'exemple-cible.csv' : 'exemple.csv')}>⟳ Charger l'exemple</button>
             </div>
           </>
         )}
@@ -224,7 +247,9 @@ export default function ImportPage() {
           <div style={{ background: '#14532d', border: '1px solid #16a34a', borderRadius: 12, padding: 20, color: '#86efac' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>✓ Import terminé — {result.fileName}{result.columnTitle ? ` → « ${result.columnTitle} »` : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 14 }}>
-              {(result.columnTitle
+              {(result.notesMode
+                ? [['Notes créées', result.createdNotes ?? 0, '#f9a8d4'], ['Affaires concernées', result.matchedDeals ?? 0, '#86efac'], ['Magasins introuvables', result.notFound ?? 0, '#fde047'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
+                : result.columnTitle
                 ? [['Créées', result.createdDeals, '#86efac'], ['Enseigne corrigée', result.updatedBrands ?? 0, '#67e8f9'], ['Ignorées (déjà présentes)', result.skippedExisting ?? 0, '#fde047'], ['Notes', result.createdNotes ?? 0, '#f9a8d4'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
                 : [['Créées', result.createdDeals, '#86efac'], ['Màj', result.updatedDeals ?? 0, '#fde047'], ['Nouvelles offres', result.newOffers ?? 0, '#6ee7b7'], ['Rappelées', result.movedToCall ?? 0, '#c4b5fd'], ['Notes', result.createdNotes ?? 0, '#f9a8d4'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
               ).map(([l, v, c]) => (
@@ -233,7 +258,8 @@ export default function ImportPage() {
             </div>
             {result.columnTitle && (result.updatedBrands || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a5f3fc', marginBottom: 12 }}><strong>{result.updatedBrands} enseigne{(result.updatedBrands || 0) > 1 ? 's' : ''}</strong> renseignée{(result.updatedBrands || 0) > 1 ? 's' : ''} sur des magasins existants (sans doublon).</div>}
             {result.columnTitle && (result.skippedExisting || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fde68a', marginBottom: 12 }}><strong>{result.skippedExisting} magasin{(result.skippedExisting || 0) > 1 ? 's' : ''}</strong> déjà présent{(result.skippedExisting || 0) > 1 ? 's' : ''} — ignoré{(result.skippedExisting || 0) > 1 ? 's' : ''}.</div>}
-            {!result.columnTitle && (result.movedToCall || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a7f3d0', marginBottom: 12 }}><strong>{result.movedToCall} affaire{(result.movedToCall || 0) > 1 ? 's' : ''}</strong> avec nouvelles offres replacées en « À appeler ».</div>}
+            {!result.columnTitle && !result.notesMode && (result.movedToCall || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a7f3d0', marginBottom: 12 }}><strong>{result.movedToCall} affaire{(result.movedToCall || 0) > 1 ? 's' : ''}</strong> avec nouvelles offres replacées en « À appeler ».</div>}
+            {result.notesMode && (result.notFound || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fde68a', marginBottom: 12 }}><strong>{result.notFound} ligne{(result.notFound || 0) > 1 ? 's' : ''}</strong> sans affaire correspondante — note{(result.notFound || 0) > 1 ? 's' : ''} ignorée{(result.notFound || 0) > 1 ? 's' : ''} (vérifie enseigne + nom magasin).</div>}
             {result.errorCount > 0 && <div style={{ background: 'rgba(220,38,38,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fca5a5', marginBottom: 12 }}>⚠ {result.errorCount} erreur(s)</div>}
             <button style={{ ...btnDef, color: '#86efac', borderColor: '#16a34a', background: 'transparent', fontSize: 12 }} onClick={() => setResult(null)}>Faire un autre import</button>
           </div>
