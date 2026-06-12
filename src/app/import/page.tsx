@@ -36,10 +36,12 @@ interface ImportResult {
   errors: { row: number; message: string }[];
 }
 interface Column { id: string; title: string; }
+interface Pipeline { id: string; name: string; columns: Column[]; }
 
 export default function ImportPage() {
   const [mode, setMode] = useState<Mode>('normal');
-  const [columns, setColumns] = useState<Column[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [targetColumnId, setTargetColumnId] = useState<string>('');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -47,18 +49,33 @@ export default function ImportPage() {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Colonnes du pipeline « Prospection » pour le mode ciblé.
+  // Tous les pipelines et leurs étapes (mode ciblé) : choix pipeline puis étape.
   useEffect(() => {
     fetch('/api/pipelines')
       .then(r => r.json())
       .then(data => {
-        const prospection = (data.pipelines || []).find((p: { name: string }) => p.name === 'Prospection');
-        const cols: Column[] = (prospection?.columns || []).map((c: { id: string; title: string }) => ({ id: c.id, title: c.title }));
-        setColumns(cols);
-        if (cols.length) setTargetColumnId(cols[0].id);
+        const pls: Pipeline[] = (data.pipelines || []).map((p: { id: string; name: string; columns?: { id: string; title: string }[] }) => ({
+          id: p.id,
+          name: p.name,
+          columns: (p.columns || []).map(c => ({ id: c.id, title: c.title })),
+        }));
+        setPipelines(pls);
+        // Pipeline par défaut : « Prospection » s'il existe, sinon le premier.
+        const def = pls.find(p => p.name === 'Prospection') || pls[0];
+        if (def) {
+          setSelectedPipelineId(def.id);
+          if (def.columns.length) setTargetColumnId(def.columns[0].id);
+        }
       })
       .catch(() => {});
   }, []);
+
+  // Quand on change de pipeline, sélectionner sa première étape.
+  const onSelectPipeline = (pipelineId: string) => {
+    setSelectedPipelineId(pipelineId);
+    const cols = pipelines.find(p => p.id === pipelineId)?.columns || [];
+    setTargetColumnId(cols[0]?.id || '');
+  };
 
   const parsePreview = useCallback((text: string, fileName: string) => {
     const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
@@ -93,7 +110,9 @@ export default function ImportPage() {
 
   const isTargeted = mode === 'targeted';
   const sample = isTargeted ? SAMPLE_TARGETED : SAMPLE;
+  const columns = pipelines.find(p => p.id === selectedPipelineId)?.columns || [];
   const targetColumnTitle = columns.find(c => c.id === targetColumnId)?.title || '';
+  const selectedPipelineName = pipelines.find(p => p.id === selectedPipelineId)?.name || '';
 
   const modeBtn = (m: Mode): React.CSSProperties => ({
     flex: 1, padding: '10px 14px', borderRadius: 9, cursor: 'pointer', textAlign: 'left',
@@ -119,14 +138,23 @@ export default function ImportPage() {
           </button>
         </div>
 
-        {/* Sélecteur de colonne (mode ciblé) */}
+        {/* Sélecteurs pipeline + étape (mode ciblé) */}
         {isTargeted && (
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>Colonne de destination</label>
-            <select value={targetColumnId} onChange={e => setTargetColumnId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              {columns.length === 0 && <option value="">Chargement…</option>}
-              {columns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-            </select>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>Pipeline</label>
+              <select value={selectedPipelineId} onChange={e => onSelectPipeline(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                {pipelines.length === 0 && <option value="">Chargement…</option>}
+                {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>Étape de destination</label>
+              <select value={targetColumnId} onChange={e => setTargetColumnId(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                {columns.length === 0 && <option value="">—</option>}
+                {columns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
@@ -134,7 +162,7 @@ export default function ImportPage() {
         {isTargeted ? (
           <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#3730a3' }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Import ciblé</div>
-            <div>🎯 Nouveaux magasins → colonne <strong>« {targetColumnTitle || '…'} »</strong></div>
+            <div>🎯 Nouveaux magasins → <strong>{selectedPipelineName || '…'}</strong> · étape <strong>« {targetColumnTitle || '…'} »</strong></div>
             <div>⏭ Magasin déjà présent → <strong>ignoré</strong> (deals existants non modifiés)</div>
             <div>🗂 CSV sans colonnes d'offres (poste, titre, date, lien…)</div>
             <div>📝 Colonne <strong>note</strong> facultative → reprise des notes de l'ancien CRM</div>
