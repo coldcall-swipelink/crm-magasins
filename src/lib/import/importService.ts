@@ -340,16 +340,21 @@ export type TargetedImportResult = {
   createdDeals:    number;
   updatedBrands:   number;
   skippedExisting: number;
+  movedDeals:      number;
   createdNotes:    number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
   columnTitle:     string;
 };
 
+/** Comportement pour un deal déjà existant lors d'un import ciblé. */
+export type OnExisting = 'skip' | 'move';
+
 export async function runTargetedCsvImport(
   csvText: string,
   fileName: string,
   columnId: string,
+  onExisting: OnExisting = 'skip',
 ): Promise<TargetedImportResult> {
   const rows = parseCsv(csvText);
   if (rows.length === 0) throw new Error('Le fichier CSV est vide ou non lisible.');
@@ -362,6 +367,7 @@ export async function runTargetedCsvImport(
   let createdDeals = 0;
   let updatedBrands = 0;
   let skippedExisting = 0;
+  let movedDeals = 0;
   let createdNotes = 0;
   const errors: Array<{ row: number; message: string }> = [];
 
@@ -413,21 +419,38 @@ export async function runTargetedCsvImport(
       let deal;
 
       if (existing) {
-        // Magasin déjà présent : on ne crée pas de nouvelle affaire et on ne la
-        // déplace pas. On peut toutefois corriger l'enseigne si elle est fournie
-        // et différente (clé de dédup réalignée au passage), et — format « long »
-        // oblige — y rattacher la note de la ligne.
-        if (brand && existing.brandId !== brand.id) {
+        // Magasin déjà présent : on ne crée pas de nouvelle affaire. On peut
+        // corriger l'enseigne si elle est fournie et différente (clé de dédup
+        // réalignée au passage), et — format « long » oblige — y rattacher la
+        // note de la ligne.
+        const brandCorrected = !!(brand && existing.brandId !== brand.id);
+        if (brandCorrected) {
           await prisma.store.update({
             where: { id: existing.id },
-            data: { brandId: brand.id, deduplicationKey: dedupKey },
+            data: { brandId: brand!.id, deduplicationKey: dedupKey },
           });
           updatedBrands++;
-        } else {
-          skippedExisting++;
         }
         store = existing;
         deal = await prisma.deal.findUnique({ where: { storeId: store.id } });
+
+        // Comportement choisi pour un deal existant :
+        //   • 'move' → déplacer l'affaire vers le pipeline/étape ciblé ;
+        //   • 'skip' → ne pas toucher à l'affaire (comportement par défaut).
+        if (deal && onExisting === 'move' && deal.columnId !== column.id) {
+          await prisma.deal.update({
+            where: { id: deal.id },
+            data: {
+              previousColumnId: deal.columnId,
+              pipelineId:       column.pipelineId,
+              columnId:         column.id,
+              position:         position++,
+            },
+          });
+          movedDeals++;
+        } else if (!brandCorrected) {
+          skippedExisting++;
+        }
       } else {
         store = await prisma.store.create({
           data: {
@@ -499,7 +522,7 @@ export async function runTargetedCsvImport(
   return {
     batchId: batch.id, fileName,
     totalRows: rows.length,
-    createdDeals, updatedBrands, skippedExisting, createdNotes,
+    createdDeals, updatedBrands, skippedExisting, movedDeals, createdNotes,
     errorCount: errors.length, errors,
     columnTitle: column.title,
   };

@@ -1,6 +1,6 @@
 // src/app/api/import/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { runCsvImport, runTargetedCsvImport, runNotesImport } from '@/lib/import/importService';
+import { runCsvImport, runTargetedCsvImport, runNotesImport, type OnExisting } from '@/lib/import/importService';
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
     const columnId = formData.get('columnId');
     const mode = formData.get('mode');
+    const onExisting: OnExisting = formData.get('onExisting') === 'move' ? 'move' : 'skip';
 
     if (!file) {
       return NextResponse.json({ error: 'Aucun fichier fourni.' }, { status: 400 });
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     const result = mode === 'notes'
       ? await runNotesImport(text, file.name)
       : columnId && typeof columnId === 'string'
-        ? await runTargetedCsvImport(text, file.name, columnId)
+        ? await runTargetedCsvImport(text, file.name, columnId, onExisting)
         : await runCsvImport(text, file.name);
 
     return NextResponse.json(result, { status: 200 });
