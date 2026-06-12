@@ -7,6 +7,7 @@ import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import { toast } from '@/components/ui/Toast';
+import { formatCurrency } from '@/lib/utils';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
@@ -222,6 +223,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {sortedCols.map(col => {
           const colDeals = dealsForCol(col.id);
+          const colTotal = colDeals.reduce((sum, d) => sum + (d.dealValue || 0), 0);
           return (
             <div key={col.id} style={{
               background: dragOverCol === col.id ? '#eef2ff' : '#f1f5f9', borderRadius: 10,
@@ -233,10 +235,13 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
               onDragOver={e => onDragOver(e, col.id)}
               onDrop={e => onDrop(e, col.id)}
               onDragLeave={() => setDragOverCol(null)}>
-              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color, flexShrink: 0 }} />
-                <span style={{ fontWeight: 600, fontSize: 11, flex: 1, color: '#374151' }}>{col.title}</span>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>{colDeals.length}</span>
+              <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color, flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600, fontSize: 11, flex: 1, color: '#374151' }}>{col.title}</span>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>{colDeals.length}</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#059669', marginTop: 3 }}>{formatCurrency(colTotal)}</div>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5, minHeight: 50 }}>
                 {colDeals.map(deal => (
