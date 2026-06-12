@@ -68,6 +68,14 @@ export function formatDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/** Formate un montant en euros (€), arrondi au centime. Chaîne vide si pas de valeur. */
+export function formatCurrency(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(value);
+}
+
 /** Retourne un texte relatif à la date en comparant uniquement les jours (sans heure) */
 export function formatRelativeDate(date: Date | string | null | undefined): string {
   if (!date) return '';
