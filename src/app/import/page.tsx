@@ -35,6 +35,7 @@ interface ImportResult {
   newOffers?: number;
   movedToCall?: number;
   skippedExisting?: number;
+  movedDeals?: number;
   createdNotes?: number;
   columnTitle?: string;
   notesMode?: boolean;
@@ -51,6 +52,7 @@ export default function ImportPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [targetColumnId, setTargetColumnId] = useState<string>('');
+  const [onExisting, setOnExisting] = useState<'skip' | 'move'>('skip');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -108,7 +110,7 @@ export default function ImportPage() {
     try {
       const fd = new FormData();
       fd.append('file', new Blob([preview.text], { type: 'text/csv' }), preview.fileName);
-      if (mode === 'targeted') fd.append('columnId', targetColumnId);
+      if (mode === 'targeted') { fd.append('columnId', targetColumnId); fd.append('onExisting', onExisting); }
       if (mode === 'notes') fd.append('mode', 'notes');
       const res = await fetch('/api/import', { method: 'POST', body: fd });
       const data = await res.json();
@@ -169,6 +171,13 @@ export default function ImportPage() {
                 {columns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </div>
+            <div style={{ flex: 1.4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 6 }}>Si le deal existe déjà</label>
+              <select value={onExisting} onChange={e => setOnExisting(e.target.value as 'skip' | 'move')} style={{ ...inp, cursor: 'pointer' }}>
+                <option value="skip">Ignorer (ne pas importer)</option>
+                <option value="move">Mettre à jour l&apos;étape du pipeline</option>
+              </select>
+            </div>
           </div>
         )}
 
@@ -186,7 +195,9 @@ export default function ImportPage() {
           <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#3730a3' }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Import ciblé</div>
             <div>🎯 Nouveaux magasins → <strong>{selectedPipelineName || '…'}</strong> · étape <strong>« {targetColumnTitle || '…'} »</strong></div>
-            <div>⏭ Magasin déjà présent → <strong>ignoré</strong> (deals existants non modifiés)</div>
+            {onExisting === 'move'
+              ? <div>♻️ Deal déjà présent → <strong>déplacé</strong> vers l'étape « {targetColumnTitle || '…'} »</div>
+              : <div>⏭ Deal déjà présent → <strong>ignoré</strong> (deals existants non modifiés)</div>}
             <div>🗂 CSV sans colonnes d'offres (poste, titre, date, lien…)</div>
             <div>📝 Colonne <strong>note</strong> facultative → reprise des notes de l'ancien CRM</div>
             <div>🕓 Colonne <strong>date note</strong> facultative (ex. <code>2024-12-12 15:11:41</code>) → date d'origine conservée</div>
@@ -250,7 +261,7 @@ export default function ImportPage() {
               {(result.notesMode
                 ? [['Notes créées', result.createdNotes ?? 0, '#f9a8d4'], ['Affaires concernées', result.matchedDeals ?? 0, '#86efac'], ['Magasins introuvables', result.notFound ?? 0, '#fde047'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
                 : result.columnTitle
-                ? [['Créées', result.createdDeals, '#86efac'], ['Enseigne corrigée', result.updatedBrands ?? 0, '#67e8f9'], ['Ignorées (déjà présentes)', result.skippedExisting ?? 0, '#fde047'], ['Notes', result.createdNotes ?? 0, '#f9a8d4'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
+                ? [['Créées', result.createdDeals, '#86efac'], ['Déplacées', result.movedDeals ?? 0, '#c4b5fd'], ['Ignorées (déjà présentes)', result.skippedExisting ?? 0, '#fde047'], ['Enseigne corrigée', result.updatedBrands ?? 0, '#67e8f9'], ['Notes', result.createdNotes ?? 0, '#f9a8d4'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
                 : [['Créées', result.createdDeals, '#86efac'], ['Màj', result.updatedDeals ?? 0, '#fde047'], ['Nouvelles offres', result.newOffers ?? 0, '#6ee7b7'], ['Rappelées', result.movedToCall ?? 0, '#c4b5fd'], ['Notes', result.createdNotes ?? 0, '#f9a8d4'], ['Erreurs', result.errorCount, result.errorCount ? '#fca5a5' : '#86efac']]
               ).map(([l, v, c]) => (
                 <div key={l as string}><div style={{ fontSize: 10, color: '#86efac88', marginBottom: 2 }}>{l}</div><div style={{ fontSize: 22, fontWeight: 700, color: c as string }}>{v}</div></div>
@@ -258,6 +269,7 @@ export default function ImportPage() {
             </div>
             {result.columnTitle && (result.updatedBrands || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a5f3fc', marginBottom: 12 }}><strong>{result.updatedBrands} enseigne{(result.updatedBrands || 0) > 1 ? 's' : ''}</strong> renseignée{(result.updatedBrands || 0) > 1 ? 's' : ''} sur des magasins existants (sans doublon).</div>}
             {result.columnTitle && (result.skippedExisting || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fde68a', marginBottom: 12 }}><strong>{result.skippedExisting} magasin{(result.skippedExisting || 0) > 1 ? 's' : ''}</strong> déjà présent{(result.skippedExisting || 0) > 1 ? 's' : ''} — ignoré{(result.skippedExisting || 0) > 1 ? 's' : ''}.</div>}
+            {result.columnTitle && (result.movedDeals || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#c4b5fd', marginBottom: 12 }}><strong>{result.movedDeals} affaire{(result.movedDeals || 0) > 1 ? 's' : ''}</strong> existante{(result.movedDeals || 0) > 1 ? 's' : ''} déplacée{(result.movedDeals || 0) > 1 ? 's' : ''} vers « {result.columnTitle} ».</div>}
             {!result.columnTitle && !result.notesMode && (result.movedToCall || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#a7f3d0', marginBottom: 12 }}><strong>{result.movedToCall} affaire{(result.movedToCall || 0) > 1 ? 's' : ''}</strong> avec nouvelles offres replacées en « À appeler ».</div>}
             {result.notesMode && (result.notFound || 0) > 0 && <div style={{ background: 'rgba(0,0,0,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fde68a', marginBottom: 12 }}><strong>{result.notFound} ligne{(result.notFound || 0) > 1 ? 's' : ''}</strong> sans affaire correspondante — note{(result.notFound || 0) > 1 ? 's' : ''} ignorée{(result.notFound || 0) > 1 ? 's' : ''} (vérifie enseigne + nom magasin).</div>}
             {result.errorCount > 0 && <div style={{ background: 'rgba(220,38,38,.2)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#fca5a5', marginBottom: 12 }}>⚠ {result.errorCount} erreur(s)</div>}
