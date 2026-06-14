@@ -92,6 +92,35 @@ export async function findOrganizationsByName(
   );
 }
 
+/** Normalise un nom pour comparaison : minuscules, sans accents, espaces compactés. */
+export function normalizeName(s: string | null | undefined): string {
+  return (s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Récupère TOUTES les Organizations (id, name) de la base produit, en paginant.
+ * Permet ensuite un matching en mémoire (cf. buildOrganizationIndex) plutôt que
+ * des requêtes par deal — indispensable pour le backfill en masse.
+ */
+export async function fetchAllOrganizations(): Promise<{ id: string; name: string }[]> {
+  const pageSize = 1000;
+  const all: { id: string; name: string }[] = [];
+  for (let offset = 0; offset < 200_000; offset += pageSize) {
+    const rows = await selectRows<{ id: string; name: string }>(
+      'Organization',
+      `select=id,name&order=created_at.asc&limit=${pageSize}&offset=${offset}`,
+    );
+    all.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return all;
+}
+
 export type OrganizationMatchStatus = 'matched' | 'ambiguous' | 'not_found';
 
 export interface OrganizationMatchResult {
@@ -102,26 +131,68 @@ export interface OrganizationMatchResult {
   status: OrganizationMatchStatus;
 }
 
+/** Index nom-normalisé -> organisations, pour un matching en mémoire. */
+export type OrganizationIndex = Map<string, { id: string; name: string }[]>;
+
+export function buildOrganizationIndex(orgs: { id: string; name: string }[]): OrganizationIndex {
+  const index: OrganizationIndex = new Map();
+  for (const org of orgs) {
+    const key = normalizeName(org.name);
+    if (!key) continue;
+    const arr = index.get(key) ?? [];
+    arr.push(org);
+    index.set(key, arr);
+  }
+  return index;
+}
+
+/** Noms candidats pour un deal : « Enseigne Nom-magasin » puis « Enseigne Ville ». */
+function dealNameCandidates(input: {
+  brandName?: string | null;
+  storeName?: string | null;
+  city?: string | null;
+}): { by: 'store' | 'city'; name: string }[] {
+  const candidates: { by: 'store' | 'city'; name: string }[] = [];
+  const storeName = buildDealOrganizationName(input.brandName, input.storeName);
+  if (storeName) candidates.push({ by: 'store', name: storeName });
+  const cityName = buildDealOrganizationName(input.brandName, input.city);
+  if (cityName && normalizeName(cityName) !== normalizeName(storeName)) {
+    candidates.push({ by: 'city', name: cityName });
+  }
+  return candidates;
+}
+
+/** Matching en mémoire d'un deal contre un index d'organisations (unique sinon ambiguous). */
+export function matchDealOrganizationInIndex(
+  index: OrganizationIndex,
+  input: { brandName?: string | null; storeName?: string | null; city?: string | null },
+): OrganizationMatchResult {
+  for (const candidate of dealNameCandidates(input)) {
+    const hits = index.get(normalizeName(candidate.name)) ?? [];
+    const unique = Array.from(new Map(hits.map((h) => [h.id, h])).values());
+    if (unique.length === 1) {
+      return { organizationId: unique[0].id, matchedName: unique[0].name, matchedBy: candidate.by, status: 'matched' };
+    }
+    if (unique.length > 1) {
+      return { organizationId: null, matchedName: candidate.name, matchedBy: candidate.by, status: 'ambiguous' };
+    }
+  }
+  return { organizationId: null, matchedName: null, matchedBy: null, status: 'not_found' };
+}
+
 /**
  * Tente de retrouver l'Organization produit correspondant à un deal, par son
  * nom. Essaie d'abord « Enseigne Nom-magasin », puis en repli « Enseigne Ville »
  * (format historique de provisioning). Une correspondance n'est retenue que si
- * elle est unique (sinon `ambiguous`).
+ * elle est unique (sinon `ambiguous`). Variante « 1 deal » (≤ 2 requêtes), pour
+ * le rattachement à la volée ; pour le backfill en masse, préférer l'index.
  */
 export async function matchDealOrganization(input: {
   brandName?: string | null;
   storeName?: string | null;
   city?: string | null;
 }): Promise<OrganizationMatchResult> {
-  const candidates: { by: 'store' | 'city'; name: string }[] = [];
-  const storeName = buildDealOrganizationName(input.brandName, input.storeName);
-  if (storeName) candidates.push({ by: 'store', name: storeName });
-  const cityName = buildDealOrganizationName(input.brandName, input.city);
-  if (cityName && cityName.toLowerCase() !== storeName.toLowerCase()) {
-    candidates.push({ by: 'city', name: cityName });
-  }
-
-  for (const candidate of candidates) {
+  for (const candidate of dealNameCandidates(input)) {
     const matches = await findOrganizationsByName(candidate.name);
     // Dédoublonnage par id (au cas où ilike renvoie des doublons logiques).
     const unique = Array.from(new Map(matches.map((m) => [m.id, m])).values());
@@ -132,7 +203,6 @@ export async function matchDealOrganization(input: {
       return { organizationId: null, matchedName: candidate.name, matchedBy: candidate.by, status: 'ambiguous' };
     }
   }
-
   return { organizationId: null, matchedName: null, matchedBy: null, status: 'not_found' };
 }
 
