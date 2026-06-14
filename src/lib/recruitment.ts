@@ -65,6 +65,78 @@ function inFilter(column: string, ids: string[]): string {
 }
 
 /**
+ * Nom d'Organization attendu pour un deal : « Enseigne Nom-magasin ».
+ * (Si l'enseigne est absente, on retombe sur le seul nom du magasin.)
+ */
+export function buildDealOrganizationName(
+  brandName: string | null | undefined,
+  storeName: string | null | undefined,
+): string {
+  const brand = brandName?.trim();
+  const store = storeName?.trim();
+  return [brand, store].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Recherche des Organizations par nom (insensible à la casse, correspondance
+ * exacte via `ilike` sans joker). Renvoie les correspondances {id, name}.
+ */
+export async function findOrganizationsByName(
+  name: string,
+): Promise<{ id: string; name: string }[]> {
+  const value = name.trim();
+  if (!value) return [];
+  return selectRows<{ id: string; name: string }>(
+    'Organization',
+    `name=ilike.${encodeURIComponent(value)}&select=id,name&limit=5`,
+  );
+}
+
+export type OrganizationMatchStatus = 'matched' | 'ambiguous' | 'not_found';
+
+export interface OrganizationMatchResult {
+  organizationId: string | null;
+  matchedName: string | null;
+  /** Nom utilisé pour la correspondance retenue : 'store' (enseigne+magasin) ou 'city' (enseigne+ville). */
+  matchedBy: 'store' | 'city' | null;
+  status: OrganizationMatchStatus;
+}
+
+/**
+ * Tente de retrouver l'Organization produit correspondant à un deal, par son
+ * nom. Essaie d'abord « Enseigne Nom-magasin », puis en repli « Enseigne Ville »
+ * (format historique de provisioning). Une correspondance n'est retenue que si
+ * elle est unique (sinon `ambiguous`).
+ */
+export async function matchDealOrganization(input: {
+  brandName?: string | null;
+  storeName?: string | null;
+  city?: string | null;
+}): Promise<OrganizationMatchResult> {
+  const candidates: { by: 'store' | 'city'; name: string }[] = [];
+  const storeName = buildDealOrganizationName(input.brandName, input.storeName);
+  if (storeName) candidates.push({ by: 'store', name: storeName });
+  const cityName = buildDealOrganizationName(input.brandName, input.city);
+  if (cityName && cityName.toLowerCase() !== storeName.toLowerCase()) {
+    candidates.push({ by: 'city', name: cityName });
+  }
+
+  for (const candidate of candidates) {
+    const matches = await findOrganizationsByName(candidate.name);
+    // Dédoublonnage par id (au cas où ilike renvoie des doublons logiques).
+    const unique = Array.from(new Map(matches.map((m) => [m.id, m])).values());
+    if (unique.length === 1) {
+      return { organizationId: unique[0].id, matchedName: unique[0].name, matchedBy: candidate.by, status: 'matched' };
+    }
+    if (unique.length > 1) {
+      return { organizationId: null, matchedName: candidate.name, matchedBy: candidate.by, status: 'ambiguous' };
+    }
+  }
+
+  return { organizationId: null, matchedName: null, matchedBy: null, status: 'not_found' };
+}
+
+/**
  * Récupère les offres d'une Organization (base produit) avec, pour chacune, la
  * liste des candidats qui lui ont été envoyés (table Candidate_to_offer).
  *
