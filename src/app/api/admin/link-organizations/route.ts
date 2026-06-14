@@ -3,14 +3,15 @@ import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
 import {
   buildDealOrganizationName,
-  fetchAllOrganizations,
+  findOrganizationsByNames,
   buildOrganizationIndex,
   matchDealOrganizationInIndex,
 } from '@/lib/recruitment';
 
-// Le matching se fait en mémoire (toutes les Organizations récupérées une seule
-// fois), donc aucune requête Supabase par deal : indispensable pour rester sous
-// la limite de temps des fonctions, même avec beaucoup d'affaires.
+// On ne charge JAMAIS toute la table Organization (énorme côté produit) : on ne
+// récupère que les organisations dont le nom correspond aux deals (requêtes
+// `in` par paquets), puis on matche en mémoire. Aucune requête Supabase par
+// deal -> reste largement sous la limite de temps des fonctions.
 export const maxDuration = 60;
 
 // Backfill ponctuel : rattache les affaires existantes à leur Organization
@@ -36,19 +37,37 @@ export async function GET(req: NextRequest) {
 
   const apply = req.nextUrl.searchParams.get('apply') === 'true';
   const includeAll = req.nextUrl.searchParams.get('all') === 'true';
+  const countOnly = req.nextUrl.searchParams.get('count') === 'true';
 
-  const [deals, organizations] = await Promise.all([
-    prisma.deal.findMany({
-      where: includeAll ? {} : { supabaseOrganizationId: null },
-      select: {
-        id: true,
-        supabaseOrganizationId: true,
-        store: { select: { name: true, city: true, brand: { select: { name: true } } } },
-      },
-    }),
-    fetchAllOrganizations(),
-  ]);
+  const deals = await prisma.deal.findMany({
+    where: includeAll ? {} : { supabaseOrganizationId: null },
+    select: {
+      id: true,
+      supabaseOrganizationId: true,
+      store: { select: { name: true, city: true, brand: { select: { name: true } } } },
+    },
+  });
 
+  // Noms candidats (« Enseigne Nom-magasin » + « Enseigne Ville ») pour ne
+  // requêter que les organisations potentiellement concernées.
+  const candidateNames: string[] = [];
+  for (const deal of deals) {
+    const s = buildDealOrganizationName(deal.store?.brand?.name, deal.store?.name);
+    const c = buildDealOrganizationName(deal.store?.brand?.name, deal.store?.city);
+    if (s) candidateNames.push(s);
+    if (c) candidateNames.push(c);
+  }
+
+  // Diagnostic rapide : tailles seulement, sans matching ni écriture.
+  if (countOnly) {
+    return NextResponse.json({
+      countOnly: true,
+      deals: deals.length,
+      distinctCandidateNames: new Set(candidateNames).size,
+    });
+  }
+
+  const organizations = await findOrganizationsByNames(candidateNames);
   const index = buildOrganizationIndex(organizations);
 
   const summary = {

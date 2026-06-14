@@ -42,13 +42,23 @@ async function selectRows<T>(table: string, query: string): Promise<T[]> {
   const cfg = productSupabaseConfig();
   if (!cfg) return [];
 
-  const res = await fetch(`${cfg.baseUrl}/rest/v1/${table}?${query}`, {
-    headers: {
-      apikey: cfg.key,
-      Authorization: `Bearer ${cfg.key}`,
-    },
-    cache: 'no-store',
-  });
+  // Timeout réseau : une requête Supabase bloquée ne doit pas faire traîner la
+  // fonction jusqu'à sa limite de temps.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}/rest/v1/${table}?${query}`, {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     const detail = await res.text();
@@ -78,8 +88,9 @@ export function buildDealOrganizationName(
 }
 
 /**
- * Recherche des Organizations par nom (insensible à la casse, correspondance
- * exacte via `ilike` sans joker). Renvoie les correspondances {id, name}.
+ * Recherche des Organizations par nom (correspondance exacte via `eq`, qui peut
+ * s'appuyer sur un index — contrairement à `ilike` qui force un balayage
+ * séquentiel sur une grosse table). Renvoie les correspondances {id, name}.
  */
 export async function findOrganizationsByName(
   name: string,
@@ -88,7 +99,7 @@ export async function findOrganizationsByName(
   if (!value) return [];
   return selectRows<{ id: string; name: string }>(
     'Organization',
-    `name=ilike.${encodeURIComponent(value)}&select=id,name&limit=5`,
+    `name=eq.${encodeURIComponent(value)}&select=id,name&limit=5`,
   );
 }
 
@@ -103,22 +114,31 @@ export function normalizeName(s: string | null | undefined): string {
 }
 
 /**
- * Récupère TOUTES les Organizations (id, name) de la base produit, en paginant.
- * Permet ensuite un matching en mémoire (cf. buildOrganizationIndex) plutôt que
- * des requêtes par deal — indispensable pour le backfill en masse.
+ * Récupère les Organizations dont le nom figure dans `names` (correspondance
+ * exacte, via des requêtes `in` par paquets). Ciblé : on ne charge jamais toute
+ * la table Organization (qui peut être énorme côté produit), seulement les
+ * organisations potentiellement liées aux deals.
  */
-export async function fetchAllOrganizations(): Promise<{ id: string; name: string }[]> {
-  const pageSize = 1000;
-  const all: { id: string; name: string }[] = [];
-  for (let offset = 0; offset < 200_000; offset += pageSize) {
+export async function findOrganizationsByNames(
+  names: string[],
+): Promise<{ id: string; name: string }[]> {
+  const unique = Array.from(new Set(names.map((n) => n.trim()).filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const chunkSize = 60; // limite la longueur d'URL
+  const out: { id: string; name: string }[] = [];
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    // PostgREST : name=in.("Foo","Bar") — guillemets pour gérer espaces/casse.
+    const list = chunk.map((n) => `"${n.replace(/["\\]/g, '')}"`).join(',');
     const rows = await selectRows<{ id: string; name: string }>(
       'Organization',
-      `select=id,name&order=created_at.asc&limit=${pageSize}&offset=${offset}`,
+      `name=in.${encodeURIComponent(`(${list})`)}&select=id,name`,
     );
-    all.push(...rows);
-    if (rows.length < pageSize) break;
+    out.push(...rows);
   }
-  return all;
+  // Dédoublonnage par id (un même chunk peut renvoyer des doublons logiques).
+  return Array.from(new Map(out.map((o) => [o.id, o])).values());
 }
 
 export type OrganizationMatchStatus = 'matched' | 'ambiguous' | 'not_found';
