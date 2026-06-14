@@ -51,6 +51,37 @@ async function createImportNote(dealId: string, mapped: MappedRow): Promise<bool
   return true;
 }
 
+/**
+ * Retrouve un magasin existant pour une ligne CSV, de façon tolérante :
+ *   1) clé de déduplication exacte (enseigne + ville + magasin, ou SIRET / id) ;
+ *   2) repli : enseigne + nom magasin en ignorant la ville — utile quand le
+ *      fichier de notes ne contient pas la ville alors que le deal a été créé
+ *      avec. On ne renvoie le repli que s'il est NON ambigu (un seul magasin).
+ * Renvoie null si aucun magasin (ou repli ambigu).
+ */
+async function findStoreForRow(mapped: MappedRow) {
+  const exact = await prisma.store.findUnique({ where: { deduplicationKey: buildDeduplicationKey(mapped) } });
+  if (exact) return exact;
+
+  const normName = normalizeStoreName(mapped);
+  if (!normName) return null;
+
+  let brandId: string | undefined;
+  if (mapped.brand?.trim()) {
+    const brand = await prisma.brand.findFirst({
+      where: { name: { equals: mapped.brand.trim(), mode: 'insensitive' } },
+    });
+    if (!brand) return null; // enseigne fournie mais inconnue → pas de repli
+    brandId = brand.id;
+  }
+
+  const candidates = await prisma.store.findMany({
+    where: { normalizedName: normName, ...(brandId ? { brandId } : {}) },
+    take: 2,
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 export type ImportResult = {
   batchId:         string;
   fileName:        string;
@@ -578,9 +609,9 @@ export async function runNotesImport(
         continue;
       }
 
-      // Correspondance avec un magasin/affaire existant (aucune création).
-      const dedupKey = buildDeduplicationKey(mapped);
-      const store = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
+      // Correspondance tolérante avec un magasin/affaire existant (aucune création) :
+      // clé exacte, puis repli enseigne + nom magasin (ville ignorée).
+      const store = await findStoreForRow(mapped);
       const deal = store ? await prisma.deal.findUnique({ where: { storeId: store.id } }) : null;
 
       if (!deal) {
