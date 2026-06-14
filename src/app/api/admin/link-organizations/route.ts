@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
-import { matchDealOrganization, buildDealOrganizationName } from '@/lib/recruitment';
+import {
+  buildDealOrganizationName,
+  fetchAllOrganizations,
+  buildOrganizationIndex,
+  matchDealOrganizationInIndex,
+} from '@/lib/recruitment';
+
+// Le matching se fait en mémoire (toutes les Organizations récupérées une seule
+// fois), donc aucune requête Supabase par deal : indispensable pour rester sous
+// la limite de temps des fonctions, même avec beaucoup d'affaires.
+export const maxDuration = 60;
 
 // Backfill ponctuel : rattache les affaires existantes à leur Organization
 // produit (Supabase) en retrouvant celle-ci par son nom « Enseigne Nom-magasin »
@@ -27,16 +37,29 @@ export async function GET(req: NextRequest) {
   const apply = req.nextUrl.searchParams.get('apply') === 'true';
   const includeAll = req.nextUrl.searchParams.get('all') === 'true';
 
-  const deals = await prisma.deal.findMany({
-    where: includeAll ? {} : { supabaseOrganizationId: null },
-    select: {
-      id: true,
-      supabaseOrganizationId: true,
-      store: { select: { name: true, city: true, brand: { select: { name: true } } } },
-    },
-  });
+  const [deals, organizations] = await Promise.all([
+    prisma.deal.findMany({
+      where: includeAll ? {} : { supabaseOrganizationId: null },
+      select: {
+        id: true,
+        supabaseOrganizationId: true,
+        store: { select: { name: true, city: true, brand: { select: { name: true } } } },
+      },
+    }),
+    fetchAllOrganizations(),
+  ]);
 
-  const summary = { total: deals.length, matched: 0, ambiguous: 0, notFound: 0, alreadyLinked: 0, updated: 0 };
+  const index = buildOrganizationIndex(organizations);
+
+  const summary = {
+    total: deals.length,
+    organizations: organizations.length,
+    matched: 0,
+    ambiguous: 0,
+    notFound: 0,
+    alreadyLinked: 0,
+    updated: 0,
+  };
   const results: Array<Record<string, unknown>> = [];
 
   for (const deal of deals) {
@@ -46,7 +69,7 @@ export async function GET(req: NextRequest) {
     }
 
     const expectedName = buildDealOrganizationName(deal.store?.brand?.name, deal.store?.name);
-    const match = await matchDealOrganization({
+    const match = matchDealOrganizationInIndex(index, {
       brandName: deal.store?.brand?.name,
       storeName: deal.store?.name,
       city: deal.store?.city,
