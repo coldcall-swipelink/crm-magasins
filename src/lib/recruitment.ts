@@ -166,18 +166,23 @@ export function buildOrganizationIndex(orgs: { id: string; name: string }[]): Or
   return index;
 }
 
-/** Noms candidats pour un deal : « Enseigne Nom-magasin » puis « Enseigne Ville ». */
+/**
+ * Noms candidats pour un deal : « Enseigne Nom-magasin » puis « Enseigne Ville ».
+ * On n'ajoute un candidat que si sa partie « lieu » (nom-magasin ou ville) est
+ * renseignée : sinon le nom se réduirait à l'enseigne seule (« Leclerc »,
+ * « Intermarché »…) et matcherait par erreur des organisations homonymes.
+ */
 function dealNameCandidates(input: {
   brandName?: string | null;
   storeName?: string | null;
   city?: string | null;
 }): { by: 'store' | 'city'; name: string }[] {
+  const store = input.storeName?.trim() || '';
+  const city = input.city?.trim() || '';
   const candidates: { by: 'store' | 'city'; name: string }[] = [];
-  const storeName = buildDealOrganizationName(input.brandName, input.storeName);
-  if (storeName) candidates.push({ by: 'store', name: storeName });
-  const cityName = buildDealOrganizationName(input.brandName, input.city);
-  if (cityName && normalizeName(cityName) !== normalizeName(storeName)) {
-    candidates.push({ by: 'city', name: cityName });
+  if (store) candidates.push({ by: 'store', name: buildDealOrganizationName(input.brandName, store) });
+  if (city && normalizeName(city) !== normalizeName(store)) {
+    candidates.push({ by: 'city', name: buildDealOrganizationName(input.brandName, city) });
   }
   return candidates;
 }
