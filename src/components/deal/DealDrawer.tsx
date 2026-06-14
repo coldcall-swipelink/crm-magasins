@@ -41,6 +41,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   const [deal, setDeal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Onglet actif de la zone de droite : activité (par défaut) ou recrutement.
+  const [activeTab, setActiveTab] = useState<'activite' | 'recrutement'>('activite');
+
   // Volet de composition actif : note / action / email
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email'>(null);
 
@@ -554,6 +557,30 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
           {/* ===== Zone d'activité droite ===== */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 40px' }}>
 
+            {/* Onglets : Activité / Recrutement */}
+            <div style={{ display: 'flex', gap: 22, borderBottom: '1px solid #e2e8f0', marginBottom: 20 }}>
+              {([['activite', 'Activité'], ['recrutement', 'Recrutement']] as const).map(([key, label]) => {
+                const active = activeTab === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 10px',
+                      fontSize: 13.5, fontWeight: active ? 700 : 500,
+                      color: active ? '#4338ca' : '#64748b',
+                      borderBottom: active ? '2px solid #4338ca' : '2px solid transparent',
+                      marginBottom: -1,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeTab === 'activite' && (
+            <>
             {/* Trois boutons d'action */}
             <div style={{ display: 'flex', gap: 10, marginBottom: composer ? 14 : 22 }}>
               <button onClick={() => setComposer(composer === 'note' ? null : 'note')} style={composer === 'note' ? { ...btnPri, padding: '10px 16px', fontSize: 13 } : { ...btnDef, padding: '10px 16px', fontSize: 13, background: '#fff' }}>📝 Ajouter une note</button>
@@ -710,6 +737,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 ))}
               </div>
             </div>
+            </>
+            )}
+
+            {activeTab === 'recrutement' && <RecruitmentTab dealId={dealId} />}
 
           </div>
         </div>
@@ -775,6 +806,95 @@ function EmailLogItem({ log }: { log: EmailLog }) {
           {log.body}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- Onglet « Recrutement » ------------------------------------------------
+// Liste les offres rattachées à l'Organization produit (créée en « Démo
+// prévue ») ; chaque offre s'ouvre en accordéon sur les candidats envoyés.
+interface RecruitmentCandidate { id: string; firstName: string; lastName: string; phoneNumber: string; }
+interface RecruitmentOffer { id: string; title: string; candidates: RecruitmentCandidate[]; }
+interface RecruitmentData { configured: boolean; organizationId: string | null; offers: RecruitmentOffer[]; }
+
+function RecruitmentTab({ dealId }: { dealId: string }) {
+  const [data, setData] = useState<RecruitmentData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    fetch(`/api/deals/${dealId}/recruitment`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(d => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [dealId]);
+
+  if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement du recrutement…</p>;
+  if (error) return <p style={{ color: '#dc2626', fontSize: 13 }}>Erreur lors du chargement des données de recrutement.</p>;
+
+  if (!data?.organizationId) {
+    return (
+      <p style={{ color: '#94a3b8', fontSize: 13 }}>
+        Aucune organisation rattachée. Elle est créée automatiquement lorsque l&apos;affaire passe en « Démo prévue ».
+      </p>
+    );
+  }
+  if (!data.configured) {
+    return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
+  }
+  if (data.offers.length === 0) {
+    return <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre pour cette organisation.</p>;
+  }
+
+  return (
+    <div>
+      <div style={{ ...sectionTitle, marginBottom: 12 }}>Offres ({data.offers.length})</div>
+      {data.offers.map(offer => {
+        const open = !!expanded[offer.id];
+        return (
+          <div key={offer.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+            <button
+              onClick={() => setExpanded(e => ({ ...e, [offer.id]: !e[offer.id] }))}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: open ? '#f5f3ff' : '#fff', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <span style={{ fontSize: 12, color: '#94a3b8', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>▶</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>{offer.title}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>
+                {offer.candidates.length} candidat{offer.candidates.length > 1 ? 's' : ''}
+              </span>
+            </button>
+            {open && (
+              <div style={{ borderTop: '1px solid #e2e8f0', padding: '6px 14px 10px' }}>
+                {offer.candidates.length === 0 ? (
+                  <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '8px 0' }}>Aucun candidat envoyé pour cette offre.</p>
+                ) : (
+                  offer.candidates.map(c => {
+                    const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+                    return (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: fullName ? '#0f172a' : '#cbd5e1' }}>{fullName || 'Nom inconnu'}</div>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            {c.phoneNumber
+                              ? <a href={`tel:${c.phoneNumber}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>📞 {c.phoneNumber}</a>
+                              : <span style={{ color: '#cbd5e1' }}>Téléphone non renseigné</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
