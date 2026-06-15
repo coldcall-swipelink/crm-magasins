@@ -120,6 +120,14 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
           💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}{offers.length > 2 ? ` +${offers.length - 2}` : ''}
         </div>
       )}
+
+      {typeof (deal as any).dealValue === 'number' && (deal as any).dealValue !== 0 && (
+        <div style={{ marginTop: 4 }}>
+          <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '1px 7px', borderRadius: 999 }}>
+            💶 {((deal as any).dealValue as number).toLocaleString('fr-FR')} €
+          </span>
+        </div>
+      )}
     </div>
   );
 }
