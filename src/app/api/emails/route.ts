@@ -19,7 +19,9 @@ export async function POST(req: NextRequest) {
       from: process.env.SMTP_FROM as string,
       to,
       subject,
-      html: body.replace(/\n/g, '<br>'),
+      // Corps déjà en HTML (éditeur riche) : envoyé tel quel. Ancien texte
+      // simple : on convertit les retours à la ligne en <br>.
+      html: /<[a-z][\s\S]*>/i.test(body) ? body : body.replace(/\n/g, '<br>'),
       attachments: attachments?.map((a: { name: string; content: string }) => ({
         filename: a.name,
         content: Buffer.from(a.content, 'base64'),

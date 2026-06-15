@@ -4,6 +4,10 @@ import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
+import RichTextEditor from '@/components/ui/RichTextEditor';
+
+/** Détecte si une chaîne contient du HTML (corps d'email mis en forme). */
+function isHtml(s: string) { return /<[a-z][\s\S]*>/i.test(s || ''); }
 
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
@@ -651,7 +655,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                 </div>
                 <div style={{ marginBottom: 10 }}>
                   <label style={labelStyle}>Message *</label>
-                  <textarea style={{ ...inp, height: 160, resize: 'vertical', fontSize: 12 }} placeholder="Corps de l'email…" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
+                  <RichTextEditor value={emailBody} onChange={setEmailBody} placeholder="Corps de l'email…" minHeight={160} />
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label style={labelStyle}>Pièce jointe PDF</label>
@@ -803,9 +807,9 @@ function EmailLogItem({ log }: { log: EmailLog }) {
         {expanded ? 'Masquer' : 'Voir le contenu'}
       </button>
       {expanded && (
-        <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>
-          {log.body}
-        </div>
+        isHtml(log.body)
+          ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: '3px solid #6366f1' }} dangerouslySetInnerHTML={{ __html: log.body }} />
+          : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>{log.body}</div>
       )}
     </div>
   );
