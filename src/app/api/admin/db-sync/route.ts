@@ -182,7 +182,11 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"calledAt\" TIMESTAMP(3);",
   "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
-  "CREATE UNIQUE INDEX IF NOT EXISTS \"CandidateCall_dealId_candidateId_key\" ON \"CandidateCall\"(\"dealId\",\"candidateId\");"
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"CandidateCall_dealId_candidateId_key\" ON \"CandidateCall\"(\"dealId\",\"candidateId\");",
+  "CREATE TABLE IF NOT EXISTS \"AppSetting\" (\"key\" TEXT NOT NULL, CONSTRAINT \"AppSetting_pkey\" PRIMARY KEY (\"key\"));",
+  "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"key\" TEXT;",
+  "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"value\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;"
 ];
 
 export async function GET(req: NextRequest) {

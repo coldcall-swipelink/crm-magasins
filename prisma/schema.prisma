@@ -261,3 +261,11 @@ model CandidateCall {
 
   @@unique([dealId, candidateId])
 }
+
+// Réglages globaux de l'application (clé/valeur). Ex. « emailSignature » :
+// signature HTML ajoutée automatiquement à tous les emails envoyés du CRM.
+model AppSetting {
+  key       String   @id
+  value     String   @default("")
+  updatedAt DateTime @updatedAt
+}

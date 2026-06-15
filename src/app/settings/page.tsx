@@ -74,6 +74,8 @@ export default function SettingsPage() {
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
+  const [signature, setSignature] = useState('');
+  const [savingSig, setSavingSig] = useState(false);
   const [savingCols, setSavingCols] = useState(false);
   const colorTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -92,6 +94,31 @@ export default function SettingsPage() {
     if (collRes.ok) setCollaborators(await collRes.json());
     if (tRes.ok) setTemplates(await tRes.json());
   }, []);
+
+  // Chargement de la signature email globale.
+  useEffect(() => {
+    fetch('/api/email-signature')
+      .then(r => r.json())
+      .then(d => setSignature(d.value || ''))
+      .catch(() => {});
+  }, []);
+
+  const saveSignature = async () => {
+    setSavingSig(true);
+    try {
+      const res = await fetch('/api/email-signature', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: signature }),
+      });
+      if (!res.ok) throw new Error();
+      toast('✓ Signature enregistrée');
+    } catch {
+      toast('Échec de l\'enregistrement', 'error');
+    } finally {
+      setSavingSig(false);
+    }
+  };
 
   // Charger la sélection depuis localStorage au démarrage
   useEffect(() => {
@@ -331,6 +358,25 @@ export default function SettingsPage() {
             </div>
           ))}
           {!templates.length && !showNewTemplate && <div style={{ fontSize: 13, color: '#94a3b8' }}>Aucun template. Créez-en un !</div>}
+        </div>
+
+        {/* Signature email */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Signature email</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>
+            Ajoutée automatiquement à la fin de tous les emails envoyés depuis le CRM.
+          </div>
+          <RichTextEditor
+            value={signature}
+            onChange={setSignature}
+            placeholder={"Cordialement,\nPrénom Nom\nSwipelink"}
+            minHeight={140}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button style={{ ...btnPri, opacity: savingSig ? 0.7 : 1, cursor: savingSig ? 'not-allowed' : 'pointer' }} onClick={saveSignature} disabled={savingSig}>
+              {savingSig ? '⟳ Enregistrement…' : 'Enregistrer la signature'}
+            </button>
+          </div>
         </div>
 
         {/* Collaborateurs */}
