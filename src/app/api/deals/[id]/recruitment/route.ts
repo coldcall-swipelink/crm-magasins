@@ -46,12 +46,30 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }
 
     const offers = await fetchOrganizationRecruitment(organizationId);
-    return NextResponse.json({ configured: true, organizationId, offers });
+    const calledCandidateIds = await getCalledCandidateIds(params.id);
+    return NextResponse.json({ configured: true, organizationId, offers, calledCandidateIds });
   } catch (err) {
     console.error('Recruitment fetch error:', err);
     return NextResponse.json(
       { error: 'Erreur lors de la récupération du recrutement' },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * Ids des candidats déjà appelés pour ce deal (cases cochées). Tolère l'absence
+ * de la table CandidateCall (avant exécution de db-sync) en renvoyant [].
+ */
+async function getCalledCandidateIds(dealId: string): Promise<string[]> {
+  try {
+    const calls = await prisma.candidateCall.findMany({
+      where: { dealId },
+      select: { candidateId: true },
+    });
+    return calls.map((c) => c.candidateId);
+  } catch (err) {
+    console.error('CandidateCall lookup error (table manquante ?):', err);
+    return [];
   }
 }

@@ -135,6 +135,7 @@ model Deal {
   notes                     Note[]
   importRows                ImportRow[]
   emailLogs                 EmailLog[]
+  candidateCalls            CandidateCall[]
 }
 
 model JobOffer {
@@ -244,4 +245,19 @@ model EmailLog {
   openedAt   DateTime?
   sentAt     DateTime       @default(now())
   createdAt  DateTime       @default(now())
+}
+
+// Suivi CRM des appels aux candidats affichés dans l'onglet « Recrutement ».
+// candidateId = id du Candidate dans la base produit Supabase. La présence
+// d'une ligne signifie « candidat appelé » pour ce deal (case cochée).
+model CandidateCall {
+  id          String   @id @default(cuid())
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  candidateId String
+  calledAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dealId, candidateId])
 }
