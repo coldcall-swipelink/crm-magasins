@@ -249,10 +249,10 @@ export async function fetchOrganizationRecruitment(
 
   const offerIds = offers.map((o) => o.id);
 
-  // 2. Liens candidat ↔ offre (candidats « envoyés »).
+  // 2. Liens candidat ↔ offre (candidats « envoyés » et likés : is_liked = true).
   const links = await selectRows<{ candidate_id: string; offer_id: string }>(
     'Candidate_to_offer',
-    `${inFilter('offer_id', offerIds)}&select=candidate_id,offer_id`,
+    `${inFilter('offer_id', offerIds)}&is_liked=eq.true&select=candidate_id,offer_id`,
   );
 
   const candidateIds = Array.from(new Set(links.map((l) => l.candidate_id)));
