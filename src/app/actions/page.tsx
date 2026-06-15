@@ -29,6 +29,7 @@ export default function ActionsPage() {
   const [form, setForm] = useState<Partial<Action> | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [filterCollab, setFilterCollab] = useState('');
+  const [filterUser, setFilterUser] = useState('');
   const now = new Date();
   const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -63,6 +64,10 @@ export default function ActionsPage() {
     if (filterCollab) {
       const deal = getDeal(a.dealId);
       if ((deal as any)?.collaboratorId !== filterCollab) return false;
+    }
+    if (filterUser) {
+      const uid = (a as any).assignedUserId ?? (a as any).assignedUser?.id ?? '';
+      if (uid !== filterUser) return false;
     }
     return true;
   }).sort((a, b) => {
@@ -110,7 +115,12 @@ export default function ActionsPage() {
           {tabBtn('today', 'Auj.')}
           {tabBtn('overdue', 'En retard')}
           {tabBtn('done', 'Terminées')}
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <select value={filterUser} onChange={e => setFilterUser(e.target.value)}
+              style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterUser ? '#eef2ff' : '#fff', fontSize: 12, color: filterUser ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
+              <option value="">Tous utilisateurs</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
             <select value={filterCollab} onChange={e => setFilterCollab(e.target.value)}
               style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: filterCollab ? '#eef2ff' : '#fff', fontSize: 12, color: filterCollab ? '#4338ca' : '#475569', cursor: 'pointer', outline: 'none' }}>
               <option value="">Tous collaborateurs</option>
