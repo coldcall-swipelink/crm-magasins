@@ -174,7 +174,15 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"openedAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"sentAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
-  "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");"
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");",
+  "CREATE TABLE IF NOT EXISTS \"CandidateCall\" (\"id\" TEXT NOT NULL, CONSTRAINT \"CandidateCall_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"candidateId\" TEXT;",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"calledAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"CandidateCall_dealId_candidateId_key\" ON \"CandidateCall\"(\"dealId\",\"candidateId\");"
 ];
 
 export async function GET(req: NextRequest) {

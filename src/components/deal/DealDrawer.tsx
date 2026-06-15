@@ -815,13 +815,15 @@ function EmailLogItem({ log }: { log: EmailLog }) {
 // prévue ») ; chaque offre s'ouvre en accordéon sur les candidats envoyés.
 interface RecruitmentCandidate { id: string; firstName: string; lastName: string; phoneNumber: string; }
 interface RecruitmentOffer { id: string; title: string; candidates: RecruitmentCandidate[]; }
-interface RecruitmentData { configured: boolean; organizationId: string | null; offers: RecruitmentOffer[]; }
+interface RecruitmentData { configured: boolean; organizationId: string | null; offers: RecruitmentOffer[]; calledCandidateIds?: string[]; }
 
 function RecruitmentTab({ dealId }: { dealId: string }) {
   const [data, setData] = useState<RecruitmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Ids des candidats marqués « appelés » (cases cochées).
+  const [calledIds, setCalledIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -829,11 +831,37 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
     setError(false);
     fetch(`/api/deals/${dealId}/recruitment`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => { if (!cancelled) setData(d); })
+      .then(d => { if (!cancelled) { setData(d); setCalledIds(new Set(d.calledCandidateIds || [])); } })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [dealId]);
+
+  // Coche / décoche un candidat (mise à jour optimiste + persistance CRM).
+  const toggleCall = async (candidateId: string) => {
+    const called = !calledIds.has(candidateId);
+    setCalledIds(prev => {
+      const next = new Set(prev);
+      if (called) next.add(candidateId); else next.delete(candidateId);
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/deals/${dealId}/recruitment/calls`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId, called }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Rollback si l'enregistrement échoue.
+      setCalledIds(prev => {
+        const next = new Set(prev);
+        if (called) next.delete(candidateId); else next.add(candidateId);
+        return next;
+      });
+      toast('Échec de l\'enregistrement', 'error');
+    }
+  };
 
   if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement du recrutement…</p>;
   if (error) return <p style={{ color: '#dc2626', fontSize: 13 }}>Erreur lors du chargement des données de recrutement.</p>;
@@ -876,16 +904,25 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
                 ) : (
                   offer.candidates.map(c => {
                     const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+                    const called = calledIds.has(c.id);
                     return (
                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                        <button
+                          onClick={() => toggleCall(c.id)}
+                          title={called ? 'Appelé — cliquer pour décocher' : 'Marquer comme appelé'}
+                          style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${called ? '#16a34a' : '#cbd5e1'}`, background: called ? '#16a34a' : 'transparent', color: '#fff', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1 }}
+                        >
+                          {called ? '✓' : ''}
+                        </button>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: fullName ? '#0f172a' : '#cbd5e1' }}>{fullName || 'Nom inconnu'}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: called ? '#94a3b8' : (fullName ? '#0f172a' : '#cbd5e1'), textDecoration: called ? 'line-through' : 'none' }}>{fullName || 'Nom inconnu'}</div>
                           <div style={{ fontSize: 12, color: '#64748b' }}>
                             {c.phoneNumber
                               ? <a href={`tel:${c.phoneNumber}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>📞 {c.phoneNumber}</a>
                               : <span style={{ color: '#cbd5e1' }}>Téléphone non renseigné</span>}
                           </div>
                         </div>
+                        {called && <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>Appelé</span>}
                       </div>
                     );
                   })
