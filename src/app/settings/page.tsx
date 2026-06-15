@@ -13,7 +13,7 @@ interface Collaborator { id: string; name: string; email: string; color: string;
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
 
-const VARIABLES = ['{{civilite}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
+const VARIABLES = ['{{civilite}}', '{{nom_famille}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
 
 interface TemplateFormProps {
   value: EmailTemplate | { name: string; subject: string; body: string };
