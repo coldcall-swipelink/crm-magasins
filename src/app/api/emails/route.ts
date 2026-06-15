@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
-import { EMAIL_SIGNATURE_KEY } from '@/app/api/email-signature/route';
+import { EMAIL_SIGNATURE_KEY } from '@/lib/appSettings';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
