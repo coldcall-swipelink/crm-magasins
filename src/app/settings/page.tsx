@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import type { Brand, PipelineColumn } from '@/types';
 import { toast } from '@/components/ui/Toast';
+import RichTextEditor from '@/components/ui/RichTextEditor';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 };
@@ -24,36 +25,31 @@ interface TemplateFormProps {
 
 function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) {
   return (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 10 }}>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Nom du template</label>
-        <input style={inp} placeholder="Ex: Première prise de contact" value={value.name}
-          onChange={e => onChange('name', e.target.value)} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Sujet</label>
-        <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={value.subject}
-          onChange={e => onChange('subject', e.target.value)} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Corps du message</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-          {VARIABLES.map(v => (
-            <button key={v} onClick={() => onChange('body', (value.body || '') + v)}
-              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }}>
-              {v}
-            </button>
-          ))}
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, marginBottom: 12, boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Nom du template</label>
+          <input style={inp} placeholder="Ex: Première prise de contact" value={value.name}
+            onChange={e => onChange('name', e.target.value)} />
         </div>
-        <textarea
-          style={{ ...inp, height: 160, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-          placeholder={"Bonjour {{civilite}},\n\nJe me permets de vous contacter concernant votre offre..."}
-          value={value.body}
-          onChange={e => onChange('body', e.target.value)}
-        />
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Sujet</label>
+          <input style={inp} placeholder="Ex: Votre offre d'emploi - {{enseigne}} {{nom_magasin}}" value={value.subject}
+            onChange={e => onChange('subject', e.target.value)} />
+        </div>
       </div>
-      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
-        Variables disponibles : {VARIABLES.join(' ')}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Corps du message</label>
+        <RichTextEditor
+          value={value.body}
+          onChange={html => onChange('body', html)}
+          variables={VARIABLES}
+          placeholder={"Bonjour {{civilite}} {{nom_famille}},\n\nJe me permets de vous contacter concernant votre offre…"}
+          minHeight={200}
+        />
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+          Mise en forme (gras, police, listes…) via la barre d'outils. Cliquez une variable pour l'insérer au curseur ; elle sera remplacée à l'envoi.
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button style={btnPri} onClick={onSave}>Enregistrer</button>
