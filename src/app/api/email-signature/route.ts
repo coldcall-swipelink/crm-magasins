@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { EMAIL_SIGNATURE_KEY } from '@/lib/appSettings';
 
 // Signature email globale ajoutée automatiquement à tous les envois du CRM.
 // Stockée dans AppSetting sous la clé « emailSignature ».
 export const dynamic = 'force-dynamic';
-
-export const EMAIL_SIGNATURE_KEY = 'emailSignature';
 
 export async function GET() {
   try {
