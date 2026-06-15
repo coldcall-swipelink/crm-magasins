@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
+import { EMAIL_SIGNATURE_KEY } from '@/app/api/email-signature/route';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
+
+/** Signature globale (HTML), ou '' si non configurée / table absente. */
+async function getEmailSignature(): Promise<string> {
+  try {
+    const s = await prisma.appSetting.findUnique({ where: { key: EMAIL_SIGNATURE_KEY } });
+    return s?.value?.trim() ? s.value : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Met le corps en HTML (ancien texte simple : \n -> <br>). */
+function toHtml(s: string): string {
+  return /<[a-z][\s\S]*>/i.test(s) ? s : s.replace(/\n/g, '<br>');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
 
+    // Signature ajoutée automatiquement à la fin de chaque email du CRM.
+    const signature = await getEmailSignature();
+    const finalBody = signature ? `${toHtml(body)}<br><br>${toHtml(signature)}` : toHtml(body);
+
     // Instanciation paresseuse : évite de planter au chargement du module quand
     // la clé API est absente (build sans variables d'environnement).
     const resend = new Resend(process.env.RESEND_API_KEY);
@@ -19,9 +39,7 @@ export async function POST(req: NextRequest) {
       from: process.env.SMTP_FROM as string,
       to,
       subject,
-      // Corps déjà en HTML (éditeur riche) : envoyé tel quel. Ancien texte
-      // simple : on convertit les retours à la ligne en <br>.
-      html: /<[a-z][\s\S]*>/i.test(body) ? body : body.replace(/\n/g, '<br>'),
+      html: finalBody,
       attachments: attachments?.map((a: { name: string; content: string }) => ({
         filename: a.name,
         content: Buffer.from(a.content, 'base64'),
@@ -37,7 +55,8 @@ export async function POST(req: NextRequest) {
         templateId: templateId || null,
         to,
         subject,
-        body,
+        // On journalise le corps réellement envoyé (signature incluse).
+        body: finalBody,
         status: 'sent',
         resendId: data?.id || null,
       },
