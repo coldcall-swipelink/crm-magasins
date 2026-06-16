@@ -37,19 +37,26 @@ const sep: React.CSSProperties = { width: 1, height: 18, background: '#e2e8f0', 
 export default function RichTextEditor({ value, onChange, variables, placeholder, minHeight = 180 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const savedRange = useRef<Range | null>(null);
+  // Dernier HTML émis par l'éditeur : sert à ne PAS re-traiter (ré-échapper) le
+  // contenu qui provient de la frappe (sinon « &nbsp; » devient « &amp;nbsp; »).
+  const lastHtml = useRef<string | null>(null);
 
-  // Synchronise le DOM quand la valeur change de l'extérieur (ex. application
-  // d'un template), sans casser le curseur pendant la frappe.
+  // Synchronise le DOM uniquement quand la valeur vient de l'extérieur
+  // (ex. application d'un template), sans casser le curseur pendant la frappe.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (value === lastHtml.current) return; // provient de l'éditeur : ne rien faire
     const incoming = normalize(value);
     if (incoming !== el.innerHTML) el.innerHTML = incoming;
+    lastHtml.current = value;
   }, [value]);
 
   const emit = useCallback(() => {
     const el = ref.current;
-    if (el) onChange(el.innerHTML);
+    if (!el) return;
+    lastHtml.current = el.innerHTML;
+    onChange(el.innerHTML);
   }, [onChange]);
 
   // Mémorise la sélection courante tant qu'elle est dans l'éditeur, pour la
