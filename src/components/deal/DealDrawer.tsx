@@ -6,8 +6,8 @@ import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 
-/** Détecte si une chaîne contient du HTML (corps d'email mis en forme). */
-function isHtml(s: string) { return /<[a-z][\s\S]*>/i.test(s || ''); }
+/** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
+function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
 
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
