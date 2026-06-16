@@ -124,6 +124,9 @@ model Deal {
   // Id de l'Organization créée dans la base produit Supabase quand l'affaire
   // passe en « Démo prévue » (garantit l'idempotence du provisioning).
   supabaseOrganizationId    String?
+  // True quand l'utilisateur a géré manuellement les organisations rattachées :
+  // on n'exécute alors plus le rattachement automatique par nom.
+  supabaseOrgManual         Boolean  @default(false)
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
@@ -136,6 +139,7 @@ model Deal {
   importRows                ImportRow[]
   emailLogs                 EmailLog[]
   candidateCalls            CandidateCall[]
+  organizationLinks         DealOrganization[]
 }
 
 model JobOffer {
@@ -260,6 +264,19 @@ model CandidateCall {
   updatedAt   DateTime @updatedAt
 
   @@unique([dealId, candidateId])
+}
+
+// Organisations produit (Supabase) rattachées à un deal. Permet d'en lier
+// plusieurs (en plus de Deal.supabaseOrganizationId issu du provisioning) et
+// de les renseigner manuellement quand l'auto-rattachement par nom échoue.
+model DealOrganization {
+  id             String   @id @default(cuid())
+  dealId         String
+  deal           Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  organizationId String
+  createdAt      DateTime @default(now())
+
+  @@unique([dealId, organizationId])
 }
 
 // Réglages globaux de l'application (clé/valeur). Ex. « emailSignature » :

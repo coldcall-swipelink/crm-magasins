@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
-import { fetchOrganizationRecruitment, matchDealOrganization } from '@/lib/recruitment';
+import { fetchOrganizationsRecruitment, matchDealOrganization } from '@/lib/recruitment';
 
-// Données de recrutement d'une affaire : Offres de l'Organization produit
-// (créée en « Démo prévue ») + candidats envoyés pour chacune. Lecture seule.
+// Données de recrutement d'une affaire : Offres des Organizations produit
+// rattachées (auto en « Démo prévue » ou manuelles) + candidats likés envoyés.
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Champs « historiques » uniquement (fonctionne même avant db-sync).
     const deal = await prisma.deal.findUnique({
       where: { id: params.id },
       select: {
@@ -20,34 +21,45 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
     const configured = isProductSupabaseConfigured();
     if (!configured) {
-      return NextResponse.json({ configured, organizationId: deal.supabaseOrganizationId, offers: [] });
+      return NextResponse.json({ configured, organizations: [], calledCandidateIds: [] });
     }
 
-    // Rattachement à la volée : si le deal n'a pas encore d'Organization, on la
-    // retrouve par nom (« Enseigne Nom-magasin ») et on la persiste sur le deal.
-    let organizationId = deal.supabaseOrganizationId;
-    if (!organizationId) {
+    // Liens manuels + flag (tolère l'absence de table/colonne avant db-sync).
+    let manual = false;
+    let manualOrgIds: string[] = [];
+    try {
+      const extra = await prisma.deal.findUnique({
+        where: { id: params.id },
+        select: { supabaseOrgManual: true, organizationLinks: { select: { organizationId: true } } },
+      });
+      manual = extra?.supabaseOrgManual ?? false;
+      manualOrgIds = extra?.organizationLinks?.map((o) => o.organizationId) ?? [];
+    } catch {
+      // Avant migration : on reste sur l'ancien comportement (mono-org auto).
+    }
+
+    // Rattachement automatique à la volée, sauf si géré manuellement.
+    let primaryOrgId = deal.supabaseOrganizationId;
+    if (!primaryOrgId && !manual) {
       const match = await matchDealOrganization({
         brandName: deal.store?.brand?.name,
         storeName: deal.store?.name,
         city: deal.store?.city,
       });
       if (match.organizationId) {
-        organizationId = match.organizationId;
+        primaryOrgId = match.organizationId;
         await prisma.deal.update({
           where: { id: params.id },
-          data: { supabaseOrganizationId: organizationId },
+          data: { supabaseOrganizationId: primaryOrgId },
         });
       }
     }
 
-    if (!organizationId) {
-      return NextResponse.json({ configured: true, organizationId: null, offers: [] });
-    }
-
-    const offers = await fetchOrganizationRecruitment(organizationId);
+    const orgIds = Array.from(new Set([primaryOrgId, ...manualOrgIds].filter((x): x is string => Boolean(x))));
+    const organizations = orgIds.length ? await fetchOrganizationsRecruitment(orgIds) : [];
     const calledCandidateIds = await getCalledCandidateIds(params.id);
-    return NextResponse.json({ configured: true, organizationId, offers, calledCandidateIds });
+
+    return NextResponse.json({ configured: true, organizations, calledCandidateIds });
   } catch (err) {
     console.error('Recruitment fetch error:', err);
     return NextResponse.json(

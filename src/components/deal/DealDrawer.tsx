@@ -816,33 +816,41 @@ function EmailLogItem({ log }: { log: EmailLog }) {
 }
 
 // ---- Onglet « Recrutement » ------------------------------------------------
-// Liste les offres rattachées à l'Organization produit (créée en « Démo
-// prévue ») ; chaque offre s'ouvre en accordéon sur les candidats envoyés.
+// Regroupe par Organization produit (auto en « Démo prévue » ou ajoutée
+// manuellement) les offres et leurs candidats likés. Gestion manuelle des
+// organisations rattachées (ajout / retrait d'un organization_id).
 interface RecruitmentCandidate { id: string; firstName: string; lastName: string; phoneNumber: string; }
 interface RecruitmentOffer { id: string; title: string; candidates: RecruitmentCandidate[]; }
-interface RecruitmentData { configured: boolean; organizationId: string | null; offers: RecruitmentOffer[]; calledCandidateIds?: string[]; }
+interface RecruitmentOrganization { organizationId: string; organizationName: string; offers: RecruitmentOffer[]; }
+interface RecruitmentData { configured: boolean; organizations: RecruitmentOrganization[]; calledCandidateIds?: string[]; }
 
 function RecruitmentTab({ dealId }: { dealId: string }) {
   const [data, setData] = useState<RecruitmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  // Ids des candidats marqués « appelés » (cases cochées).
   const [calledIds, setCalledIds] = useState<Set<string>>(new Set());
+  // Saisie manuelle d'un organization_id.
+  const [newOrgId, setNewOrgId] = useState('');
+  const [addingOrg, setAddingOrg] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+  const load = useCallback(async () => {
     setError(false);
-    fetch(`/api/deals/${dealId}/recruitment`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => { if (!cancelled) { setData(d); setCalledIds(new Set(d.calledCandidateIds || [])); } })
-      .catch(() => { if (!cancelled) setError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    try {
+      const res = await fetch(`/api/deals/${dealId}/recruitment`);
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      setData(d);
+      setCalledIds(new Set(d.calledCandidateIds || []));
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [dealId]);
 
-  // Coche / décoche un candidat (mise à jour optimiste + persistance CRM).
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
   const toggleCall = async (candidateId: string) => {
     const called = !calledIds.has(candidateId);
     setCalledIds(prev => {
@@ -852,13 +860,11 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
     });
     try {
       const res = await fetch(`/api/deals/${dealId}/recruitment/calls`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candidateId, called }),
       });
       if (!res.ok) throw new Error();
     } catch {
-      // Rollback si l'enregistrement échoue.
       setCalledIds(prev => {
         const next = new Set(prev);
         if (called) next.delete(candidateId); else next.add(candidateId);
@@ -868,75 +874,142 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
     }
   };
 
+  const addOrg = async () => {
+    const organizationId = newOrgId.trim();
+    if (!organizationId) return;
+    setAddingOrg(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/organizations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      setNewOrgId('');
+      toast('✓ Organisation rattachée');
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec de l\'ajout', 'error');
+    } finally {
+      setAddingOrg(false);
+    }
+  };
+
+  const removeOrg = async (organizationId: string) => {
+    if (!window.confirm('Retirer cette organisation de l\'affaire ?')) return;
+    try {
+      const res = await fetch(`/api/deals/${dealId}/organizations`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId }),
+      });
+      if (!res.ok) throw new Error();
+      await load();
+    } catch {
+      toast('Échec du retrait', 'error');
+    }
+  };
+
+  const renderOffer = (offer: RecruitmentOffer) => {
+    const open = !!expanded[offer.id];
+    return (
+      <div key={offer.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
+        <button
+          onClick={() => setExpanded(e => ({ ...e, [offer.id]: !e[offer.id] }))}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: open ? '#f5f3ff' : '#fff', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <span style={{ fontSize: 12, color: '#94a3b8', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>▶</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>{offer.title}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>
+            {offer.candidates.length} candidat{offer.candidates.length > 1 ? 's' : ''}
+          </span>
+        </button>
+        {open && (
+          <div style={{ borderTop: '1px solid #e2e8f0', padding: '6px 14px 10px' }}>
+            {offer.candidates.length === 0 ? (
+              <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '8px 0' }}>Aucun candidat envoyé pour cette offre.</p>
+            ) : (
+              offer.candidates.map(c => {
+                const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+                const called = calledIds.has(c.id);
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                    <button
+                      onClick={() => toggleCall(c.id)}
+                      title={called ? 'Appelé — cliquer pour décocher' : 'Marquer comme appelé'}
+                      style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${called ? '#16a34a' : '#cbd5e1'}`, background: called ? '#16a34a' : 'transparent', color: '#fff', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1 }}
+                    >
+                      {called ? '✓' : ''}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: called ? '#94a3b8' : (fullName ? '#0f172a' : '#cbd5e1'), textDecoration: called ? 'line-through' : 'none' }}>{fullName || 'Nom inconnu'}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        {c.phoneNumber
+                          ? <a href={`tel:${c.phoneNumber}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>📞 {c.phoneNumber}</a>
+                          : <span style={{ color: '#cbd5e1' }}>Téléphone non renseigné</span>}
+                      </div>
+                    </div>
+                    {called && <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>Appelé</span>}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement du recrutement…</p>;
   if (error) return <p style={{ color: '#dc2626', fontSize: 13 }}>Erreur lors du chargement des données de recrutement.</p>;
+  if (!data?.configured) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
 
-  if (!data?.organizationId) {
-    return (
-      <p style={{ color: '#94a3b8', fontSize: 13 }}>
-        Aucune organisation rattachée. Elle est créée automatiquement lorsque l&apos;affaire passe en « Démo prévue ».
-      </p>
-    );
-  }
-  if (!data.configured) {
-    return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
-  }
-  if (data.offers.length === 0) {
-    return <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucune offre pour cette organisation.</p>;
-  }
+  const orgs = data.organizations || [];
 
   return (
     <div>
-      <div style={{ ...sectionTitle, marginBottom: 12 }}>Offres ({data.offers.length})</div>
-      {data.offers.map(offer => {
-        const open = !!expanded[offer.id];
-        return (
-          <div key={offer.id} style={{ border: '1px solid #e2e8f0', borderRadius: 9, marginBottom: 8, background: '#fff', overflow: 'hidden' }}>
-            <button
-              onClick={() => setExpanded(e => ({ ...e, [offer.id]: !e[offer.id] }))}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: open ? '#f5f3ff' : '#fff', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-            >
-              <span style={{ fontSize: 12, color: '#94a3b8', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>▶</span>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>{offer.title}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>
-                {offer.candidates.length} candidat{offer.candidates.length > 1 ? 's' : ''}
-              </span>
-            </button>
-            {open && (
-              <div style={{ borderTop: '1px solid #e2e8f0', padding: '6px 14px 10px' }}>
-                {offer.candidates.length === 0 ? (
-                  <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '8px 0' }}>Aucun candidat envoyé pour cette offre.</p>
-                ) : (
-                  offer.candidates.map(c => {
-                    const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
-                    const called = calledIds.has(c.id);
-                    return (
-                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                        <button
-                          onClick={() => toggleCall(c.id)}
-                          title={called ? 'Appelé — cliquer pour décocher' : 'Marquer comme appelé'}
-                          style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${called ? '#16a34a' : '#cbd5e1'}`, background: called ? '#16a34a' : 'transparent', color: '#fff', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1 }}
-                        >
-                          {called ? '✓' : ''}
-                        </button>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: called ? '#94a3b8' : (fullName ? '#0f172a' : '#cbd5e1'), textDecoration: called ? 'line-through' : 'none' }}>{fullName || 'Nom inconnu'}</div>
-                          <div style={{ fontSize: 12, color: '#64748b' }}>
-                            {c.phoneNumber
-                              ? <a href={`tel:${c.phoneNumber}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>📞 {c.phoneNumber}</a>
-                              : <span style={{ color: '#cbd5e1' }}>Téléphone non renseigné</span>}
-                          </div>
-                        </div>
-                        {called && <span style={{ fontSize: 10.5, color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>Appelé</span>}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+      {/* Gestion des organisations rattachées */}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: 12, marginBottom: 16, background: '#f8fafc' }}>
+        <div style={{ ...sectionTitle, marginBottom: 8 }}>Organisations rattachées</div>
+        {orgs.length === 0 && (
+          <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
+            Aucune organisation. Elle est rattachée automatiquement en « Démo prévue » ; sinon ajoutez son <code>organization_id</code> ci-dessous.
+          </p>
+        )}
+        {orgs.map(o => (
+          <div key={o.organizationId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a' }}>{o.organizationName}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.organizationId}</div>
+            </div>
+            <button onClick={() => removeOrg(o.organizationId)} title="Retirer" style={{ background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, cursor: 'pointer', fontSize: 11, padding: '3px 7px', flexShrink: 0 }}>Retirer</button>
           </div>
-        );
-      })}
+        ))}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <input
+            style={{ ...inp, flex: 1, fontSize: 12, fontFamily: 'monospace' }}
+            placeholder="organization_id Supabase (UUID)"
+            value={newOrgId}
+            onChange={e => setNewOrgId(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addOrg(); }}
+          />
+          <button style={{ ...btnPri, opacity: addingOrg ? .7 : 1, cursor: addingOrg ? 'not-allowed' : 'pointer' }} onClick={addOrg} disabled={addingOrg}>
+            {addingOrg ? '⟳' : 'Ajouter'}
+          </button>
+        </div>
+      </div>
+
+      {/* Offres regroupées par organisation */}
+      {orgs.map(o => (
+        <div key={o.organizationId} style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>🏢 {o.organizationName}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>{o.offers.length} offre{o.offers.length > 1 ? 's' : ''}</span>
+          </div>
+          {o.offers.length === 0
+            ? <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 4px' }}>Aucune offre pour cette organisation.</p>
+            : o.offers.map(renderOffer)}
+        </div>
+      ))}
     </div>
   );
 }
