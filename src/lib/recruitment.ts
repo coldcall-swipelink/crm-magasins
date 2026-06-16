@@ -231,33 +231,60 @@ export async function matchDealOrganization(input: {
   return { organizationId: null, matchedName: null, matchedBy: null, status: 'not_found' };
 }
 
+export interface OrganizationRecruitment {
+  organizationId: string;
+  organizationName: string;
+  offers: RecruitmentOffer[];
+}
+
+/** Récupère une Organization par id (nom), ou null si introuvable. */
+export async function fetchOrganizationById(
+  organizationId: string,
+): Promise<{ id: string; name: string } | null> {
+  if (!organizationId) return null;
+  const rows = await selectRows<{ id: string; name: string | null }>(
+    'Organization',
+    `id=eq.${encodeURIComponent(organizationId)}&select=id,name&limit=1`,
+  );
+  return rows[0] ? { id: rows[0].id, name: rows[0].name?.trim() || 'Organisation' } : null;
+}
+
 /**
- * Récupère les offres d'une Organization (base produit) avec, pour chacune, la
- * liste des candidats qui lui ont été envoyés (table Candidate_to_offer).
+ * Récupère, pour une ou plusieurs Organizations, leurs offres avec les
+ * candidats likés envoyés (regroupées par organisation). Chaque organisation
+ * demandée est présente dans le résultat, même sans offre.
  *
  * Renvoie un tableau vide si l'intégration n'est pas configurée.
  */
-export async function fetchOrganizationRecruitment(
-  organizationId: string,
-): Promise<RecruitmentOffer[]> {
-  // 1. Offres de l'organisation (les plus récentes d'abord).
-  const offers = await selectRows<{ id: string; title: string | null }>(
-    'Offer',
-    `organization_id=eq.${encodeURIComponent(organizationId)}&select=id,title&order=created_at.desc`,
-  );
-  if (offers.length === 0) return [];
+export async function fetchOrganizationsRecruitment(
+  organizationIds: string[],
+): Promise<OrganizationRecruitment[]> {
+  const orgIds = Array.from(new Set(organizationIds.filter(Boolean)));
+  if (orgIds.length === 0) return [];
 
+  // Noms des organisations.
+  const orgs = await selectRows<{ id: string; name: string | null }>(
+    'Organization',
+    `${inFilter('id', orgIds)}&select=id,name`,
+  );
+  const nameById = new Map(orgs.map((o) => [o.id, o.name?.trim() || 'Organisation']));
+
+  // Offres de toutes les organisations (les plus récentes d'abord).
+  const offers = await selectRows<{ id: string; title: string | null; organization_id: string }>(
+    'Offer',
+    `${inFilter('organization_id', orgIds)}&select=id,title,organization_id&order=created_at.desc`,
+  );
   const offerIds = offers.map((o) => o.id);
 
-  // 2. Liens candidat ↔ offre (candidats « envoyés » et likés : is_liked = true).
-  const links = await selectRows<{ candidate_id: string; offer_id: string }>(
-    'Candidate_to_offer',
-    `${inFilter('offer_id', offerIds)}&is_liked=eq.true&select=candidate_id,offer_id`,
-  );
+  // Liens candidat ↔ offre (likés uniquement).
+  const links = offerIds.length
+    ? await selectRows<{ candidate_id: string; offer_id: string }>(
+        'Candidate_to_offer',
+        `${inFilter('offer_id', offerIds)}&is_liked=eq.true&select=candidate_id,offer_id`,
+      )
+    : [];
 
   const candidateIds = Array.from(new Set(links.map((l) => l.candidate_id)));
-
-  // 3. Candidats (téléphone porté directement, prénom/nom via le User lié).
   const candidates = candidateIds.length
     ? await selectRows<{ id: string; phone_number: string | null; user_id: string | null }>(
         'Candidate',
@@ -268,8 +295,6 @@ export async function fetchOrganizationRecruitment(
   const userIds = Array.from(
     new Set(candidates.map((c) => c.user_id).filter((id): id is string => Boolean(id))),
   );
-
-  // 4. Utilisateurs (prénom / nom).
   const users = userIds.length
     ? await selectRows<{ id: string; first_name: string | null; last_name: string | null }>(
         'User',
@@ -283,17 +308,11 @@ export async function fetchOrganizationRecruitment(
       const u = c.user_id ? userById.get(c.user_id) : undefined;
       return [
         c.id,
-        {
-          id: c.id,
-          firstName: u?.first_name ?? '',
-          lastName: u?.last_name ?? '',
-          phoneNumber: c.phone_number ?? '',
-        },
+        { id: c.id, firstName: u?.first_name ?? '', lastName: u?.last_name ?? '', phoneNumber: c.phone_number ?? '' },
       ];
     }),
   );
 
-  // 5. Regroupe les candidats par offre (en préservant l'ordre des offres).
   const candidatesByOffer = new Map<string, RecruitmentCandidate[]>();
   for (const link of links) {
     const candidate = candidateById.get(link.candidate_id);
@@ -303,9 +322,18 @@ export async function fetchOrganizationRecruitment(
     candidatesByOffer.set(link.offer_id, list);
   }
 
-  return offers.map((o) => ({
-    id: o.id,
-    title: o.title?.trim() || 'Offre',
-    candidates: candidatesByOffer.get(o.id) ?? [],
+  // Regroupe les offres par organisation.
+  const offersByOrg = new Map<string, RecruitmentOffer[]>();
+  for (const o of offers) {
+    const list = offersByOrg.get(o.organization_id) ?? [];
+    list.push({ id: o.id, title: o.title?.trim() || 'Offre', candidates: candidatesByOffer.get(o.id) ?? [] });
+    offersByOrg.set(o.organization_id, list);
+  }
+
+  // Une entrée par organisation demandée (ordre d'entrée préservé).
+  return orgIds.map((id) => ({
+    organizationId: id,
+    organizationName: nameById.get(id) || 'Organisation',
+    offers: offersByOrg.get(id) ?? [],
   }));
 }

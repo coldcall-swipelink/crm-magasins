@@ -186,7 +186,14 @@ const STATEMENTS: string[] = [
   "CREATE TABLE IF NOT EXISTS \"AppSetting\" (\"key\" TEXT NOT NULL, CONSTRAINT \"AppSetting_pkey\" PRIMARY KEY (\"key\"));",
   "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"key\" TEXT;",
   "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"value\" TEXT NOT NULL DEFAULT '';",
-  "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;"
+  "ALTER TABLE \"AppSetting\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"supabaseOrgManual\" BOOLEAN NOT NULL DEFAULT false;",
+  "CREATE TABLE IF NOT EXISTS \"DealOrganization\" (\"id\" TEXT NOT NULL, CONSTRAINT \"DealOrganization_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"organizationId\" TEXT;",
+  "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"DealOrganization_dealId_organizationId_key\" ON \"DealOrganization\"(\"dealId\",\"organizationId\");"
 ];
 
 export async function GET(req: NextRequest) {
