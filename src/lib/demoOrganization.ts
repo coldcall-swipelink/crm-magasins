@@ -29,7 +29,6 @@ export interface DemoOrganizationInput {
   storeName: string;
   city: string;
   contactEmail?: string | null;
-  phoneNumber?: string | null;
   siret?: string | null;
 }
 
@@ -139,7 +138,6 @@ export async function createDemoOrganizationRecords(
     name: organizationName,
     logo: getOrganizationLogo(input.brandName),
     contact_email: input.contactEmail ?? null,
-    phone_number: input.phoneNumber ?? null,
     siret: input.siret ?? null,
   });
 
