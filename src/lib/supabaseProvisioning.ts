@@ -43,7 +43,6 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
       storeName: deal.store.name,
       city: deal.store.city,
       contactEmail: deal.dealEmail || null,
-      phoneNumber: deal.contactCalling || deal.store.phone || null,
       siret: deal.store.siret || null,
     },
     // On mémorise l'id sur le deal dès l'Organization créée : garantit
