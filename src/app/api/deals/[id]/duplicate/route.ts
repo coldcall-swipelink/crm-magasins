@@ -67,6 +67,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           email: s.email,
           siret: s.siret,
           externalId: s.externalId,
+          // Même adresse → on recopie le géocodage pour que le deal dupliqué
+          // soit localisé d'emblée sur la carte (sinon il faut le re-géocoder).
+          latitude: s.latitude,
+          longitude: s.longitude,
+          geocodeQuery: s.geocodeQuery,
+          geocodedAt: s.geocodedAt,
           deduplicationKey: `dup:${normalizeText(s.name)}:${normalizeText(s.city)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
         },
       });

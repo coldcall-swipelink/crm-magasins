@@ -64,22 +64,55 @@ export async function GET() {
       },
     });
 
-    // 1. Magasins à géocoder : uniquement ceux dont l'adresse n'a PAS encore
-    //    été tentée pour cette valeur exacte (geocodeQuery). Un échec est
-    //    mémorisé (geocodeQuery enregistré, coordonnées laissées nulles) afin de
-    //    ne JAMAIS le retenter à chaque chargement — c'était la cause des temps
-    //    de chargement très longs avec beaucoup de deals.
-    const toGeocode = deals
+    // Magasins uniques + requête de géocodage associée.
+    const uniqueStores = deals
       .map((d) => d.store)
       .filter((store, idx, arr) => arr.findIndex((s) => s.id === store.id) === idx)
-      .map((store) => ({ store, query: buildGeocodeQuery(store) }))
-      .filter(({ store, query }) => query && store.geocodeQuery !== query)
-      .slice(0, GEOCODE_MAX_PER_REQUEST);
+      .map((store) => ({ store, query: buildGeocodeQuery(store) }));
 
-    // 2. Géocode par lots concurrents ; persiste la tentative (succès OU échec).
     const coordsById = new Map<string, { latitude: number; longitude: number }>();
-    for (let i = 0; i < toGeocode.length; i += GEOCODE_CONCURRENCY) {
-      const batch = toGeocode.slice(i, i + GEOCODE_CONCURRENCY);
+
+    // 1. Coordonnées déjà connues, indexées par requête d'adresse. La
+    //    duplication vers « Closing » recrée un magasin (même adresse) sans
+    //    recopier le géocodage : on réutilise donc les coordonnées d'un magasin
+    //    déjà localisé partageant la même adresse, plutôt que de re-solliciter
+    //    la BAN. C'est instantané et ça localise d'emblée les deals dupliqués.
+    const knownByQuery = new Map<string, { latitude: number; longitude: number }>();
+    for (const { store, query } of uniqueStores) {
+      if (query && store.latitude != null && store.longitude != null && !knownByQuery.has(query)) {
+        knownByQuery.set(query, { latitude: store.latitude, longitude: store.longitude });
+      }
+    }
+
+    // 2. Magasins à traiter : ceux dont l'adresse n'a PAS encore été résolue
+    //    pour cette valeur exacte (geocodeQuery). Un échec est mémorisé
+    //    (geocodeQuery enregistré, coordonnées nulles) pour ne jamais le
+    //    retenter à chaque chargement.
+    const pending = uniqueStores.filter(
+      ({ store, query }) => query && store.geocodeQuery !== query,
+    );
+
+    // 2a. Résolution immédiate par réutilisation des coordonnées connues
+    //     (aucune limite, aucun appel réseau) ; on persiste pour les chargements
+    //     suivants.
+    const toGeocode: typeof pending = [];
+    for (const item of pending) {
+      const reuse = knownByQuery.get(item.query);
+      if (reuse) {
+        coordsById.set(item.store.id, reuse);
+        await prisma.store.update({
+          where: { id: item.store.id },
+          data: { latitude: reuse.latitude, longitude: reuse.longitude, geocodeQuery: item.query, geocodedAt: new Date() },
+        });
+      } else {
+        toGeocode.push(item);
+      }
+    }
+
+    // 2b. Le reste est géocodé via la BAN, borné par requête.
+    const toGeocodeCapped = toGeocode.slice(0, GEOCODE_MAX_PER_REQUEST);
+    for (let i = 0; i < toGeocodeCapped.length; i += GEOCODE_CONCURRENCY) {
+      const batch = toGeocodeCapped.slice(i, i + GEOCODE_CONCURRENCY);
       await Promise.all(
         batch.map(async ({ store, query }) => {
           const result = await geocodeQuery(query);

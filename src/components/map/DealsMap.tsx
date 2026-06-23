@@ -65,10 +65,15 @@ export function dealStatus(columnTitle: string): DealStatus {
 }
 
 /** Pastille ronde colorée par enseigne ; l'état se lit à l'anneau vert / au creux. */
-export function dotHtml(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 16): string {
+export function dotHtml(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'> & { pipelineName?: string }, size = 16): string {
   const color = displayColor(deal.brandColor);
   const status = dealStatus(deal.columnTitle);
   const common = `box-sizing:border-box;width:${size}px;height:${size}px;border-radius:50%;`;
+  // Tous les deals du pipeline « Closing » (toutes étapes confondues) portent
+  // un anneau vert, pour les distinguer d'un coup d'œil de la Prospection.
+  if (deal.pipelineName === 'Closing') {
+    return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 0 0 2.5px #16a34a,0 1px 2px rgba(0,0,0,.4);"></div>`;
+  }
   if (status === 'lost') {
     return `<div style="${common}background:#fff;border:${Math.max(3, size / 5)}px solid ${color};opacity:.9;box-shadow:0 1px 2px rgba(0,0,0,.35);"></div>`;
   }

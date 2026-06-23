@@ -135,7 +135,7 @@ export default function MapView() {
     });
   }, [deals, query, selectedBrands, selectedColumns]);
 
-  const dot = (deal: Pick<MapDeal, 'brandColor' | 'columnTitle'>, size = 14) => (
+  const dot = (deal: Pick<MapDeal, 'brandColor' | 'columnTitle'> & { pipelineName?: string }, size = 14) => (
     <span
       style={{ display: 'inline-block', width: size, height: size, flexShrink: 0 }}
       dangerouslySetInnerHTML={{ __html: dotHtml(deal, size) }}
@@ -322,8 +322,8 @@ export default function MapView() {
             <span>En cours</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {dot({ brandColor: '#64748b', columnTitle: 'Démo prévue' }, 13)}
-            <span>Démo prévue (anneau vert)</span>
+            {dot({ brandColor: '#64748b', columnTitle: '', pipelineName: 'Closing' }, 13)}
+            <span>Pipeline Closing (anneau vert)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {dot({ brandColor: '#64748b', columnTitle: 'Pas intéressé' }, 13)}
