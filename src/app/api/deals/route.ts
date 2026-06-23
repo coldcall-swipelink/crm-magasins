@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
       const assignedUserId = searchParams.get('assignedUserId');
       const brandId        = searchParams.get('brandId');
       const search         = (searchParams.get('search') || '').toLowerCase();
-      let result = mockDeals;
+      // Les sous-deals (absorbés) n'apparaissent pas dans le pipeline.
+      let result = mockDeals.filter(d => !d.parentDealId);
       if (pipelineId)     result = result.filter(d => d.pipelineId === pipelineId);
       if (assignedUserId) result = result.filter(d => d.assignedUserId === assignedUserId);
       if (brandId)        result = result.filter(d => d.store.brand?.id === brandId);
@@ -38,6 +39,9 @@ export async function GET(req: NextRequest) {
     const noAction       = searchParams.get('noAction') === 'true';
 
     const where: Record<string, unknown> = {};
+    // Les sous-deals (absorbés par un autre deal) n'apparaissent pas dans le
+    // pipeline : ils ne vivent que dans leur deal parent (et la recherche).
+    where.parentDealId = null;
     if (columnId)       where.columnId = columnId;
     if (pipelineId)     where.pipelineId = pipelineId;
     if (priority)       where.priority = priority;
@@ -67,7 +71,10 @@ export async function GET(req: NextRequest) {
         assignedUser: true,
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { where: { status: 'todo' }, orderBy: { dueDate: 'asc' }, take: 1 },
-        _count: { select: { jobOffers: true, actions: true } },
+        // Sous-deals absorbés : on remonte leur valeur pour cumuler dans la
+        // carte parente et afficher le nombre de magasins du groupe.
+        childDeals: { select: { id: true, dealValue: true } },
+        _count: { select: { jobOffers: true, actions: true, childDeals: true } },
       },
       orderBy: [{ columnId: 'asc' }, { position: 'asc' }],
     });

@@ -22,7 +22,7 @@ interface Collaborator { id: string; name: string; color: string; email: string;
 interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
-interface Props { dealId: string; onClose: () => void; onUpdated: () => void; }
+interface Props { dealId: string; onClose: () => void; onUpdated: () => void; onNavigate?: (dealId: string) => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 function replaceVars(text: string, vars: Record<string, string>) { return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || ''); }
@@ -40,7 +40,7 @@ function toDateInput(v?: string | null) { return v ? String(v).slice(0, 10) : ''
 /** "YYYY-MM-DD" -> ISO (midi UTC pour éviter le décalage de jour), ou null. */
 function fromDateInput(v: string) { return v ? new Date(v + 'T12:00:00Z').toISOString() : null; }
 
-export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
+export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: Props) {
   const { user: currentUser } = useCurrentUser();
   const [deal, setDeal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +77,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
   // Formulaire d'ajout manuel d'offre (null = masqué)
   const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
   const [savingOffer, setSavingOffer] = useState(false);
+
+  // Regroupement : recherche d'un deal parent à rattacher.
+  const [showParentSearch, setShowParentSearch] = useState(false);
+  const [parentQuery, setParentQuery] = useState('');
+  const [parentResults, setParentResults] = useState<any[]>([]);
+  const [searchingParent, setSearchingParent] = useState(false);
 
   const fetchDeal = useCallback(async () => {
     const res = await fetch(`/api/deals/${dealId}`);
@@ -117,6 +123,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Recherche débouncée d'un deal parent à rattacher (réutilise /api/deals/search).
+  // On exclut l'affaire courante et les affaires déjà rattachées (sous-deals).
+  useEffect(() => {
+    if (!showParentSearch) return;
+    const term = parentQuery.trim();
+    if (term.length < 2) { setParentResults([]); return; }
+    setSearchingParent(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/deals/search?q=${encodeURIComponent(term)}`);
+        if (res.ok) {
+          const list = await res.json();
+          setParentResults((Array.isArray(list) ? list : []).filter((r: any) => r.id !== dealId && !r.parentDealId));
+        }
+      } catch { /* ignore */ } finally { setSearchingParent(false); }
+    }, 220);
+    return () => clearTimeout(t);
+  }, [parentQuery, showParentSearch, dealId]);
 
   // ---- Mutations -----------------------------------------------------------
   const patchDeal = async (data: Record<string, unknown>, msg?: string) => {
@@ -259,6 +284,52 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
     else toast('Erreur lors de la suppression', 'error');
   };
 
+  // ---- Regroupement d'affaires --------------------------------------------
+  // Rattache l'affaire courante à un deal parent (elle devient un sous-deal et
+  // disparaît du pipeline). PATCH parentDealId → la validation serveur applique
+  // la règle du niveau unique.
+  const attachToParent = async (parentId: string) => {
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentDealId: parentId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setShowParentSearch(false); setParentQuery(''); setParentResults([]);
+      fetchDeal(); onUpdated(); toast('Affaire rattachée');
+    } catch (e) {
+      toast((e as Error).message || 'Erreur lors du rattachement', 'error');
+    }
+  };
+
+  // Détache l'affaire de son parent : elle réapparaît dans le pipeline.
+  const detachFromParent = async () => {
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentDealId: null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      fetchDeal(); onUpdated(); toast('Affaire détachée');
+    } catch (e) {
+      toast((e as Error).message || 'Erreur lors du détachement', 'error');
+    }
+  };
+
+  // Détache un sous-deal donné (depuis la fiche du parent).
+  const detachChild = async (childId: string) => {
+    try {
+      const res = await fetch(`/api/deals/${childId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentDealId: null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      fetchDeal(); onUpdated(); toast('Sous-deal détaché');
+    } catch (e) {
+      toast((e as Error).message || 'Erreur lors du détachement', 'error');
+    }
+  };
+
   // ---- Rendu ---------------------------------------------------------------
   if (loading || !deal) return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
@@ -270,6 +341,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
 
   const store = deal.store;
   const brand = store?.brand;
+  // Regroupement d'affaires.
+  const parentDeal = deal.parentDeal as any | null;
+  const childDeals: any[] = deal.childDeals ?? [];
+  const ownValue = typeof deal.dealValue === 'number' ? deal.dealValue : 0;
+  const groupValue = ownValue + childDeals.reduce((s: number, c: any) => s + (c.dealValue || 0), 0);
   const bc = brand?.color || '#6366f1';
   const isWhite = bc === '#ffffff';
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
@@ -368,6 +444,45 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
             <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>
               <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en &quot;À appeler&quot;</div>
               <div style={{ color: '#78350f' }}>Nouvelle offre détectée lors du dernier import.</div>
+            </div>
+          )}
+
+          {/* Bannière regroupement : sous-deals rattachés (deal parent) ou
+              rattachement à une affaire parente (sous-deal). */}
+          {parentDeal && (
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '8px 11px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', letterSpacing: '.3px' }}>🏬 Gérée par</span>
+              <button
+                onClick={() => onNavigate?.(parentDeal.id)}
+                title="Ouvrir l'affaire parente"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #ddd6fe', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 600, color: '#5b21b6', cursor: onNavigate ? 'pointer' : 'default' }}
+              >
+                {parentDeal.store?.name || 'Affaire'} →
+              </button>
+            </div>
+          )}
+          {childDeals.length > 0 && (
+            <div style={{ marginTop: 10, background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '9px 11px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 7 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', letterSpacing: '.3px' }}>🏬 Magasins du groupe ({childDeals.length})</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#15803d', marginLeft: 'auto' }}>Total {groupValue.toLocaleString('fr-FR')} €</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {childDeals.map((c: any) => (
+                  <button
+                    key={c.id}
+                    onClick={() => onNavigate?.(c.id)}
+                    title={`Ouvrir ${c.store?.name || 'le sous-deal'}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#334155', cursor: onNavigate ? 'pointer' : 'default' }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: c.store?.brand?.color || '#94a3b8' }} />
+                    {c.store?.name || 'Magasin'}
+                    {typeof c.dealValue === 'number' && c.dealValue !== 0 && (
+                      <span style={{ color: '#15803d', fontWeight: 700 }}>{c.dealValue.toLocaleString('fr-FR')} €</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -476,6 +591,84 @@ export default function DealDrawer({ dealId, onClose, onUpdated }: Props) {
                   {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div style={sectionTitle}>Regroupement</div>
+            <div style={{ marginBottom: 18 }}>
+              {parentDeal ? (
+                /* L'affaire est un sous-deal : gérée par une autre affaire. */
+                <div style={{ border: '1px solid #ddd6fe', background: '#f5f3ff', borderRadius: 8, padding: '10px 11px' }}>
+                  <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700, marginBottom: 4 }}>Gérée par</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {parentDeal.store?.name || 'Affaire'}
+                      </div>
+                      {parentDeal.store?.brand?.name && <div style={{ fontSize: 11, color: '#94a3b8' }}>{parentDeal.store.brand.name}</div>}
+                    </div>
+                    {onNavigate && (
+                      <button onClick={() => onNavigate(parentDeal.id)} style={{ ...btnDef, padding: '4px 9px', fontSize: 11 }}>Ouvrir →</button>
+                    )}
+                  </div>
+                  <button onClick={detachFromParent} style={{ marginTop: 8, background: 'none', border: 'none', color: '#dc2626', fontSize: 11.5, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                    Détacher de cette affaire
+                  </button>
+                </div>
+              ) : (
+                /* L'affaire est autonome ou parente. */
+                <>
+                  {childDeals.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Magasins du groupe ({childDeals.length})</span>
+                        <span style={{ fontSize: 11.5, color: '#15803d', fontWeight: 700 }}>Total {groupValue.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      {childDeals.map((c: any) => (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: c.store?.brand?.color || '#94a3b8' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.store?.name || 'Magasin'}</div>
+                            <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+                              {[c.store?.city, c.column?.title, typeof c.dealValue === 'number' && c.dealValue !== 0 ? `${c.dealValue.toLocaleString('fr-FR')} €` : null].filter(Boolean).join(' · ')}
+                            </div>
+                          </div>
+                          {onNavigate && <button onClick={() => onNavigate(c.id)} title="Ouvrir le sous-deal" style={{ ...btnDef, padding: '3px 8px', fontSize: 11 }}>→</button>}
+                          <button onClick={() => detachChild(c.id)} title="Détacher" style={{ background: 'none', border: 'none', color: '#cbd5e1', fontSize: 13, cursor: 'pointer', padding: 0, flexShrink: 0 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showParentSearch ? (
+                    <div style={{ border: '1px solid #c7d2fe', borderRadius: 8, padding: 11, background: '#f8fafc' }}>
+                      <label style={labelStyle}>Rechercher l&apos;affaire qui gérera celle-ci</label>
+                      <input style={inp} autoFocus placeholder="Nom du magasin, ville, enseigne…" value={parentQuery} onChange={e => setParentQuery(e.target.value)} />
+                      <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto' }}>
+                        {searchingParent && parentResults.length === 0 && <p style={{ fontSize: 12, color: '#94a3b8' }}>Recherche…</p>}
+                        {!searchingParent && parentQuery.trim().length >= 2 && parentResults.length === 0 && <p style={{ fontSize: 12, color: '#94a3b8' }}>Aucune affaire éligible.</p>}
+                        {parentResults.map((r: any) => (
+                          <button key={r.id} onClick={() => attachToParent(r.id)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', padding: '7px 4px', borderBottom: '1px solid #f1f5f9' }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: r.store?.brand?.color || '#94a3b8' }} />
+                            <span style={{ minWidth: 0 }}>
+                              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.store?.name || 'Affaire'}</span>
+                              <span style={{ display: 'block', fontSize: 11, color: '#94a3b8' }}>{[r.store?.brand?.name, r.store?.city, r.column?.title].filter(Boolean).join(' · ')}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <button style={{ ...btnDef, marginTop: 8 }} onClick={() => { setShowParentSearch(false); setParentQuery(''); setParentResults([]); }}>Annuler</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowParentSearch(true)} style={{ ...btnDef, width: '100%', background: '#fff', padding: '8px 12px' }}>
+                      🏬 Rattacher à une autre affaire
+                    </button>
+                  )}
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                    Rattacher cette affaire la fait disparaître du pipeline ; elle reste accessible via son affaire parente et la recherche.
+                  </p>
+                </>
+              )}
             </div>
 
             <div style={sectionTitle}>Offres</div>

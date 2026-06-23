@@ -350,6 +350,7 @@ export default function MapView() {
             dealId={selectedDealId}
             onClose={() => setSelectedDealId(null)}
             onUpdated={() => setReloadKey((k) => k + 1)}
+            onNavigate={setSelectedDealId}
           />
         </div>
       )}

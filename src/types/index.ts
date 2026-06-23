@@ -111,6 +111,8 @@ export interface Deal {
   columnId:                 string;
   column:                   PipelineColumn;
   previousColumnId:         string | null;
+  parentDealId?:            string | null;
+  childDeals?:              { id: string; dealValue?: number | null }[];
   priority:                 Priority;
   position:                 number;
   isNewFromLastImport:      boolean;
@@ -136,6 +138,7 @@ export interface Deal {
   _count?: {
     jobOffers: number;
     actions:   number;
+    childDeals?: number;
   };
 }
 

@@ -55,6 +55,14 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
   const assignedUser = (deal as any).assignedUser;
   const backgroundColor = getActionBackgroundColor(deal.actions);
 
+  // Regroupement : nombre de sous-deals absorbés et valeur cumulée du groupe
+  // (valeur propre + valeur de chaque sous-deal).
+  const childDeals = deal.childDeals ?? [];
+  const childCount = (deal as any)._count?.childDeals ?? childDeals.length;
+  const ownValue = typeof deal.dealValue === 'number' ? deal.dealValue : 0;
+  const groupValue = ownValue + childDeals.reduce((sum, c) => sum + (c.dealValue || 0), 0);
+  const hasGroup = childCount > 0;
+
   return (
     <div
       draggable
@@ -86,7 +94,14 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {brand && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: displayColor, marginBottom: 1 }}>{brand.name}</div>}
-          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#0f172a' }}>{store?.name || 'Magasin'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#0f172a' }}>{store?.name || 'Magasin'}</div>
+            {hasGroup && (
+              <span title={`${childCount} magasin(s) regroupé(s)`} style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', padding: '1px 6px', borderRadius: 999 }}>
+                🏬 +{childCount}
+              </span>
+            )}
+          </div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
         {(collaborator || assignedUser) && (
@@ -121,10 +136,10 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
         </div>
       )}
 
-      {typeof (deal as any).dealValue === 'number' && (deal as any).dealValue !== 0 && (
+      {groupValue !== 0 && (
         <div style={{ marginTop: 4 }}>
           <span style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '1px 7px', borderRadius: 999 }}>
-            💶 {((deal as any).dealValue as number).toLocaleString('fr-FR')} €
+            💶 {groupValue.toLocaleString('fr-FR')} €{hasGroup ? ' · groupe' : ''}
           </span>
         </div>
       )}
