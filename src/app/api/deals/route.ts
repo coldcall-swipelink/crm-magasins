@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
       const assignedUserId = searchParams.get('assignedUserId');
       const brandId        = searchParams.get('brandId');
       const search         = (searchParams.get('search') || '').toLowerCase();
-      let result = mockDeals;
+      // Les sous-deals (absorbés) n'apparaissent pas dans le pipeline.
+      let result = mockDeals.filter(d => !d.parentDealId);
       if (pipelineId)     result = result.filter(d => d.pipelineId === pipelineId);
       if (assignedUserId) result = result.filter(d => d.assignedUserId === assignedUserId);
       if (brandId)        result = result.filter(d => d.store.brand?.id === brandId);

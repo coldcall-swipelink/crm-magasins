@@ -75,6 +75,7 @@ interface DealSpec {
   user?: typeof mockUsers[number];
   offers?: string[];
   priority?: string;
+  dealValue?: number | null;
 }
 
 let dealSeq = 0;
@@ -88,10 +89,14 @@ function makeDeal(spec: DealSpec) {
     isNewFromLastImport: false, hasNewOfferFromLastImport: false, isPresentInLastImport: true,
     movedToCallAt: null, lastImportAt: null, directeur: '', contactCalling: spec.contact,
     dealEmail: '', contactCivilite: 'Monsieur', contactLastName: '',
-    dealValue: null, demoDate: null, candidateCallDate: null,
+    dealValue: spec.dealValue ?? null, demoDate: null, candidateCallDate: null,
     assignedUserId: spec.user?.id ?? null, assignedUser: spec.user ?? null, collaborator: null,
+    // Regroupement d'affaires : parentDealId pointe vers le deal qui absorbe
+    // celui-ci ; childDeals liste les sous-deals absorbés (rempli plus bas).
+    parentDealId: null as string | null,
+    childDeals: [] as { id: string; dealValue: number | null }[],
     createdAt: NOW, updatedAt: NOW, jobOffers: offers, actions: [], notes: [],
-    _count: { jobOffers: offers.length, actions: 0 },
+    _count: { jobOffers: offers.length, actions: 0, childDeals: 0 },
   };
 }
 
@@ -122,4 +127,26 @@ export const mockDeals = [
     store: makeStore('s10', inter, 'Intermarché Angers', 'Angers', '49') }),
   makeDeal({ pipelineId: 'p2', columnId: 'c7', contact: '06 56 56 56 56', user: mockUsers[2],
     store: makeStore('s11', superu, 'Super U Le Mans', 'Le Mans', '72'), offers: ['Chef de rayon'] }),
+  // Exemple de regroupement : « Intermarché La Teste de Buch » (parent) absorbe
+  // « Intermarché Arcachon » (sous-deal). Le sous-deal n'apparaît PAS dans le
+  // pipeline mais reste ouvrable / cherchable, et sa valeur se cumule au parent.
+  makeDeal({ pipelineId: 'p1', columnId: 'c2', contact: '06 77 88 99 00', user: mockUsers[0], priority: 'élevée',
+    store: makeStore('s12', inter, 'Intermarché La Teste de Buch', 'La Teste-de-Buch', '33'), offers: ['Boucher', 'Caissier'], dealValue: 8000 }),
+  makeDeal({ pipelineId: 'p1', columnId: 'c1', contact: '06 77 88 99 01',
+    store: makeStore('s13', inter, 'Intermarché Arcachon', 'Arcachon', '33'), offers: ['Employé libre-service'], dealValue: 5000 }),
 ];
+
+// ─── Câblage du regroupement d'affaires (parent ↔ sous-deals) ─────────────────
+function wireDealGroup(parentId: string, childIds: string[]) {
+  const parent = mockDeals.find(d => d.id === parentId);
+  if (!parent) return;
+  for (const childId of childIds) {
+    const child = mockDeals.find(d => d.id === childId);
+    if (!child) continue;
+    child.parentDealId = parentId;
+    parent.childDeals.push({ id: child.id, dealValue: child.dealValue });
+  }
+  parent._count.childDeals = parent.childDeals.length;
+}
+// Intermarché La Teste de Buch (d12) absorbe Intermarché Arcachon (d13).
+wireDealGroup('d12', ['d13']);

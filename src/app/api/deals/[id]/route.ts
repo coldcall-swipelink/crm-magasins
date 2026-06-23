@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
 import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
+import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
+
+// Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
+// (preview front sans base). Renvoie null si l'id est inconnu.
+function buildMockDeal(id: string) {
+  const d = mockDeals.find(x => x.id === id);
+  if (!d) return null;
+  const parentDeal = d.parentDealId ? mockDeals.find(x => x.id === d.parentDealId) ?? null : null;
+  const childDeals = mockDeals.filter(x => x.parentDealId === id);
+  return { ...d, parentDeal, childDeals };
+}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  if (USE_MOCK_DATA) {
+    const deal = buildMockDeal(params.id);
+    if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+    return NextResponse.json(deal);
+  }
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: params.id },
@@ -32,6 +48,35 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  if (USE_MOCK_DATA) {
+    // Preview front : on mute le tableau en mémoire (suffisant pour tester le
+    // rattachement / détachement et l'affichage du regroupement).
+    const body = await req.json().catch(() => ({}));
+    const d = mockDeals.find(x => x.id === params.id) as any;
+    if (!d) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+
+    if ('parentDealId' in body) {
+      const parentId: string | null = body.parentDealId || null;
+      if (parentId) {
+        if (parentId === params.id) return NextResponse.json({ error: 'Un deal ne peut pas se rattacher à lui-même' }, { status: 400 });
+        const parent = mockDeals.find(x => x.id === parentId) as any;
+        if (!parent) return NextResponse.json({ error: 'Affaire parente introuvable' }, { status: 404 });
+        if (parent.parentDealId) return NextResponse.json({ error: 'L\'affaire choisie est déjà un sous-deal (un seul niveau autorisé)' }, { status: 400 });
+        if (mockDeals.some(x => x.parentDealId === params.id)) return NextResponse.json({ error: 'Cette affaire possède déjà des sous-deals : détachez-les d\'abord' }, { status: 400 });
+      }
+      d.parentDealId = parentId;
+      // Reconstruit les listes childDeals/_count des parents impactés.
+      for (const p of mockDeals as any[]) {
+        const kids = mockDeals.filter(x => x.parentDealId === p.id);
+        p.childDeals = kids.map(k => ({ id: k.id, dealValue: k.dealValue }));
+        p._count.childDeals = kids.length;
+      }
+    }
+    for (const k of ['priority', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName'] as const) {
+      if (k in body) (d as any)[k] = body[k];
+    }
+    return NextResponse.json(buildMockDeal(params.id));
+  }
   try {
     const body = await req.json();
     const allowed = ['columnId', 'priority', 'position', 'previousColumnId',
@@ -167,6 +212,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  if (USE_MOCK_DATA) {
+    const idx = mockDeals.findIndex(x => x.id === params.id);
+    if (idx === -1) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+    // Détache les sous-deals puis retire l'affaire du tableau en mémoire.
+    for (const c of mockDeals as any[]) if (c.parentDealId === params.id) c.parentDealId = null;
+    mockDeals.splice(idx, 1);
+    return NextResponse.json({ success: true });
+  }
   try {
     const existing = await prisma.deal.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
