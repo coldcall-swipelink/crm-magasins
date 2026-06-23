@@ -9,6 +9,7 @@ export interface MapDeal {
   storeName: string;
   brandName: string | null;
   brandColor: string | null;
+  pipelineName: string;
   columnTitle: string;
   columnColor: string;
   columnPosition: number;

@@ -5,7 +5,10 @@ import { buildGeocodeQuery, geocodeQuery } from '@/lib/geocode';
 // Données dynamiques (lecture DB + géocodage) : jamais de cache statique.
 export const dynamic = 'force-dynamic';
 
-const PIPELINE_NAME = 'Prospection';
+// Pipelines affichés sur la carte. L'ordre du tableau sert aussi à ordonner
+// les étapes dans la légende/filtre (les colonnes de « Closing » viennent
+// après celles de « Prospection »).
+const PIPELINE_NAMES = ['Prospection', 'Closing'] as const;
 
 // Nombre de magasins géocodés en parallèle (la BAN tolère bien plus, mais on
 // reste poli ; le résultat est de toute façon mis en cache en base).
@@ -21,6 +24,7 @@ interface MapDeal {
   storeName: string;
   brandName: string | null;
   brandColor: string | null;
+  pipelineName: string;
   columnTitle: string;
   columnColor: string;
   columnPosition: number;
@@ -34,18 +38,26 @@ interface MapDeal {
 
 export async function GET() {
   try {
-    const pipeline = await prisma.pipeline.findUnique({
-      where: { name: PIPELINE_NAME },
+    const pipelines = await prisma.pipeline.findMany({
+      where: { name: { in: [...PIPELINE_NAMES] } },
     });
-    if (!pipeline) {
+    if (pipelines.length === 0) {
       return NextResponse.json(
-        { error: `Pipeline « ${PIPELINE_NAME} » introuvable`, deals: [], unlocated: 0 },
+        { error: `Aucun pipeline parmi ${PIPELINE_NAMES.join(', ')} introuvable`, deals: [], unlocated: 0 },
         { status: 404 },
       );
     }
 
+    // Ordre d'affichage des étapes : on décale les positions de colonnes par
+    // pipeline (selon l'ordre de PIPELINE_NAMES) pour éviter que les colonnes de
+    // « Closing » (position 0,1,2…) ne se mélangent à celles de « Prospection ».
+    const pipelineRank = new Map(
+      pipelines.map((p) => [p.id, Math.max(0, PIPELINE_NAMES.indexOf(p.name as (typeof PIPELINE_NAMES)[number]))] as const),
+    );
+    const pipelineNameById = new Map(pipelines.map((p) => [p.id, p.name] as const));
+
     const deals = await prisma.deal.findMany({
-      where: { pipelineId: pipeline.id },
+      where: { pipelineId: { in: pipelines.map((p) => p.id) } },
       include: {
         store: { include: { brand: true } },
         column: true,
@@ -105,9 +117,10 @@ export async function GET() {
         storeName: store.name,
         brandName: store.brand?.name ?? null,
         brandColor: store.brand?.color ?? null,
+        pipelineName: pipelineNameById.get(deal.pipelineId) ?? '',
         columnTitle: deal.column.title,
         columnColor: deal.column.color,
-        columnPosition: deal.column.position,
+        columnPosition: (pipelineRank.get(deal.pipelineId) ?? 0) * 1000 + deal.column.position,
         city: store.city,
         postalCode: store.postalCode,
         address: store.address,
