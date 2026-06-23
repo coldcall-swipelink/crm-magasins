@@ -446,6 +446,45 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
               <div style={{ color: '#78350f' }}>Nouvelle offre détectée lors du dernier import.</div>
             </div>
           )}
+
+          {/* Bannière regroupement : sous-deals rattachés (deal parent) ou
+              rattachement à une affaire parente (sous-deal). */}
+          {parentDeal && (
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '8px 11px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', letterSpacing: '.3px' }}>🏬 Gérée par</span>
+              <button
+                onClick={() => onNavigate?.(parentDeal.id)}
+                title="Ouvrir l'affaire parente"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #ddd6fe', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 600, color: '#5b21b6', cursor: onNavigate ? 'pointer' : 'default' }}
+              >
+                {parentDeal.store?.name || 'Affaire'} →
+              </button>
+            </div>
+          )}
+          {childDeals.length > 0 && (
+            <div style={{ marginTop: 10, background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '9px 11px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 7 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', letterSpacing: '.3px' }}>🏬 Magasins du groupe ({childDeals.length})</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#15803d', marginLeft: 'auto' }}>Total {groupValue.toLocaleString('fr-FR')} €</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {childDeals.map((c: any) => (
+                  <button
+                    key={c.id}
+                    onClick={() => onNavigate?.(c.id)}
+                    title={`Ouvrir ${c.store?.name || 'le sous-deal'}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#334155', cursor: onNavigate ? 'pointer' : 'default' }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: c.store?.brand?.color || '#94a3b8' }} />
+                    {c.store?.name || 'Magasin'}
+                    {typeof c.dealValue === 'number' && c.dealValue !== 0 && (
+                      <span style={{ color: '#15803d', fontWeight: 700 }}>{c.dealValue.toLocaleString('fr-FR')} €</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Corps : sous-volet gauche + activité droite */}
