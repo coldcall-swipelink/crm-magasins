@@ -87,22 +87,28 @@ export default function MapView() {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [deals]);
 
-  // Étapes (colonnes) présentes, ordonnées selon la position dans le pipeline.
+  // Étapes (colonnes) présentes, ordonnées selon la position globale (pipeline
+  // puis colonne). Clé composite pipeline+titre : une même étape (ex. « Démo
+  // prévue ») peut exister dans les deux pipelines sans être fusionnée.
   const stages = useMemo(() => {
-    const map = new Map<string, { title: string; color: string; position: number; count: number }>();
+    const map = new Map<string, { key: string; title: string; pipelineName: string; color: string; position: number; count: number }>();
     for (const d of deals) {
-      const entry = map.get(d.columnTitle) || { title: d.columnTitle, color: d.columnColor || '#94a3b8', position: d.columnPosition, count: 0 };
+      const key = `${d.pipelineName}::${d.columnTitle}`;
+      const entry = map.get(key) || { key, title: d.columnTitle, pipelineName: d.pipelineName, color: d.columnColor || '#94a3b8', position: d.columnPosition, count: 0 };
       entry.count += 1;
-      map.set(d.columnTitle, entry);
+      map.set(key, entry);
     }
     return Array.from(map.values()).sort((a, b) => a.position - b.position);
   }, [deals]);
 
-  const toggleColumn = (title: string) =>
+  // Plusieurs pipelines affichés → on précise le pipeline sur les chips d'étape.
+  const multiPipeline = useMemo(() => new Set(deals.map((d) => d.pipelineName)).size > 1, [deals]);
+
+  const toggleColumn = (key: string) =>
     setSelectedColumns((prev) => {
       const next = new Set(prev);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
 
@@ -119,7 +125,7 @@ export default function MapView() {
     const q = norm(query);
     return deals.filter((d) => {
       if (selectedBrands.size && !selectedBrands.has(d.brandName || 'Sans enseigne')) return false;
-      if (selectedColumns.size && !selectedColumns.has(d.columnTitle)) return false;
+      if (selectedColumns.size && !selectedColumns.has(`${d.pipelineName}::${d.columnTitle}`)) return false;
       if (!q) return true;
       return (
         norm(d.brandName || '').includes(q) ||
@@ -155,7 +161,7 @@ export default function MapView() {
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#e11d48', display: 'inline-block' }} />
             <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.3px' }}>Carte des deals</span>
           </div>
-          <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>Pipeline « Prospection »</div>
+          <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>Pipelines « Prospection » &amp; « Closing »</div>
         </div>
 
         {/* Recherche */}
@@ -254,12 +260,12 @@ export default function MapView() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {stages.map((s) => {
-              const active = selectedColumns.has(s.title);
+              const active = selectedColumns.has(s.key);
               return (
                 <button
-                  key={s.title}
-                  onClick={() => toggleColumn(s.title)}
-                  title={`${s.count} deal(s)`}
+                  key={s.key}
+                  onClick={() => toggleColumn(s.key)}
+                  title={`${s.pipelineName} · ${s.count} deal(s)`}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12,
                     padding: '4px 9px', borderRadius: 999,
@@ -270,6 +276,7 @@ export default function MapView() {
                 >
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: 'inline-block', flexShrink: 0 }} />
                   {s.title}
+                  {multiPipeline && <span style={{ color: '#cbd5e1', fontSize: 10 }}>· {s.pipelineName}</span>}
                   <span style={{ color: '#94a3b8', fontSize: 11 }}>{s.count}</span>
                 </button>
               );
