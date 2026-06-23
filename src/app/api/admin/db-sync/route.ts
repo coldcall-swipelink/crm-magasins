@@ -193,7 +193,10 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
   "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"organizationId\" TEXT;",
   "ALTER TABLE \"DealOrganization\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
-  "CREATE UNIQUE INDEX IF NOT EXISTS \"DealOrganization_dealId_organizationId_key\" ON \"DealOrganization\"(\"dealId\",\"organizationId\");"
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"DealOrganization_dealId_organizationId_key\" ON \"DealOrganization\"(\"dealId\",\"organizationId\");",
+  // Regroupement d'affaires (deal parent / sous-deals).
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"parentDealId\" TEXT;",
+  "CREATE INDEX IF NOT EXISTS \"Deal_parentDealId_idx\" ON \"Deal\"(\"parentDealId\");"
 ];
 
 export async function GET(req: NextRequest) {

@@ -223,7 +223,11 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {sortedCols.map(col => {
           const colDeals = dealsForCol(col.id);
-          const colTotal = colDeals.reduce((sum, d) => sum + (d.dealValue || 0), 0);
+          // Total de colonne = valeur de chaque deal + valeur de ses sous-deals.
+          const colTotal = colDeals.reduce(
+            (sum, d) => sum + (d.dealValue || 0) + (d.childDeals ?? []).reduce((s, c) => s + (c.dealValue || 0), 0),
+            0,
+          );
           return (
             <div key={col.id} style={{
               background: dragOverCol === col.id ? '#eef2ff' : '#f1f5f9', borderRadius: 10,
@@ -254,7 +258,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
         })}
       </div>
 
-      {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} />}
+      {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={setOpenDealId} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
     </div>

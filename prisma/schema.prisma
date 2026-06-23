@@ -104,6 +104,12 @@ model Deal {
   columnId                  String
   column                    PipelineColumn @relation(fields: [columnId], references: [id])
   previousColumnId          String?
+  // Regroupement d'affaires : un « gros » deal peut en absorber d'autres
+  // (autres magasins d'un même groupe). Un sous-deal disparaît du pipeline et
+  // reste accessible via son parent ou la recherche. Limité à un seul niveau.
+  parentDealId              String?
+  parentDeal                Deal?    @relation("DealHierarchy", fields: [parentDealId], references: [id], onDelete: SetNull)
+  childDeals                Deal[]   @relation("DealHierarchy")
   priority                  String   @default("normale")
   position                  Int      @default(0)
   isNewFromLastImport       Boolean  @default(false)

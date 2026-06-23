@@ -15,6 +15,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { orderBy: { dueDate: 'asc' }, include: { assignedUser: true } },
         notes: { orderBy: { createdAt: 'desc' } },
+        // Regroupement d'affaires : le deal parent (s'il est lui-même absorbé)
+        // et les sous-deals qu'il absorbe (autres magasins du groupe).
+        parentDeal: { include: { store: { include: { brand: true } } } },
+        childDeals: {
+          include: { store: { include: { brand: true } }, column: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
@@ -33,6 +40,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
+    }
+
+    // Rattachement à un deal parent (regroupement). Validation : pas de
+    // rattachement à soi-même, le parent doit exister, et on se limite à un
+    // seul niveau (le parent ne doit pas être lui-même un sous-deal, et un deal
+    // qui possède déjà des sous-deals ne peut pas être absorbé).
+    if ('parentDealId' in body) {
+      const parentId: string | null = body.parentDealId || null;
+      if (parentId) {
+        if (parentId === params.id) {
+          return NextResponse.json({ error: 'Un deal ne peut pas se rattacher à lui-même' }, { status: 400 });
+        }
+        const [parent, ownChildren] = await Promise.all([
+          prisma.deal.findUnique({ where: { id: parentId }, select: { id: true, parentDealId: true } }),
+          prisma.deal.count({ where: { parentDealId: params.id } }),
+        ]);
+        if (!parent) {
+          return NextResponse.json({ error: 'Affaire parente introuvable' }, { status: 404 });
+        }
+        if (parent.parentDealId) {
+          return NextResponse.json({ error: 'L\'affaire choisie est déjà un sous-deal (un seul niveau autorisé)' }, { status: 400 });
+        }
+        if (ownChildren > 0) {
+          return NextResponse.json({ error: 'Cette affaire possède déjà des sous-deals : détachez-les d\'abord' }, { status: 400 });
+        }
+      }
+      data.parentDealId = parentId;
     }
 
     // Mise à jour optionnelle de l'enseigne (Brand) du magasin associé.
@@ -136,6 +170,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const existing = await prisma.deal.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+
+    // Détache les éventuels sous-deals (ils réapparaissent dans le pipeline)
+    // avant suppression — robuste même si la base n'a pas la contrainte FK.
+    await prisma.deal.updateMany({ where: { parentDealId: params.id }, data: { parentDealId: null } });
 
     // Les actions, notes, emailLogs et jobOffers sont supprimés en cascade.
     // Les importRows liés voient leur dealId mis à null (relation optionnelle).
