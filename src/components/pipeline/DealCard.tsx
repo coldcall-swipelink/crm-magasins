@@ -101,6 +101,17 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
                 🏬 +{childCount}
               </span>
             )}
+            <span
+              title={deal.isPV ? 'Prospection de Valeur' : 'Prospection Classique'}
+              style={{
+                flexShrink: 0, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: '1px 6px',
+                color: deal.isPV ? '#15803d' : '#64748b',
+                background: deal.isPV ? '#dcfce7' : '#f1f5f9',
+                border: `1px solid ${deal.isPV ? '#86efac' : '#cbd5e1'}`,
+              }}
+            >
+              {deal.isPV ? 'PV' : 'PC'}
+            </span>
           </div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>

@@ -391,6 +391,24 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>✦ Nouvelle</span>}
               {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>⚠ Absente</span>}
+              <label
+                title={deal.isPV ? 'Prospection de Valeur (cochée = PV)' : 'Prospection Classique (décochée = PC)'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
+                  padding: '4px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  color: deal.isPV ? '#15803d' : '#64748b',
+                  background: deal.isPV ? '#dcfce7' : '#f1f5f9',
+                  border: `1px solid ${deal.isPV ? '#86efac' : '#cbd5e1'}`,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!deal.isPV}
+                  onChange={e => patchDeal({ isPV: e.target.checked }, e.target.checked ? 'Tag PV activé' : 'Tag PC activé')}
+                  style={{ cursor: 'pointer', accentColor: '#16a34a', width: 14, height: 14 }}
+                />
+                {deal.isPV ? 'PV' : 'PC'}
+              </label>
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>

@@ -114,6 +114,7 @@ export interface Deal {
   parentDealId?:            string | null;
   childDeals?:              { id: string; dealValue?: number | null }[];
   priority:                 Priority;
+  isPV?:                    boolean;
   position:                 number;
   isNewFromLastImport:      boolean;
   hasNewOfferFromLastImport: boolean;
