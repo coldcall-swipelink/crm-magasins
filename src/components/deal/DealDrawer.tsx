@@ -1034,6 +1034,7 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
   const [error, setError] = useState(false);
   const [brand, setBrand] = useState('');
   const [pipeline, setPipeline] = useState('');
+  const [allPipelines, setAllPipelines] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1055,6 +1056,15 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
     return () => { cancelled = true; };
   }, [dealId]);
 
+  // Liste complète des pipelines du CRM (pour pouvoir filtrer sur n'importe
+  // lequel, même sans magasin proche dans ce pipeline).
+  useEffect(() => {
+    fetch('/api/pipelines')
+      .then((r) => r.json())
+      .then((d) => setAllPipelines((d.pipelines || []).map((p: any) => p.name)))
+      .catch(() => {});
+  }, []);
+
   // Enseignes présentes (pour le filtre), triées par nombre de magasins.
   const brands = useMemo(() => {
     const map = new Map<string, { name: string; color: string; count: number }>();
@@ -1067,15 +1077,18 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [items]);
 
-  // Pipelines présents (pour le filtre), triés par nombre de magasins.
+  // Filtre pipeline : tous les pipelines du CRM, avec le nombre de magasins
+  // proches dans chacun (0 si aucun). On complète par d'éventuels pipelines
+  // présents dans les résultats mais absents de la liste chargée.
   const pipelines = useMemo(() => {
-    const map = new Map<string, number>();
+    const counts = new Map<string, number>();
     for (const it of items) {
       const name = it.pipelineName || '—';
-      map.set(name, (map.get(name) || 0) + 1);
+      counts.set(name, (counts.get(name) || 0) + 1);
     }
-    return Array.from(map.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [items]);
+    const names = Array.from(new Set(allPipelines.concat(Array.from(counts.keys()))));
+    return names.map((name) => ({ name, count: counts.get(name) || 0 }));
+  }, [items, allPipelines]);
 
   const visible = useMemo(
     () => items.filter((it) =>
