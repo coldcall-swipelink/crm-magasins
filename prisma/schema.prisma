@@ -113,7 +113,7 @@ model Deal {
   priority                  String   @default("normale")
   // Tag commercial : true = Prospection de Valeur (PV), false = Prospection
   // Classique (PC). Affiché sous forme de puce à cocher sur chaque affaire.
-  isPV                      Boolean  @default(false)
+  isPV                      Boolean  @default(true)
   position                  Int      @default(0)
   isNewFromLastImport       Boolean  @default(false)
   hasNewOfferFromLastImport Boolean  @default(false)
