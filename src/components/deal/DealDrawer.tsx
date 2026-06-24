@@ -1099,13 +1099,11 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
         <span style={{ fontSize: 13, color: '#475569' }}>
           <strong style={{ color: '#4338ca' }}>{visible.length}</strong> magasin{visible.length > 1 ? 's' : ''} à moins de 50&nbsp;km
         </span>
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-          {pipelines.length > 1 && (
-            <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
-              <option value="">Tous les pipelines</option>
-              {pipelines.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
-            </select>
-          )}
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
+            <option value="">Tous les pipelines</option>
+            {pipelines.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+          </select>
           <select value={brand} onChange={(e) => setBrand(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
             <option value="">Toutes les enseignes</option>
             {brands.map((b) => <option key={b.name} value={b.name}>{b.name} ({b.count})</option>)}
