@@ -391,24 +391,31 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {deal.isNewFromLastImport && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>✦ Nouvelle</span>}
               {!deal.isPresentInLastImport && <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: 11, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>⚠ Absente</span>}
-              <label
-                title={deal.isPV ? 'Prospection de Valeur (cochée = PV)' : 'Prospection Classique (décochée = PC)'}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!deal.isPV}
+                onClick={() => patchDeal({ isPV: !deal.isPV }, !deal.isPV ? 'Tag PV activé' : 'Tag PC activé')}
+                title={deal.isPV ? 'Prospection de Valeur (activé = PV)' : 'Prospection Classique (désactivé = PC)'}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
-                  padding: '4px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  color: deal.isPV ? '#15803d' : '#64748b',
-                  background: deal.isPV ? '#dcfce7' : '#f1f5f9',
-                  border: `1px solid ${deal.isPV ? '#86efac' : '#cbd5e1'}`,
+                  display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none',
+                  background: 'none', border: 'none', padding: 0,
+                  fontSize: 11, fontWeight: 700, color: deal.isPV ? '#15803d' : '#64748b',
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={!!deal.isPV}
-                  onChange={e => patchDeal({ isPV: e.target.checked }, e.target.checked ? 'Tag PV activé' : 'Tag PC activé')}
-                  style={{ cursor: 'pointer', accentColor: '#16a34a', width: 14, height: 14 }}
-                />
+                {/* Interrupteur à bascule : vert = PV, gris = PC */}
+                <span style={{
+                  position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0,
+                  background: deal.isPV ? '#22c55e' : '#cbd5e1', transition: 'background .15s',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: deal.isPV ? 18 : 2, width: 18, height: 18,
+                    borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.25)',
+                    transition: 'left .15s',
+                  }} />
+                </span>
                 {deal.isPV ? 'PV' : 'PC'}
-              </label>
+              </button>
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>
