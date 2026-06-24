@@ -24,6 +24,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         hasNewOfferFromLastImport: false,
         previousColumnId: null,
         movedToCallAt: null,
+        // Réponse à la pop-up « Prospection de Valeur ? » au passage en « Démo
+        // prévue » : NON → l'affaire bascule en PC (isPV = false), OUI → PV.
+        ...(pvChoice === 'oui' || pvChoice === 'non' ? { isPV: pvChoice === 'oui' } : {}),
       },
       include: {
         store: { include: { brand: true } },
