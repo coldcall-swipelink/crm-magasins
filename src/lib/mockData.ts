@@ -46,12 +46,14 @@ export const mockPipelines = [
 export const mockColumns = [...p1Columns, ...p2Columns];
 
 // ─── Magasins, offres et affaires ─────────────────────────────────────────────
-function makeStore(id: string, brand: typeof mockBrands[number], name: string, city: string, department: string) {
+function makeStore(id: string, brand: typeof mockBrands[number], name: string, city: string, department: string, coords?: [number, number]) {
   return {
     id, brandId: brand.id, brand, name, normalizedName: name.toLowerCase(),
     city, postalCode: '', department, address: '', phone: '', email: '',
     siret: '', externalId: '', deduplicationKey: id,
-    latitude: null, longitude: null, geocodedAt: null, geocodeQuery: '',
+    latitude: coords ? coords[0] : null as number | null,
+    longitude: coords ? coords[1] : null as number | null,
+    geocodedAt: null, geocodeQuery: '',
     createdAt: NOW, updatedAt: NOW,
   };
 }
@@ -103,37 +105,39 @@ function makeDeal(spec: DealSpec) {
 const [leclerc, inter, superu, carrefour] = mockBrands;
 
 export const mockDeals = [
-  // Pipeline « Prospection »
+  // Pipeline « Prospection » — coordonnées réelles pour tester « Magasins proches ».
+  // Le Morbihan (Lanester, Lorient, Auray, Vannes, Pontivy) est groupé < 50 km.
   makeDeal({ pipelineId: 'p1', columnId: 'c1', contact: '06 12 34 56 78', user: mockUsers[0],
-    store: makeStore('s1', leclerc, 'E.Leclerc Lanester', 'Lanester', '56'), offers: ['Boucher', 'Caissier'] }),
+    store: makeStore('s1', leclerc, 'E.Leclerc Lanester', 'Lanester', '56', [47.76, -3.34]), offers: ['Boucher', 'Caissier'] }),
   makeDeal({ pipelineId: 'p1', columnId: 'c1', contact: '06 98 76 54 32',
-    store: makeStore('s2', inter, 'Intermarché Vannes', 'Vannes', '56'), offers: ['Employé libre-service'] }),
+    store: makeStore('s2', inter, 'Intermarché Vannes', 'Vannes', '56', [47.658, -2.76]), offers: ['Employé libre-service'] }),
   makeDeal({ pipelineId: 'p1', columnId: 'c1', contact: '07 11 22 33 44', user: mockUsers[1],
-    store: makeStore('s3', superu, 'Super U Auray', 'Auray', '56') }),
+    store: makeStore('s3', superu, 'Super U Auray', 'Auray', '56', [47.668, -2.98]) }),
   makeDeal({ pipelineId: 'p1', columnId: 'c2', contact: '06 55 44 33 22', user: mockUsers[0],
-    store: makeStore('s4', carrefour, 'Carrefour Quimper', 'Quimper', '29'), offers: ['Manager rayon'] }),
+    store: makeStore('s4', carrefour, 'Carrefour Quimper', 'Quimper', '29', [47.996, -4.10]), offers: ['Manager rayon'] }),
   makeDeal({ pipelineId: 'p1', columnId: 'c2', contact: '06 00 11 22 33', user: mockUsers[2],
-    store: makeStore('s5', leclerc, 'E.Leclerc Brest', 'Brest', '29') }),
+    store: makeStore('s5', leclerc, 'E.Leclerc Brest', 'Brest', '29', [48.39, -4.49]) }),
   makeDeal({ pipelineId: 'p1', columnId: 'c3', contact: '07 88 99 00 11', user: mockUsers[1], priority: 'élevée',
-    store: makeStore('s6', inter, 'Intermarché Lorient', 'Lorient', '56'), offers: ['Hôte de caisse', 'Boulanger', 'Poissonnier'] }),
+    store: makeStore('s6', inter, 'Intermarché Lorient', 'Lorient', '56', [47.748, -3.37]), offers: ['Hôte de caisse', 'Boulanger', 'Poissonnier'] }),
   makeDeal({ pipelineId: 'p1', columnId: 'c3', contact: '06 44 55 66 77', user: mockUsers[0],
-    store: makeStore('s7', superu, 'Super U Pontivy', 'Pontivy', '56') }),
+    store: makeStore('s7', superu, 'Super U Pontivy', 'Pontivy', '56', [48.069, -2.96]) }),
   makeDeal({ pipelineId: 'p1', columnId: 'c4', contact: '07 33 22 11 00', user: mockUsers[2], priority: 'normale',
-    store: makeStore('s8', carrefour, 'Carrefour Rennes', 'Rennes', '35'), offers: ['Directeur adjoint'] }),
+    store: makeStore('s8', carrefour, 'Carrefour Rennes', 'Rennes', '35', [48.117, -1.68]), offers: ['Directeur adjoint'] }),
   // Pipeline « Closing »
   makeDeal({ pipelineId: 'p2', columnId: 'c5', contact: '06 12 12 12 12', user: mockUsers[0],
-    store: makeStore('s9', leclerc, 'E.Leclerc Nantes', 'Nantes', '44'), offers: ['Responsable RH'] }),
+    store: makeStore('s9', leclerc, 'E.Leclerc Nantes', 'Nantes', '44', [47.218, -1.55]), offers: ['Responsable RH'] }),
   makeDeal({ pipelineId: 'p2', columnId: 'c6', contact: '06 34 34 34 34', user: mockUsers[1], priority: 'urgente',
-    store: makeStore('s10', inter, 'Intermarché Angers', 'Angers', '49') }),
+    store: makeStore('s10', inter, 'Intermarché Angers', 'Angers', '49', [47.47, -0.55]) }),
   makeDeal({ pipelineId: 'p2', columnId: 'c7', contact: '06 56 56 56 56', user: mockUsers[2],
-    store: makeStore('s11', superu, 'Super U Le Mans', 'Le Mans', '72'), offers: ['Chef de rayon'] }),
+    store: makeStore('s11', superu, 'Super U Le Mans', 'Le Mans', '72', [48.00, 0.20]), offers: ['Chef de rayon'] }),
   // Exemple de regroupement : « Intermarché La Teste de Buch » (parent) absorbe
   // « Intermarché Arcachon » (sous-deal). Le sous-deal n'apparaît PAS dans le
   // pipeline mais reste ouvrable / cherchable, et sa valeur se cumule au parent.
+  // Tous deux sur le bassin d'Arcachon (< 50 km) pour tester « Magasins proches ».
   makeDeal({ pipelineId: 'p1', columnId: 'c2', contact: '06 77 88 99 00', user: mockUsers[0], priority: 'élevée',
-    store: makeStore('s12', inter, 'Intermarché La Teste de Buch', 'La Teste-de-Buch', '33'), offers: ['Boucher', 'Caissier'], dealValue: 8000 }),
+    store: makeStore('s12', inter, 'Intermarché La Teste de Buch', 'La Teste-de-Buch', '33', [44.631, -1.146]), offers: ['Boucher', 'Caissier'], dealValue: 8000 }),
   makeDeal({ pipelineId: 'p1', columnId: 'c1', contact: '06 77 88 99 01',
-    store: makeStore('s13', inter, 'Intermarché Arcachon', 'Arcachon', '33'), offers: ['Employé libre-service'], dealValue: 5000 }),
+    store: makeStore('s13', inter, 'Intermarché Arcachon', 'Arcachon', '33', [44.658, -1.168]), offers: ['Employé libre-service'], dealValue: 5000 }),
 ];
 
 // ─── Câblage du regroupement d'affaires (parent ↔ sous-deals) ─────────────────

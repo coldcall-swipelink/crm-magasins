@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
@@ -46,7 +46,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [loading, setLoading] = useState(true);
 
   // Onglet actif de la zone de droite : activité (par défaut) ou recrutement.
-  const [activeTab, setActiveTab] = useState<'activite' | 'recrutement'>('activite');
+  const [activeTab, setActiveTab] = useState<'activite' | 'recrutement' | 'proches'>('activite');
 
   // Volet de composition actif : note / action / email
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email'>(null);
@@ -757,7 +757,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
             {/* Onglets : Activité / Recrutement */}
             <div style={{ display: 'flex', gap: 22, borderBottom: '1px solid #e2e8f0', marginBottom: 20 }}>
-              {([['activite', 'Activité'], ['recrutement', 'Recrutement']] as const).map(([key, label]) => {
+              {([['activite', 'Activité'], ['recrutement', 'Recrutement'], ['proches', 'Magasins proches']] as const).map(([key, label]) => {
                 const active = activeTab === key;
                 return (
                   <button
@@ -940,6 +940,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
             {activeTab === 'recrutement' && <RecruitmentTab dealId={dealId} />}
 
+            {activeTab === 'proches' && <NearbyTab dealId={dealId} onNavigate={onNavigate} />}
+
           </div>
         </div>
       </div>
@@ -1005,6 +1007,159 @@ function EmailLogItem({ log }: { log: EmailLog }) {
           : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>{log.body}</div>
       )}
     </div>
+  );
+}
+
+// ---- Onglet « Magasins proches » -------------------------------------------
+// Liste les magasins du CRM situés à moins de 50 km (distance Haversine sur les
+// coordonnées géocodées), filtrables par enseigne, avec l'étape de pipeline du
+// deal associé. Clic → ouvre la fiche du magasin proche.
+interface NearbyDealItem {
+  dealId: string;
+  storeName: string;
+  brandName: string | null;
+  brandColor: string | null;
+  city: string;
+  postalCode: string;
+  columnTitle: string;
+  columnColor: string;
+  pipelineName: string;
+  distanceKm: number;
+}
+
+function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealId: string) => void }) {
+  const [items, setItems] = useState<NearbyDealItem[]>([]);
+  const [originLocated, setOriginLocated] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [brand, setBrand] = useState('');
+  const [pipeline, setPipeline] = useState('');
+  const [allPipelines, setAllPipelines] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(false);
+    (async () => {
+      try {
+        const res = await fetch(`/api/deals/${dealId}/nearby`);
+        if (!res.ok) throw new Error();
+        const d = await res.json();
+        if (cancelled) return;
+        setItems(d.deals || []);
+        setOriginLocated(d.originLocated !== false);
+      } catch {
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [dealId]);
+
+  // Liste complète des pipelines du CRM (pour pouvoir filtrer sur n'importe
+  // lequel, même sans magasin proche dans ce pipeline).
+  useEffect(() => {
+    fetch('/api/pipelines')
+      .then((r) => r.json())
+      .then((d) => setAllPipelines((d.pipelines || []).map((p: any) => p.name)))
+      .catch(() => {});
+  }, []);
+
+  // Enseignes présentes (pour le filtre), triées par nombre de magasins.
+  const brands = useMemo(() => {
+    const map = new Map<string, { name: string; color: string; count: number }>();
+    for (const it of items) {
+      const name = it.brandName || 'Sans enseigne';
+      const entry = map.get(name) || { name, color: it.brandColor || '#94a3b8', count: 0 };
+      entry.count += 1;
+      map.set(name, entry);
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [items]);
+
+  // Filtre pipeline : tous les pipelines du CRM, avec le nombre de magasins
+  // proches dans chacun (0 si aucun). On complète par d'éventuels pipelines
+  // présents dans les résultats mais absents de la liste chargée.
+  const pipelines = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const it of items) {
+      const name = it.pipelineName || '—';
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    const names = Array.from(new Set(allPipelines.concat(Array.from(counts.keys()))));
+    return names.map((name) => ({ name, count: counts.get(name) || 0 }));
+  }, [items, allPipelines]);
+
+  const visible = useMemo(
+    () => items.filter((it) =>
+      (!brand || (it.brandName || 'Sans enseigne') === brand) &&
+      (!pipeline || (it.pipelineName || '—') === pipeline),
+    ),
+    [items, brand, pipeline],
+  );
+
+  if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement des magasins proches…</p>;
+  if (error) return <p style={{ color: '#b91c1c', fontSize: 13 }}>Impossible de charger les magasins proches.</p>;
+  if (!originLocated) return (
+    <p style={{ color: '#94a3b8', fontSize: 13 }}>
+      Ce magasin n&apos;est pas encore géolocalisé : impossible de calculer les distances. Vérifiez son adresse, puis ouvrez la carte pour déclencher le géocodage.
+    </p>
+  );
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: '#475569' }}>
+          <strong style={{ color: '#4338ca' }}>{visible.length}</strong> magasin{visible.length > 1 ? 's' : ''} à moins de 50&nbsp;km
+        </span>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
+            <option value="">Tous les pipelines</option>
+            {pipelines.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+          </select>
+          <select value={brand} onChange={(e) => setBrand(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
+            <option value="">Toutes les enseignes</option>
+            {brands.map((b) => <option key={b.name} value={b.name}>{b.name} ({b.count})</option>)}
+          </select>
+        </div>
+      </div>
+
+      {visible.length === 0 ? (
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun magasin à moins de 50&nbsp;km{brand || pipeline ? ' pour ce filtre' : ''}.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {visible.map((it) => (
+            <button
+              key={it.dealId}
+              onClick={() => onNavigate?.(it.dealId)}
+              title={onNavigate ? `Ouvrir ${it.storeName}` : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left',
+                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px',
+                cursor: onNavigate ? 'pointer' : 'default',
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: it.brandColor || '#94a3b8', border: (it.brandColor || '').toLowerCase() === '#ffffff' ? '1px solid #cbd5e1' : 'none' }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {it.storeName}
+                </span>
+                <span style={{ display: 'block', fontSize: 11.5, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {[it.brandName, it.city].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#4338ca' }}>{it.distanceKm.toLocaleString('fr-FR')} km</span>
+                <span title={`Pipeline « ${it.pipelineName} »`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 600, color: '#334155', background: '#f1f5f9', padding: '2px 8px', borderRadius: 999 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: it.columnColor || '#94a3b8' }} />
+                  {it.columnTitle || '—'}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
