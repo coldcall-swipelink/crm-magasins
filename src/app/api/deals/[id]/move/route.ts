@@ -62,7 +62,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Démo prévue → invitation Google Meet (contact + bilal@swipelink.fr)
     // + provisioning de la base produit Supabase (Organization, plan, Recruiter).
-    if (column.title === 'Démo prévue') {
+    // Couvre aussi le transfert du workflow « Prospection de Valeur » vers
+    // Closing › DEMO PREVUE (pvChoice présent), dont le titre est en majuscules.
+    if (column.title === 'Démo prévue' || (!!pvChoice && column.title === 'DEMO PREVUE')) {
       try {
         await syncDemoMeeting(deal.id, pvChoice);
       } catch (meetErr) {

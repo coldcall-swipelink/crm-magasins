@@ -116,26 +116,43 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
   };
 
-  // PV confirmée (OUI/NON) : on persiste le déplacement (déclenche Meet +
-  // Supabase) puis on duplique l'affaire vers la cible.
+  // Réponse à la pop-up « Prospection de Valeur » :
+  //   - OUI  → l'affaire d'origine est transférée dans Closing › DEMO PREVUE
+  //            ET dupliquée dans Recrutement › SOURCING A FAIRE.
+  //   - NON  → l'affaire d'origine est simplement transférée dans
+  //            Closing › DEMO PREVUE (aucune duplication).
+  // Dans les deux cas, le transfert (pvChoice) met aussi à jour le tag PV/PC et
+  // déclenche Meet + provisioning Supabase.
   const handlePvConfirm = async (choice: 'oui' | 'non') => {
     if (!pv) return;
+
+    // Cible commune : Closing › DEMO PREVUE (résolue depuis les pipelines chargés).
+    const closing = pipelines.find(p => p.name === 'Closing');
+    const closingDemoCol = closing?.columns.find(c => c.title === 'DEMO PREVUE');
+    if (!closingDemoCol) {
+      toast('Colonne « DEMO PREVUE » du pipeline Closing introuvable', 'error');
+      throw new Error('closing-col');
+    }
+
     const moveRes = await fetch(`/api/deals/${pv.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: pv.targetColId, pvChoice: choice }),
+      body: JSON.stringify({ columnId: closingDemoCol.id, pvChoice: choice }),
     });
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
 
-    const dupRes = await fetch(`/api/deals/${pv.dealId}/duplicate`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ choice }),
-    });
-    const data = await dupRes.json().catch(() => ({}));
-    if (!dupRes.ok || !data.ok) { toast(data.error || 'Erreur lors de la duplication', 'error'); throw new Error('dup'); }
+    // OUI uniquement : duplication vers Recrutement › SOURCING A FAIRE.
+    if (choice === 'oui') {
+      const dupRes = await fetch(`/api/deals/${pv.dealId}/duplicate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice: 'oui' }),
+      });
+      const data = await dupRes.json().catch(() => ({}));
+      if (!dupRes.ok || !data.ok) { toast(data.error || 'Erreur lors de la duplication', 'error'); throw new Error('dup'); }
+    }
 
     toast(choice === 'oui'
-      ? 'Affaire dupliquée dans Recrutement › Sourcing à faire'
-      : 'Affaire dupliquée dans Closing › Demo prevue');
+      ? 'Affaire transférée dans Closing › DEMO PREVUE et dupliquée dans Recrutement › SOURCING A FAIRE'
+      : 'Affaire transférée dans Closing › DEMO PREVUE');
     setPv(null);
     fetchDeals();
   };

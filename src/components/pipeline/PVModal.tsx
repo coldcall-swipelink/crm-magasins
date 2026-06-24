@@ -50,8 +50,8 @@ export default function PVModal({ onConfirm, onCancel }: Props) {
           Une <b>PV</b> consiste à offrir <b>gratuitement des profils</b> (candidats) au magasin,
           afin de démontrer la valeur de notre service avant la vente.
           <div style={{ marginTop: 8 }}>
-            • <b>OUI</b> → l'affaire est dupliquée dans <b>Recrutement › Sourcing à faire</b> (on lance le sourcing).<br />
-            • <b>NON</b> → l'affaire est dupliquée dans <b>Closing › Demo prevue</b>.
+            • <b>OUI</b> → l'affaire est transférée dans <b>Closing › DEMO PREVUE</b> et dupliquée dans <b>Recrutement › SOURCING A FAIRE</b> (on lance le sourcing).<br />
+            • <b>NON</b> → l'affaire est transférée dans <b>Closing › DEMO PREVUE</b>.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
