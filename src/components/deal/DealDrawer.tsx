@@ -1033,6 +1033,7 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [brand, setBrand] = useState('');
+  const [pipeline, setPipeline] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -1066,9 +1067,22 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [items]);
 
+  // Pipelines présents (pour le filtre), triés par nombre de magasins.
+  const pipelines = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const it of items) {
+      const name = it.pipelineName || '—';
+      map.set(name, (map.get(name) || 0) + 1);
+    }
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [items]);
+
   const visible = useMemo(
-    () => (brand ? items.filter((it) => (it.brandName || 'Sans enseigne') === brand) : items),
-    [items, brand],
+    () => items.filter((it) =>
+      (!brand || (it.brandName || 'Sans enseigne') === brand) &&
+      (!pipeline || (it.pipelineName || '—') === pipeline),
+    ),
+    [items, brand, pipeline],
   );
 
   if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement des magasins proches…</p>;
@@ -1085,14 +1099,22 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
         <span style={{ fontSize: 13, color: '#475569' }}>
           <strong style={{ color: '#4338ca' }}>{visible.length}</strong> magasin{visible.length > 1 ? 's' : ''} à moins de 50&nbsp;km
         </span>
-        <select value={brand} onChange={(e) => setBrand(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5, marginLeft: 'auto' }}>
-          <option value="">Toutes les enseignes</option>
-          {brands.map((b) => <option key={b.name} value={b.name}>{b.name} ({b.count})</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          {pipelines.length > 1 && (
+            <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
+              <option value="">Tous les pipelines</option>
+              {pipelines.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.count})</option>)}
+            </select>
+          )}
+          <select value={brand} onChange={(e) => setBrand(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
+            <option value="">Toutes les enseignes</option>
+            {brands.map((b) => <option key={b.name} value={b.name}>{b.name} ({b.count})</option>)}
+          </select>
+        </div>
       </div>
 
       {visible.length === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun magasin à moins de 50&nbsp;km{brand ? ' pour cette enseigne' : ''}.</p>
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun magasin à moins de 50&nbsp;km{brand || pipeline ? ' pour ce filtre' : ''}.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {visible.map((it) => (
