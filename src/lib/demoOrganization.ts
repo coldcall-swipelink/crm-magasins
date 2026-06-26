@@ -28,7 +28,6 @@ export interface DemoOrganizationInput {
   brandName?: string | null;
   storeName: string;
   city: string;
-  contactEmail?: string | null;
   siret?: string | null;
 }
 
@@ -137,7 +136,6 @@ export async function createDemoOrganizationRecords(
   const org = await insertRow<{ id: string }>('Organization', {
     name: organizationName,
     logo: getOrganizationLogo(input.brandName),
-    contact_email: input.contactEmail ?? null,
     siret: input.siret ?? null,
   });
 
