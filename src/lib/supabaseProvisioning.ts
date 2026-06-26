@@ -42,7 +42,6 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
       brandName: deal.store.brand?.name,
       storeName: deal.store.name,
       city: deal.store.city,
-      siret: deal.store.siret || null,
     },
     // On mémorise l'id sur le deal dès l'Organization créée : garantit
     // l'idempotence même si le plan ou le recruiter échoue ensuite.
