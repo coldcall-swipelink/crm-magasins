@@ -141,10 +141,14 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
     const moveData = await moveRes.json().catch(() => ({}));
 
-    // Diagnostic visio : si la synchro Google Meet n'a pas créé l'invitation,
-    // on explique pourquoi (sinon l'échec est totalement silencieux).
-    const meet = moveData?.meetSync as { ok?: boolean; reason?: string } | undefined;
-    if (meet && !meet.ok) {
+    // Diagnostic visio non ambigu : on affiche un toast dans TOUS les cas
+    // (succès, échec explicite, ou branche Meet non déclenchée = meetSync null).
+    const meet = moveData?.meetSync as { ok?: boolean; reason?: string } | null | undefined;
+    if (meet === null || meet === undefined) {
+      toast('⚠ Synchro visio non déclenchée (colonne/choix non reconnus)', 'error');
+    } else if (meet.ok) {
+      toast('✓ Invitation Google Meet créée');
+    } else {
       const why =
         meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
         : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
