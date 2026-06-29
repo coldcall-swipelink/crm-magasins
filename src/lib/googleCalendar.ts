@@ -31,6 +31,14 @@ const DEFAULT_GUEST = 'bilal@swipelink.fr';
 const DEFAULT_DURATION_MIN = 30;
 const DEFAULT_TIMEZONE = 'Europe/Paris';
 
+// Validation d'adresse e-mail « assez stricte » pour Google Calendar :
+// exactement une adresse, pas d'espace, un domaine avec un point.
+// Filtre les valeurs parasites du CRM (« Non trouvé », « directeur@ », etc.).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(value: string): boolean {
+  return EMAIL_RE.test(value.trim());
+}
+
 /** Indique si l'intégration est configurée. Sinon on no-op silencieusement. */
 export function isGoogleCalendarConfigured(): boolean {
   return Boolean(
@@ -271,11 +279,15 @@ export async function syncDemoMeeting(
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Invités : contact de l'affaire (si email valide) + bilal@swipelink.fr.
+  // Invités : contact de l'affaire (si email VALIDE) + bilal@swipelink.fr.
+  // Validation stricte : un simple « @ » ne suffit pas (Google rejette tout
+  // l'événement avec « Invalid attendee email » si une adresse est malformée).
+  // Un contact à l'email invalide est donc ignoré — la visio est quand même
+  // créée avec l'invité par défaut.
   const attendees: string[] = [];
   const contactEmail = deal.dealEmail?.trim();
-  if (contactEmail && contactEmail.includes('@')) attendees.push(contactEmail);
-  if (!attendees.includes(guestEmail)) attendees.push(guestEmail);
+  if (contactEmail && isValidEmail(contactEmail)) attendees.push(contactEmail);
+  if (isValidEmail(guestEmail) && !attendees.includes(guestEmail)) attendees.push(guestEmail);
 
   const start = new Date(deal.demoDate);
   const end = new Date(start.getTime() + durationMin * 60 * 1000);
