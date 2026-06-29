@@ -182,9 +182,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     // Démo prévue → invitation Google Meet. On déclenche quand l'affaire entre
-    // dans la colonne « Démo prévue » ou quand sa date de démo change alors
-    // qu'elle s'y trouve déjà (mise à jour de l'événement existant).
-    if (deal.column?.title === 'Démo prévue' && ('columnId' in body || 'demoDate' in body)) {
+    // dans la colonne « Démo prévue » (Prospection) / « DEMO PREVUE » (Closing)
+    // ou quand sa date de démo change alors qu'elle s'y trouve déjà (mise à jour
+    // de l'événement existant).
+    const isDemoColumn = deal.column?.title === 'Démo prévue' || deal.column?.title === 'DEMO PREVUE';
+    if (isDemoColumn && ('columnId' in body || 'demoDate' in body)) {
       try {
         await syncDemoMeeting(deal.id);
       } catch (meetErr) {
@@ -196,7 +198,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // plan, Recruiter). Uniquement à l'entrée dans la colonne (changement de
     // colonne), pas sur une simple mise à jour de la date de démo. L'opération
     // est idempotente (cf. supabaseProvisioning.ts).
-    if (deal.column?.title === 'Démo prévue' && 'columnId' in body) {
+    if (isDemoColumn && 'columnId' in body) {
       try {
         await provisionDemoOrganization(deal.id);
       } catch (provisionErr) {

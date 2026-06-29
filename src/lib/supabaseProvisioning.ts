@@ -34,7 +34,8 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
     include: { store: { include: { brand: true } }, column: true },
   });
   if (!deal) return;
-  if (deal.column?.title !== 'Démo prévue') return;
+  // « Démo prévue » (pipeline Prospection) ou « DEMO PREVUE » (pipeline Closing).
+  if (deal.column?.title !== 'Démo prévue' && deal.column?.title !== 'DEMO PREVUE') return;
   if (deal.supabaseOrganizationId) return; // déjà provisionné → on ne refait rien
 
   await createDemoOrganizationRecords(

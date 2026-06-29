@@ -246,7 +246,9 @@ export async function syncDemoMeeting(
   });
 
   if (!deal) return { ok: false, reason: 'deal_not_found' };
-  if (deal.column?.title !== 'Démo prévue') return { ok: false, reason: 'wrong_column' };
+  // Colonne « démo prévue » : on accepte le libellé du pipeline Prospection
+  // (« Démo prévue ») comme celui du pipeline Closing (« DEMO PREVUE »).
+  if (deal.column?.title !== 'Démo prévue' && deal.column?.title !== 'DEMO PREVUE') return { ok: false, reason: 'wrong_column' };
   if (!deal.demoDate) return { ok: false, reason: 'no_demo_date' };
 
   const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
