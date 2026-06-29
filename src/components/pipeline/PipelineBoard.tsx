@@ -139,6 +139,20 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       body: JSON.stringify({ columnId: closingDemoCol.id, pvChoice: choice }),
     });
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
+    const moveData = await moveRes.json().catch(() => ({}));
+
+    // Diagnostic visio : si la synchro Google Meet n'a pas créé l'invitation,
+    // on explique pourquoi (sinon l'échec est totalement silencieux).
+    const meet = moveData?.meetSync as { ok?: boolean; reason?: string } | undefined;
+    if (meet && !meet.ok) {
+      const why =
+        meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
+        : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
+        : meet.reason === 'wrong_column' ? 'colonne inattendue'
+        : meet.reason === 'deal_not_found' ? 'affaire introuvable'
+        : `erreur Google (${meet.reason ?? 'inconnue'})`;
+      toast(`Visio non créée : ${why}`, 'error');
+    }
 
     // OUI uniquement : duplication vers Recrutement › SOURCING A FAIRE.
     if (choice === 'oui') {

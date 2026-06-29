@@ -64,11 +64,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // + provisioning de la base produit Supabase (Organization, plan, Recruiter).
     // Couvre aussi le transfert du workflow « Prospection de Valeur » vers
     // Closing › DEMO PREVUE (pvChoice présent), dont le titre est en majuscules.
+    // On remonte le résultat de la synchro Meet (meetSync) au client pour qu'il
+    // puisse afficher un toast explicite en cas d'échec (pas de date, etc.).
+    let meetSync: { ok: boolean; reason?: string; meetUrl?: string } | null = null;
     if (column.title === 'Démo prévue' || (!!pvChoice && column.title === 'DEMO PREVUE')) {
       try {
-        await syncDemoMeeting(deal.id, pvChoice);
+        meetSync = await syncDemoMeeting(deal.id, pvChoice);
       } catch (meetErr) {
         console.error('Google Meet (Démo prévue) error:', meetErr);
+        meetSync = { ok: false, reason: String(meetErr) };
       }
       try {
         await provisionDemoOrganization(deal.id);
@@ -102,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    return NextResponse.json(deal);
+    return NextResponse.json({ ...deal, meetSync });
   } catch (err) {
     console.error('[POST /api/deals/[id]/move]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

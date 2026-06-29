@@ -577,7 +577,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   type="datetime-local" style={inp} value={fields.demoDate ?? ''}
                   onChange={e => { setFields(f => ({ ...f, demoDate: e.target.value })); patchDeal({ demoDate: e.target.value ? new Date(e.target.value).toISOString() : null }); }}
                 />
-                {deal.column?.title === 'Démo prévue' && (
+                {(deal.column?.title === 'Démo prévue' || deal.column?.title === 'DEMO PREVUE') && (
                   <p style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>
                     Une invitation Google Meet est envoyée au contact{deal.dealEmail ? ` (${deal.dealEmail})` : ''} et à bilal@swipelink.fr à l&apos;enregistrement de la date.
                   </p>
