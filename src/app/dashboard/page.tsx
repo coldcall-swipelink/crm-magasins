@@ -15,6 +15,7 @@ interface Closing {
   value: number;
   closingDate: string;
   paymentMode: 'stripe' | 'virement';
+  subscriptions: { type: string; value: number }[];
   storeName: string;
   city: string;
   brandId: string | null;
@@ -199,6 +200,29 @@ export default function DashboardPage() {
     return Array.from(map.values()).sort((a, b) => b.mrr - a.mrr);
   }, [current]);
 
+  // Répartition du MRR par type d'abonnement (sur la période courante). On
+  // additionne la valeur de chaque abonnement par type ; la valeur d'un deal
+  // sans abonnement détaillé est rangée sous « Non renseigné ».
+  const typeBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of current) {
+      if (d.subscriptions && d.subscriptions.length) {
+        for (const s of d.subscriptions) {
+          const key = s.type?.trim() || 'Non renseigné';
+          map.set(key, (map.get(key) ?? 0) + (s.value || 0));
+        }
+      } else if (d.value) {
+        map.set('Non renseigné', (map.get('Non renseigné') ?? 0) + d.value);
+      }
+    }
+    const palette = ['#4f46e5', '#8b5cf6', '#0ea5e9', '#16a34a', '#f59e0b', '#ec4899', '#14b8a6', '#ef4444', '#a855f7', '#64748b'];
+    const total = Array.from(map.values()).reduce((s, v) => s + v, 0);
+    return Array.from(map.entries())
+      .map(([name, value], i) => ({ name, value, color: name === 'Non renseigné' ? '#cbd5e1' : palette[i % palette.length], pct: total ? (value / total) * 100 : 0 }))
+      .filter(s => s.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [current]);
+
   // Répartition mode de paiement (par MRR)
   const paymentBreakdown = useMemo(() => {
     const stripe = current.filter(d => d.paymentMode === 'stripe');
@@ -343,6 +367,37 @@ export default function DashboardPage() {
               </>
             ) : <div style={emptyChart}>Aucune donnée</div>}
           </div>
+        </div>
+
+        {/* Répartition du MRR par type d'abonnement */}
+        <div style={{ ...card, marginTop: 16 }}>
+          <div style={cardTitle}>Répartition du MRR par type d&apos;abonnement</div>
+          {typeBreakdown.length ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16, alignItems: 'center' }}>
+              <ResponsiveContainer width="100%" height={230}>
+                <PieChart>
+                  <Pie data={typeBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={88} paddingAngle={2}>
+                    {typeBreakdown.map((s, i) => <Cell key={i} fill={s.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ fontSize: 11 }} formatter={((v: any, n: any) => [`${formatCurrency(v)} (${mrr ? ((v / mrr) * 100).toFixed(1) : 0} %)`, n]) as any} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div>
+                {typeBreakdown.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: i < typeBreakdown.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <span style={{ width: 11, height: 11, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 12.5, color: '#334155', fontWeight: 500 }}>{s.name}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', width: 56, textAlign: 'right' }}>{s.pct.toFixed(1)} %</span>
+                    <span style={{ fontSize: 12, color: '#64748b', width: 90, textAlign: 'right' }}>{formatCurrency(s.value)}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 0', marginTop: 4, borderTop: '2px solid #e2e8f0' }}>
+                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>MRR total</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#15803d' }}>{formatCurrency(mrr) || '0 €'}</span>
+                </div>
+              </div>
+            </div>
+          ) : <div style={emptyChart}>Aucun abonnement sur cette période</div>}
         </div>
 
         {/* Table des closings de la période */}
