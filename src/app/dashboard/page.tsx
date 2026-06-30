@@ -122,7 +122,12 @@ export default function DashboardPage() {
     [data, brandId],
   );
 
-  const current = useMemo(() => byBrand.filter(d => inRange(d.closingDate, range.start, range.end)), [byBrand, range]);
+  // « Tout » = aucun filtre de date (inclut les closings à dates aberrantes,
+  // passées comme futures) → coïncide exactement avec le MRR cumulé.
+  const current = useMemo(
+    () => preset === 'all' ? byBrand : byBrand.filter(d => inRange(d.closingDate, range.start, range.end)),
+    [byBrand, range, preset],
+  );
   const previous = useMemo(
     () => (range.prevStart && range.prevEnd ? byBrand.filter(d => inRange(d.closingDate, range.prevStart!, range.prevEnd!)) : []),
     [byBrand, range],
@@ -160,6 +165,10 @@ export default function DashboardPage() {
         if (minT > axisStart.getTime()) axisStart = new Date(minT);
         if (maxT < axisEnd.getTime()) axisEnd = new Date(maxT);
       }
+      // Sécurité : on n'affiche au plus que ~120 mois finissant au dernier
+      // closing (évite qu'une date aberrante vide le graphe).
+      const floor = new Date(axisEnd.getFullYear(), axisEnd.getMonth() - 119, 1);
+      if (axisStart.getTime() < floor.getTime()) axisStart = floor;
       const cur = new Date(axisStart.getFullYear(), axisStart.getMonth(), 1);
       const last = new Date(axisEnd.getFullYear(), axisEnd.getMonth(), 1);
       let guard = 0;
