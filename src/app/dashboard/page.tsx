@@ -15,7 +15,7 @@ interface Closing {
   value: number;
   closingDate: string;
   paymentMode: 'stripe' | 'virement';
-  subscriptions: { type: string; value: number }[];
+  subscriptions: { type: string; value: number; months: number }[];
   storeName: string;
   city: string;
   brandId: string | null;
@@ -143,9 +143,25 @@ export default function DashboardPage() {
   const stripeCount = current.filter(d => d.paymentMode === 'stripe').length;
   const stripeShare = clients ? (stripeCount / clients) * 100 : 0;
 
+  // ARR = MRR annualisé (la valeur saisie est mensuelle → × 12).
+  const arr = mrr * 12;
+  const arrPrev = mrrPrev * 12;
+
   // Cumul tout temps (sur l'enseigne filtrée)
   const mrrAllTime = sumValue(byBrand);
   const clientsAllTime = byBrand.length;
+  const arrAllTime = mrrAllTime * 12;
+
+  // Durée d'abonnement moyenne (mois), calculée sur les abonnements.
+  const avgDurationOf = (deals: Closing[]) => {
+    let total = 0, n = 0;
+    for (const d of deals) for (const s of d.subscriptions ?? []) { total += s.months || 0; n += 1; }
+    return n ? total / n : 0;
+  };
+  // Lifetime Value = MRR moyen par client × durée d'abonnement moyenne (mois).
+  const arpuAllTime = clientsAllTime ? mrrAllTime / clientsAllTime : 0;
+  const avgDurationAllTime = avgDurationOf(byBrand);
+  const ltvAllTime = arpuAllTime * avgDurationAllTime;
 
   // Série temporelle (adaptative jour/mois selon la durée de la période)
   const series = useMemo(() => {
@@ -304,16 +320,19 @@ export default function DashboardPage() {
         </div>
 
         {/* KPIs période (avec comparaison) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
+          <Kpi label="ARR (annualisé)" value={formatCurrency(arr) || '0 €'} delta={pctDelta(arr, arrPrev)} prev={range.prevLabel ? formatCurrency(arrPrev) || '0 €' : null} />
           <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
           <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
           <Kpi label="Part Stripe" value={`${stripeShare.toFixed(0)} %`} sub={`${stripeCount}/${clients || 0} en Stripe`} />
         </div>
 
         {/* Cumul tout temps */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 24 }}>
           <Kpi label="MRR total cumulé" value={formatCurrency(mrrAllTime) || '0 €'} sub={brandId ? data.brands.find(b => b.id === brandId)?.name : 'toutes enseignes'} small />
+          <Kpi label="ARR cumulé" value={formatCurrency(arrAllTime) || '0 €'} sub="MRR cumulé × 12" small />
+          <Kpi label="Lifetime Value" value={formatCurrency(ltvAllTime) || '0 €'} sub={`${formatCurrency(arpuAllTime) || '0 €'}/client × ${avgDurationAllTime.toFixed(0)} mois`} small />
           <Kpi label="Clients au total" value={String(clientsAllTime)} sub="depuis le début" small />
           <Kpi label="Panier moyen global" value={formatCurrency(clientsAllTime ? mrrAllTime / clientsAllTime : 0) || '0 €'} sub="sur tout l'historique" small />
         </div>

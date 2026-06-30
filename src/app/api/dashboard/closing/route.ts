@@ -17,7 +17,7 @@ export async function GET() {
         dealValue: true,
         closingDate: true,
         paymentMode: true,
-        subscriptions: { select: { subscriptionType: true, value: true } },
+        subscriptions: { select: { subscriptionType: true, value: true, subscriptionMonths: true } },
         store: {
           select: {
             name: true,
@@ -44,6 +44,7 @@ export async function GET() {
       subscriptions: (d.subscriptions ?? []).map(s => ({
         type: s.subscriptionType || '',
         value: s.value ?? 0,
+        months: s.subscriptionMonths ?? 12,
       })),
       storeName: d.store?.name ?? '',
       city: d.store?.city ?? '',
