@@ -130,6 +130,7 @@ export interface Deal {
   dealValue?:               number | null;
   demoDate?:                string | null;
   candidateCallDate?:       string | null;
+  closingDate?:             string | null;
   assignedUserId?:          string | null;
   assignedUser?:            User | null;
   createdAt:                string;

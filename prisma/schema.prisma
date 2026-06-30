@@ -132,6 +132,9 @@ model Deal {
   dealValue                 Float?
   demoDate                  DateTime?
   candidateCallDate         DateTime?
+  // Date de closing : renseignée à l'entrée dans l'étape « SMARTLINKÉ »
+  // (demandée au drag & drop) et modifiable depuis la fiche affaire.
+  closingDate               DateTime?
   googleEventId             String?
   googleMeetUrl             String?
   // Id de l'Organization créée dans la base produit Supabase quand l'affaire

@@ -105,6 +105,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         dealValue: d.dealValue != null ? String(d.dealValue) : '',
         demoDate: toLocalInput(d.demoDate),
         candidateCallDate: toDateInput(d.candidateCallDate),
+        closingDate: toDateInput(d.closingDate),
       });
       setEmailTo(d.dealEmail || '');
       if (d.contactCivilite) setCivilite(d.contactCivilite);
@@ -632,6 +633,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 <input
                   type="date" style={inp} value={fields.candidateCallDate ?? ''}
                   onChange={e => { setFields(f => ({ ...f, candidateCallDate: e.target.value })); patchDeal({ candidateCallDate: fromDateInput(e.target.value) }); }}
+                />
+              </div>
+              <div style={{ marginBottom: 9 }}>
+                <label style={labelStyle}>Date de closing</label>
+                <input
+                  type="date" style={inp} value={fields.closingDate ?? ''}
+                  onChange={e => { setFields(f => ({ ...f, closingDate: e.target.value })); patchDeal({ closingDate: fromDateInput(e.target.value) }); }}
                 />
               </div>
               <div>

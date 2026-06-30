@@ -10,7 +10,7 @@ import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position, pvChoice } = await req.json();
+    const { columnId, position, pvChoice, closingDate } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
@@ -27,6 +27,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Réponse à la pop-up « Prospection de Valeur ? » au passage en « Démo
         // prévue » : NON → l'affaire bascule en PC (isPV = false), OUI → PV.
         ...(pvChoice === 'oui' || pvChoice === 'non' ? { isPV: pvChoice === 'oui' } : {}),
+        // Date de closing demandée au passage en « SMARTLINKÉ » (ISO ou null).
+        ...(closingDate !== undefined ? { closingDate: closingDate ? new Date(closingDate) : null } : {}),
       },
       include: {
         store: { include: { brand: true } },
