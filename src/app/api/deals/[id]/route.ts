@@ -72,14 +72,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         p._count.childDeals = kids.length;
       }
     }
-    for (const k of ['priority', 'isPV', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName'] as const) {
+    for (const k of ['priority', 'isPV', 'paymentMode', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName'] as const) {
       if (k in body) (d as any)[k] = body[k];
     }
     return NextResponse.json(buildMockDeal(params.id));
   }
   try {
     const body = await req.json();
-    const allowed = ['columnId', 'priority', 'isPV', 'position', 'previousColumnId',
+    const allowed = ['columnId', 'priority', 'isPV', 'paymentMode', 'position', 'previousColumnId',
                      'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName',
                      'dealValue', 'demoDate', 'candidateCallDate', 'collaboratorId', 'assignedUserId'];
     const data: Record<string, unknown> = {};
