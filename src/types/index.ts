@@ -131,6 +131,10 @@ export interface Deal {
   demoDate?:                string | null;
   candidateCallDate?:       string | null;
   closingDate?:             string | null;
+  subscriptionType?:        string;
+  paymentTiming?:           'comptant' | 'mensuel';
+  subscriptionMonths?:      number;
+  subscriptionEndDate?:     string | null;
   assignedUserId?:          string | null;
   assignedUser?:            User | null;
   createdAt:                string;
