@@ -13,6 +13,7 @@ const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
+interface SubscriptionType { id: string; name: string; position: number; }
 
 const VARIABLES = ['{{civilite}}', '{{nom_famille}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
 
@@ -65,6 +66,9 @@ export default function SettingsPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [subTypes, setSubTypes] = useState<SubscriptionType[]>([]);
+  const [newSubType, setNewSubType] = useState('');
+  const [editSubType, setEditSubType] = useState<SubscriptionType | null>(null);
   const [newBrand, setNewBrand] = useState({ name: '', color: '#6366f1' });
   const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [newColTitle, setNewColTitle] = useState('');
@@ -80,11 +84,12 @@ export default function SettingsPage() {
   const colorTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const fetchAll = useCallback(async () => {
-    const [bRes, pRes, collRes, tRes] = await Promise.all([
+    const [bRes, pRes, collRes, tRes, stRes] = await Promise.all([
       fetch('/api/brands'),
       fetch('/api/pipelines'),
       fetch('/api/collaborators'),
       fetch('/api/email-templates'),
+      fetch('/api/subscription-types'),
     ]);
     if (bRes.ok) setBrands(await bRes.json());
     if (pRes.ok) {
@@ -93,6 +98,7 @@ export default function SettingsPage() {
     }
     if (collRes.ok) setCollaborators(await collRes.json());
     if (tRes.ok) setTemplates(await tRes.json());
+    if (stRes.ok) setSubTypes(await stRes.json());
   }, []);
 
   // Chargement de la signature email globale.
@@ -316,6 +322,31 @@ export default function SettingsPage() {
     toast('Supprimé');
   };
 
+  const addSubType = async () => {
+    if (!newSubType.trim()) return;
+    const res = await fetch('/api/subscription-types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSubType.trim(), position: subTypes.length }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || 'Erreur', 'error'); return; }
+    setNewSubType('');
+    await fetchAll();
+    toast('Type d\'abonnement ajouté');
+  };
+
+  const saveSubType = async () => {
+    if (!editSubType) return;
+    const res = await fetch(`/api/subscription-types/${editSubType.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSubType.name }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || 'Erreur', 'error'); return; }
+    setEditSubType(null);
+    await fetchAll();
+    toast('Type d\'abonnement mis à jour');
+  };
+
+  const deleteSubType = async (id: string) => {
+    if (!confirm('Supprimer ce type d\'abonnement ?')) return;
+    await fetch(`/api/subscription-types/${id}`, { method: 'DELETE' });
+    await fetchAll();
+    toast('Supprimé');
+  };
+
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
 
   return (
@@ -435,6 +466,32 @@ export default function SettingsPage() {
             <input style={{ ...inp, flex: 1 }} placeholder="Nom de l'enseigne" value={newBrand.name} onChange={e => setNewBrand(b => ({ ...b, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addBrand()} />
             <input type="color" value={newBrand.color} onChange={e => setNewBrand(b => ({ ...b, color: e.target.value }))} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
             <button style={btnPri} onClick={addBrand}>+ Ajouter</button>
+          </div>
+        </div>
+
+        {/* Types d'abonnement */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Types d&apos;abonnement</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>
+            Valeurs sélectionnables dans l&apos;onglet « Abonnement » de chaque affaire.
+          </div>
+          {subTypes.map(s => editSubType?.id === s.id ? (
+            <div key={s.id} style={row}>
+              <input style={{ ...inp, flex: 1 }} value={editSubType.name} onChange={e => setEditSubType(x => x ? { ...x, name: e.target.value } : null)} onKeyDown={e => e.key === 'Enter' && saveSubType()} />
+              <button style={btnPri} onClick={saveSubType}>✓</button>
+              <button style={btnDef} onClick={() => setEditSubType(null)}>✕</button>
+            </div>
+          ) : (
+            <div key={s.id} style={row}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>📦 {s.name}</span>
+              <button style={btnXs} onClick={() => setEditSubType({ ...s })}>✎</button>
+              <button style={btnXs} onClick={() => deleteSubType(s.id)}>🗑</button>
+            </div>
+          ))}
+          {!subTypes.length && <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8 }}>Aucun type pour le moment.</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <input style={{ ...inp, flex: 1 }} placeholder="Ex: Abonnement Standard, Premium…" value={newSubType} onChange={e => setNewSubType(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSubType()} />
+            <button style={btnPri} onClick={addSubType}>+ Ajouter</button>
           </div>
         </div>
 

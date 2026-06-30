@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Action, Note, Priority } from '@/types';
-import { formatDate, isOverdue, formatRelativeDate } from '@/lib/utils';
+import { formatDate, isOverdue, formatRelativeDate, addMonths } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
@@ -9,12 +9,6 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
 
-/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
- *  (comparaison insensible à la casse et aux accents). */
-function isSmartlinkColumn(title?: string | null) {
-  if (!title) return false;
-  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
-}
 
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
@@ -24,6 +18,36 @@ const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 const labelStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500 };
 const sectionTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '.8px', textTransform: 'uppercase', margin: '0 0 10px' };
+
+/** Sélecteur segmenté à deux états (ou plus) — utilisé pour le type de paiement
+ *  (Virement / Stripe) et la cadence (Comptant / Mensuel) dans l'onglet Abonnement. */
+function SegToggle({ value, options, onChange }: {
+  value: string;
+  options: { value: string; label: string; color: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 9, padding: 3, gap: 3 }}>
+      {options.map(o => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            style={{
+              border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 7,
+              fontSize: 12.5, fontWeight: 700, transition: 'all .12s',
+              background: active ? o.color : 'transparent', color: active ? '#fff' : '#64748b',
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
@@ -53,7 +77,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [loading, setLoading] = useState(true);
 
   // Onglet actif de la zone de droite : activité (par défaut) ou recrutement.
-  const [activeTab, setActiveTab] = useState<'activite' | 'recrutement' | 'proches'>('activite');
+  const [activeTab, setActiveTab] = useState<'activite' | 'abonnement' | 'recrutement' | 'proches'>('activite');
 
   // Volet de composition actif : note / action / email
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email'>(null);
@@ -63,6 +87,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
+  const [subscriptionTypes, setSubscriptionTypes] = useState<{ id: string; name: string }[]>([]);
+  // Durée d'abonnement décomposée en années + mois (état local pour une saisie
+  // fluide ; persiste en mois cumulés via subscriptionMonths).
+  const [durYears, setDurYears] = useState(1);
+  const [durMonths, setDurMonths] = useState(0);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
 
@@ -124,6 +153,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/pipelines').then(r => r.json()).then(d => setPipelines(d.pipelines || [])).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
+  useEffect(() => { fetch('/api/subscription-types').then(r => r.json()).then(setSubscriptionTypes).catch(() => {}); }, []);
+  // Synchronise les champs durée (années/mois) à l'ouverture d'une affaire.
+  useEffect(() => {
+    const m = deal?.subscriptionMonths ?? 12;
+    setDurYears(Math.floor(m / 12));
+    setDurMonths(m % 12);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deal?.id]);
 
   // Fermeture au clavier (Échap)
   useEffect(() => {
@@ -424,38 +461,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 </span>
                 {deal.isPV ? 'PV' : 'PC'}
               </button>
-              {/* Mode de paiement : visible uniquement pour les affaires en étape
-                  « SMARTLINKÉ ». Interrupteur entre Virement (gris) et Stripe (violet). */}
-              {isSmartlinkColumn(deal.column?.title) && (() => {
-                const isStripe = deal.paymentMode === 'stripe';
-                return (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isStripe}
-                    onClick={() => patchDeal({ paymentMode: isStripe ? 'virement' : 'stripe' }, isStripe ? 'Mode de paiement : Virement' : 'Mode de paiement : Stripe')}
-                    title={isStripe ? 'Paiement par Stripe (activé = Stripe)' : 'Paiement par Virement (désactivé = Virement)'}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none',
-                      background: 'none', border: 'none', padding: 0,
-                      fontSize: 11, fontWeight: 700, color: isStripe ? '#6d28d9' : '#64748b',
-                    }}
-                  >
-                    {/* Interrupteur à bascule : violet = Stripe, gris = Virement */}
-                    <span style={{
-                      position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0,
-                      background: isStripe ? '#8b5cf6' : '#cbd5e1', transition: 'background .15s',
-                    }}>
-                      <span style={{
-                        position: 'absolute', top: 2, left: isStripe ? 18 : 2, width: 18, height: 18,
-                        borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.25)',
-                        transition: 'left .15s',
-                      }} />
-                    </span>
-                    {isStripe ? 'Stripe' : 'Virement'}
-                  </button>
-                );
-              })()}
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>
@@ -633,13 +638,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 <input
                   type="date" style={inp} value={fields.candidateCallDate ?? ''}
                   onChange={e => { setFields(f => ({ ...f, candidateCallDate: e.target.value })); patchDeal({ candidateCallDate: fromDateInput(e.target.value) }); }}
-                />
-              </div>
-              <div style={{ marginBottom: 9 }}>
-                <label style={labelStyle}>Date de closing</label>
-                <input
-                  type="date" style={inp} value={fields.closingDate ?? ''}
-                  onChange={e => { setFields(f => ({ ...f, closingDate: e.target.value })); patchDeal({ closingDate: fromDateInput(e.target.value) }); }}
                 />
               </div>
               <div>
@@ -829,7 +827,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
             {/* Onglets : Activité / Recrutement */}
             <div style={{ display: 'flex', gap: 22, borderBottom: '1px solid #e2e8f0', marginBottom: 20 }}>
-              {([['activite', 'Activité'], ['recrutement', 'Recrutement'], ['proches', 'Magasins proches']] as const).map(([key, label]) => {
+              {([['activite', 'Activité'], ['abonnement', 'Abonnement'], ['recrutement', 'Recrutement'], ['proches', 'Magasins proches']] as const).map(([key, label]) => {
                 const active = activeTab === key;
                 return (
                   <button
@@ -1009,6 +1007,124 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </div>
             </>
             )}
+
+            {activeTab === 'abonnement' && (() => {
+              const totalMonths = durYears * 12 + durMonths;
+              const endDate = fields.closingDate
+                ? addMonths(new Date(fields.closingDate + 'T12:00:00Z'), totalMonths)
+                : null;
+              const applyDuration = (y: number, mo: number) => {
+                const yy = Math.max(0, Math.floor(y || 0));
+                const mm = Math.max(0, Math.floor(mo || 0));
+                setDurYears(yy); setDurMonths(mm);
+                patchDeal({ subscriptionMonths: yy * 12 + mm });
+              };
+              return (
+                <div style={{ maxWidth: 580 }}>
+                  <div style={sectionTitle}>Abonnement</div>
+
+                  {/* Type d'abonnement (liste configurable en Paramètres) */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Type d&apos;abonnement</label>
+                    <select
+                      style={inp}
+                      value={deal.subscriptionType || ''}
+                      onChange={e => patchDeal({ subscriptionType: e.target.value }, 'Type d\'abonnement mis à jour')}
+                    >
+                      <option value="">— Choisir —</option>
+                      {subscriptionTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                      {deal.subscriptionType && !subscriptionTypes.some(t => t.name === deal.subscriptionType) && (
+                        <option value={deal.subscriptionType}>{deal.subscriptionType}</option>
+                      )}
+                    </select>
+                    {!subscriptionTypes.length && (
+                      <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>
+                        Aucun type configuré. Ajoutez-en dans <b>Paramètres › Types d&apos;abonnement</b>.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Type de paiement : Virement / Stripe */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Type de paiement</label>
+                    <div>
+                      <SegToggle
+                        value={deal.paymentMode === 'virement' ? 'virement' : 'stripe'}
+                        options={[{ value: 'stripe', label: 'Stripe', color: '#8b5cf6' }, { value: 'virement', label: 'Virement', color: '#64748b' }]}
+                        onChange={v => patchDeal({ paymentMode: v }, v === 'stripe' ? 'Paiement : Stripe' : 'Paiement : Virement')}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cadence de paiement : Comptant / Mensuel */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Paiement</label>
+                    <div>
+                      <SegToggle
+                        value={deal.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant'}
+                        options={[{ value: 'comptant', label: 'Comptant', color: '#4f46e5' }, { value: 'mensuel', label: 'Mensuel', color: '#0ea5e9' }]}
+                        onChange={v => patchDeal({ paymentTiming: v }, v === 'mensuel' ? 'Paiement mensuel' : 'Paiement comptant')}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Date de closing */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Date de closing</label>
+                    <input
+                      type="date" style={{ ...inp, maxWidth: 220 }} value={fields.closingDate ?? ''}
+                      onChange={e => { setFields(f => ({ ...f, closingDate: e.target.value })); patchDeal({ closingDate: fromDateInput(e.target.value) }); }}
+                    />
+                  </div>
+
+                  {/* Durée de l'abonnement (années + mois) */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Durée de l&apos;abonnement</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number" min={0} style={{ ...inp, width: 70 }} value={durYears}
+                          onChange={e => applyDuration(Number(e.target.value), durMonths)}
+                        />
+                        <span style={{ fontSize: 12.5, color: '#475569' }}>an(s)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number" min={0} style={{ ...inp, width: 70 }} value={durMonths}
+                          onChange={e => applyDuration(durYears, Number(e.target.value))}
+                        />
+                        <span style={{ fontSize: 12.5, color: '#475569' }}>mois</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applyDuration(1, 0)}
+                        style={{ ...btnDef, padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Réinit. 1 an
+                      </button>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                        soit {totalMonths} mois au total
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Date de fin calculée automatiquement */}
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={labelStyle}>Date de fin (calculée automatiquement)</label>
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 8,
+                      background: endDate ? '#ecfdf5' : '#f8fafc', border: `1px solid ${endDate ? '#a7f3d0' : '#e2e8f0'}`,
+                      fontSize: 14, fontWeight: 700, color: endDate ? '#047857' : '#94a3b8',
+                    }}>
+                      🗓 {endDate ? formatDate(endDate) : '—'}
+                    </div>
+                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                      = date de closing + durée de l&apos;abonnement. {!fields.closingDate && 'Renseignez la date de closing pour la calculer.'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {activeTab === 'recrutement' && <RecruitmentTab dealId={dealId} />}
 

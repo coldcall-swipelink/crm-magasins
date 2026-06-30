@@ -54,6 +54,16 @@ model Collaborator {
   deals     Deal[]
 }
 
+// Liste configurable (Paramètres) des types d'abonnement sélectionnables sur
+// la fiche affaire (onglet « Abonnement »). Le deal stocke le nom choisi.
+model SubscriptionType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // Utilisateur de l'application (identité choisie à la première connexion,
 // stockée côté navigateur). Complémentaire de Collaborator : sert à savoir
 // qui est connecté, qui suit un deal, à qui une action est assignée et qui
@@ -133,8 +143,17 @@ model Deal {
   demoDate                  DateTime?
   candidateCallDate         DateTime?
   // Date de closing : renseignée à l'entrée dans l'étape « SMARTLINKÉ »
-  // (demandée au drag & drop) et modifiable depuis la fiche affaire.
+  // (demandée au drag & drop) et modifiable depuis l'onglet « Abonnement ».
   closingDate               DateTime?
+  // ----- Abonnement (onglet « Abonnement » de la fiche affaire) -----
+  // Nom du type d'abonnement choisi (liste configurable dans Paramètres).
+  subscriptionType          String   @default("")
+  // Cadence de paiement : "comptant" (par défaut) ou "mensuel".
+  paymentTiming             String   @default("comptant")
+  // Durée totale de l'abonnement en mois (1 an = 12 par défaut).
+  subscriptionMonths        Int      @default(12)
+  // Date de fin calculée automatiquement = closingDate + subscriptionMonths.
+  subscriptionEndDate       DateTime?
   googleEventId             String?
   googleMeetUrl             String?
   // Id de l'Organization créée dans la base produit Supabase quand l'affaire

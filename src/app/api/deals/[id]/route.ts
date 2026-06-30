@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
 import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
+import { addMonths } from '@/lib/utils';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -72,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         p._count.childDeals = kids.length;
       }
     }
-    for (const k of ['priority', 'isPV', 'paymentMode', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName'] as const) {
+    for (const k of ['priority', 'isPV', 'paymentMode', 'paymentTiming', 'subscriptionType', 'subscriptionMonths', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName'] as const) {
       if (k in body) (d as any)[k] = body[k];
     }
     return NextResponse.json(buildMockDeal(params.id));
@@ -81,10 +82,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json();
     const allowed = ['columnId', 'priority', 'isPV', 'paymentMode', 'position', 'previousColumnId',
                      'directeur', 'contactCalling', 'dealEmail', 'contactCivilite', 'contactLastName',
-                     'dealValue', 'demoDate', 'candidateCallDate', 'closingDate', 'collaboratorId', 'assignedUserId'];
+                     'dealValue', 'demoDate', 'candidateCallDate', 'closingDate', 'collaboratorId', 'assignedUserId',
+                     'subscriptionType', 'paymentTiming', 'subscriptionMonths'];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
+    }
+
+    // Date de fin d'abonnement : recalculée dès que la date de closing ou la
+    // durée change. Source unique de vérité côté serveur (= closingDate + mois).
+    if ('closingDate' in body || 'subscriptionMonths' in body) {
+      const existing = await prisma.deal.findUnique({
+        where: { id: params.id },
+        select: { closingDate: true, subscriptionMonths: true },
+      });
+      const closing = 'closingDate' in body
+        ? (body.closingDate ? new Date(body.closingDate) : null)
+        : (existing?.closingDate ?? null);
+      const months = 'subscriptionMonths' in body
+        ? Number(body.subscriptionMonths)
+        : (existing?.subscriptionMonths ?? 12);
+      data.subscriptionEndDate = closing && months > 0 ? addMonths(closing, months) : null;
     }
 
     // Rattachement à un deal parent (regroupement). Validation : pas de

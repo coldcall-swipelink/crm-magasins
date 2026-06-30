@@ -76,6 +76,16 @@ export function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
+/** Ajoute `months` mois à une date en gérant les débordements de fin de mois
+ *  (ex. 31 janvier + 1 mois → 28/29 février). Renvoie une nouvelle Date. */
+export function addMonths(date: Date | string, months: number): Date {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() < day) d.setDate(0); // dernier jour du mois précédent
+  return d;
+}
+
 /** Retourne un texte relatif à la date en comparant uniquement les jours (sans heure) */
 export function formatRelativeDate(date: Date | string | null | undefined): string {
   if (!date) return '';
