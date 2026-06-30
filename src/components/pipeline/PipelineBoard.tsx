@@ -6,12 +6,20 @@ import DealSearch from './DealSearch';
 import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
+import ClosingDateModal from './ClosingDateModal';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/utils';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
 interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
+
+/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
+ *  (insensible à la casse et aux accents). */
+function isSmartlinkColumn(title?: string | null): boolean {
+  if (!title) return false;
+  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
+}
 
 export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
@@ -27,6 +35,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
+  const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; initialDate?: string } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Save pipeline selection to localStorage
@@ -109,6 +118,19 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       return;
     }
 
+    // Arrivée dans « SMARTLINKÉ » : on demande la date de closing AVANT de
+    // persister, pour pouvoir annuler proprement (cf. handleClosing*).
+    if (isSmartlinkColumn(targetTitle)) {
+      setClosing({
+        dealId: deal.id,
+        targetColId,
+        originColId,
+        storeName: deal.store?.name,
+        initialDate: deal.closingDate ? String(deal.closingDate).slice(0, 10) : '',
+      });
+      return;
+    }
+
     // Autres colonnes : persistance immédiate du déplacement.
     try {
       const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId }) });
@@ -181,6 +203,30 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       setDeals(prev => prev.map(d => d.id === pv.dealId ? { ...d, columnId: pv.originColId } : d));
     }
     setPv(null);
+  };
+
+  // Réponse à la pop-up « Date de closing » (drop dans SMARTLINKÉ) :
+  // on persiste le déplacement avec la date saisie ("YYYY-MM-DD" ou '' → null).
+  const handleClosingConfirm = async (date: string) => {
+    if (!closing) return;
+    const closingDate = date ? new Date(date + 'T12:00:00Z').toISOString() : null;
+    const res = await fetch(`/api/deals/${closing.dealId}/move`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: closing.targetColId, closingDate }),
+    });
+    if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
+    toast(date ? 'Affaire déplacée — date de closing enregistrée' : 'Affaire déplacée dans SMARTLINKÉ');
+    setClosing(null);
+    fetchDeals();
+  };
+
+  // Date de closing annulée : rien n'a été persisté → on remet l'affaire dans
+  // sa colonne d'origine.
+  const handleClosingCancel = () => {
+    if (closing) {
+      setDeals(prev => prev.map(d => d.id === closing.dealId ? { ...d, columnId: closing.originColId } : d));
+    }
+    setClosing(null);
   };
 
   const sortedCols = pipelineColumns;
@@ -296,6 +342,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={setOpenDealId} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
+      {closing && <ClosingDateModal storeName={closing.storeName} initialDate={closing.initialDate} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
     </div>
   );
 }
