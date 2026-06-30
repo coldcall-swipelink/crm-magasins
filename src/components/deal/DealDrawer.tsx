@@ -1073,7 +1073,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                     <label style={labelStyle}>Date de closing</label>
                     <input
                       type="date" style={{ ...inp, maxWidth: 220 }} value={fields.closingDate ?? ''}
-                      onChange={e => { setFields(f => ({ ...f, closingDate: e.target.value })); patchDeal({ closingDate: fromDateInput(e.target.value) }); }}
+                      // On met à jour l'affichage à chaque frappe mais on ne
+                      // persiste qu'au blur : sinon chaque chiffre de l'année
+                      // déclenche un patch + refetch qui réinitialise la saisie.
+                      onChange={e => setFields(f => ({ ...f, closingDate: e.target.value }))}
+                      onBlur={() => { if ((fields.closingDate ?? '') !== toDateInput(deal.closingDate)) patchDeal({ closingDate: fromDateInput(fields.closingDate ?? '') }); }}
                     />
                   </div>
 
