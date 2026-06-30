@@ -115,9 +115,9 @@ model Deal {
   // Classique (PC). Affiché sous forme de puce à cocher sur chaque affaire.
   isPV                      Boolean  @default(true)
   // Mode de paiement choisi pour les affaires en étape « SMARTLINKÉ » :
-  // "virement" (par défaut) ou "stripe". Affiché sous forme d'interrupteur sur
+  // "stripe" (par défaut) ou "virement". Affiché sous forme d'interrupteur sur
   // la fiche affaire uniquement quand l'affaire est dans cette étape.
-  paymentMode               String   @default("virement")
+  paymentMode               String   @default("stripe")
   position                  Int      @default(0)
   isNewFromLastImport       Boolean  @default(false)
   hasNewOfferFromLastImport Boolean  @default(false)
