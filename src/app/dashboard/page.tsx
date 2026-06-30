@@ -66,7 +66,9 @@ function buildRange(preset: PresetKey, customFrom: string, customTo: string, now
       return { start, end: now, prevStart: addMonths(now, -24), prevEnd: addMonths(now, -12), label: '12 derniers mois', prevLabel: '12 mois précédents' };
     }
     case 'all':
-      return { start: new Date(2000, 0, 1), end: now, prevStart: null, prevEnd: null, label: 'Tout le temps', prevLabel: '' };
+      // Aucune borne : inclut aussi les closings datés dans le futur, pour
+      // coïncider avec le MRR cumulé (qui n'applique aucun filtre de date).
+      return { start: new Date(2000, 0, 1), end: new Date(9999, 11, 31), prevStart: null, prevEnd: null, label: 'Tout le temps', prevLabel: '' };
     case 'custom': {
       const start = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(2000, 0, 1);
       const end = customTo ? new Date(customTo + 'T23:59:59') : now;
@@ -147,15 +149,19 @@ export default function DashboardPage() {
     const buckets = new Map<string, { key: string; label: string; mrr: number; clients: number }>();
 
     if (granularity === 'month') {
-      // On clampe le début de l'axe au premier closing réel (évite des dizaines
-      // de mois vides quand la période est « Tout » ou très large).
+      // On clampe l'axe aux closings réels (évite des dizaines de mois vides
+      // quand la période est « Tout » ou très large, y compris vers le futur).
       let axisStart = range.start;
+      let axisEnd = range.end;
       if (current.length) {
-        const minT = Math.min(...current.map(d => new Date(d.closingDate).getTime()));
+        const times = current.map(d => new Date(d.closingDate).getTime());
+        const minT = Math.min(...times);
+        const maxT = Math.max(...times);
         if (minT > axisStart.getTime()) axisStart = new Date(minT);
+        if (maxT < axisEnd.getTime()) axisEnd = new Date(maxT);
       }
       const cur = new Date(axisStart.getFullYear(), axisStart.getMonth(), 1);
-      const last = new Date(range.end.getFullYear(), range.end.getMonth(), 1);
+      const last = new Date(axisEnd.getFullYear(), axisEnd.getMonth(), 1);
       let guard = 0;
       while (cur <= last && guard < 120) {
         const k = monthKey(cur);
@@ -284,7 +290,7 @@ export default function DashboardPage() {
 
         {/* Période active */}
         <div style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
-          Période : <b>{formatDate(range.start)} → {formatDate(range.end)}</b>
+          Période : <b>{preset === 'all' ? 'Tout l\'historique' : `${formatDate(range.start)} → ${formatDate(range.end)}`}</b>
           {range.prevLabel && <span style={{ color: '#94a3b8' }}> · comparé à : {range.prevLabel}</span>}
         </div>
 
