@@ -243,6 +243,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       const d = await res.json();
       setDeal(d);
       setFields({
+        storeName: d.store?.name || '',
         directeur: d.directeur || '',
         contactCalling: d.contactCalling || '',
         dealEmail: d.dealEmail || '',
@@ -703,7 +704,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
-              {[['Magasin', store?.name], ['Ville', store?.city], ['Département', store?.department]].map(([l, v]) => (
+              <div style={{ display: 'flex', gap: 8, fontSize: 12.5, marginBottom: 6, alignItems: 'center' }}>
+                <span style={{ width: 96, flexShrink: 0, color: '#94a3b8' }}>Magasin</span>
+                <input
+                  style={{ ...inp, flex: 1, padding: '4px 8px', fontSize: 12.5 }}
+                  value={fields.storeName ?? ''}
+                  placeholder="Nom du magasin"
+                  onChange={e => setFields(f => ({ ...f, storeName: e.target.value }))}
+                  onBlur={() => {
+                    const v = (fields.storeName ?? '').trim();
+                    if (v && v !== (store?.name ?? '')) patchDeal({ storeName: v }, 'Nom du magasin mis à jour');
+                  }}
+                />
+              </div>
+              {[['Ville', store?.city], ['Département', store?.department]].map(([l, v]) => (
                 <div key={l} style={{ display: 'flex', gap: 8, fontSize: 12.5, marginBottom: 6 }}>
                   <span style={{ width: 96, flexShrink: 0, color: '#94a3b8' }}>{l}</span>
                   <span style={{ color: v ? '#334155' : '#cbd5e1' }}>{v || '—'}</span>
