@@ -17,6 +17,7 @@ export async function GET() {
         dealValue: true,
         closingDate: true,
         paymentMode: true,
+        subscriptions: { select: { subscriptionType: true, value: true } },
         store: {
           select: {
             name: true,
@@ -39,6 +40,11 @@ export async function GET() {
       value: d.dealValue ?? 0,
       closingDate: d.closingDate!.toISOString(),
       paymentMode: d.paymentMode === 'virement' ? 'virement' : 'stripe',
+      // Détail par abonnement pour la répartition du MRR par type d'abonnement.
+      subscriptions: (d.subscriptions ?? []).map(s => ({
+        type: s.subscriptionType || '',
+        value: s.value ?? 0,
+      })),
       storeName: d.store?.name ?? '',
       city: d.store?.city ?? '',
       brandId: d.store?.brand?.id ?? null,
