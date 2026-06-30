@@ -1,7 +1,7 @@
 // src/app/api/dashboard/closing/route.ts
-// Données d'analyse du closing : tous les deals « closés » (date de closing
-// renseignée), allégés pour le calcul côté client (MRR, nouveaux clients,
-// comparaisons de périodes, répartition par enseigne et mode de paiement).
+// Données d'analyse du closing : UNE ligne par abonnement closé (date de closing
+// renseignée). Chaque abonnement porte sa propre date de closing et sa valeur,
+// si bien que le 2e abonnement d'un client existant est compté à sa propre date.
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -9,20 +9,26 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const [deals, brands] = await Promise.all([
-    prisma.deal.findMany({
+  const [subs, brands] = await Promise.all([
+    prisma.subscription.findMany({
       where: { closingDate: { not: null } },
       select: {
         id: true,
-        dealValue: true,
-        closingDate: true,
+        value: true,
+        subscriptionType: true,
         paymentMode: true,
-        subscriptions: { select: { subscriptionType: true, value: true, subscriptionMonths: true } },
-        store: {
+        subscriptionMonths: true,
+        closingDate: true,
+        deal: {
           select: {
-            name: true,
-            city: true,
-            brand: { select: { id: true, name: true, color: true } },
+            id: true,
+            store: {
+              select: {
+                name: true,
+                city: true,
+                brand: { select: { id: true, name: true, color: true } },
+              },
+            },
           },
         },
       },
@@ -35,22 +41,19 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    deals: deals.map(d => ({
-      id: d.id,
-      value: d.dealValue ?? 0,
-      closingDate: d.closingDate!.toISOString(),
-      paymentMode: d.paymentMode === 'virement' ? 'virement' : 'stripe',
-      // Détail par abonnement pour la répartition du MRR par type d'abonnement.
-      subscriptions: (d.subscriptions ?? []).map(s => ({
-        type: s.subscriptionType || '',
-        value: s.value ?? 0,
-        months: s.subscriptionMonths ?? 12,
-      })),
-      storeName: d.store?.name ?? '',
-      city: d.store?.city ?? '',
-      brandId: d.store?.brand?.id ?? null,
-      brandName: d.store?.brand?.name ?? 'Sans enseigne',
-      brandColor: d.store?.brand?.color ?? '#94a3b8',
+    closings: subs.map(s => ({
+      id: s.id,
+      dealId: s.deal?.id ?? '',
+      value: s.value ?? 0,
+      months: s.subscriptionMonths ?? 12,
+      type: s.subscriptionType || '',
+      paymentMode: s.paymentMode === 'virement' ? 'virement' : 'stripe',
+      closingDate: s.closingDate!.toISOString(),
+      storeName: s.deal?.store?.name ?? '',
+      city: s.deal?.store?.city ?? '',
+      brandId: s.deal?.store?.brand?.id ?? null,
+      brandName: s.deal?.store?.brand?.name ?? 'Sans enseigne',
+      brandColor: s.deal?.store?.brand?.color ?? '#94a3b8',
     })),
     brands,
     generatedAt: new Date().toISOString(),

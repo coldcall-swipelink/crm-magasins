@@ -10,12 +10,16 @@ import {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+// Une ligne de closing = UN abonnement (avec sa propre date de closing et sa
+// valeur). Un client à 2 abonnements génère donc 2 lignes.
 interface Closing {
   id: string;
-  value: number;
-  closingDate: string;
+  dealId: string;
+  value: number;        // montant mensuel de l'abonnement
+  months: number;
+  type: string;
   paymentMode: 'stripe' | 'virement';
-  subscriptions: { type: string; value: number; months: number }[];
+  closingDate: string;
   storeName: string;
   city: string;
   brandId: string | null;
@@ -23,7 +27,7 @@ interface Closing {
   brandColor: string;
 }
 interface ClosingData {
-  deals: Closing[];
+  closings: Closing[];
   brands: { id: string; name: string; color: string }[];
   generatedAt: string;
 }
@@ -116,9 +120,9 @@ export default function DashboardPage() {
   const now = useMemo(() => new Date(), []);
   const range = useMemo(() => buildRange(preset, customFrom, customTo, now), [preset, customFrom, customTo, now]);
 
-  // Closings filtrés par enseigne (avant filtre période).
+  // Lignes d'abonnement filtrées par enseigne (avant filtre période).
   const byBrand = useMemo(
-    () => (data?.deals ?? []).filter(d => !brandId || d.brandId === brandId),
+    () => (data?.closings ?? []).filter(d => !brandId || d.brandId === brandId),
     [data, brandId],
   );
 
@@ -133,15 +137,18 @@ export default function DashboardPage() {
     [byBrand, range],
   );
 
-  // KPIs période courante / précédente
+  // KPIs période courante / précédente. Le « nombre de clients » compte les
+  // clients DISTINCTS (un client à 2 abonnements = 1 client), tandis que le MRR
+  // additionne bien la valeur de CHAQUE abonnement closé sur la période.
+  const distinctClients = (lines: Closing[]) => new Set(lines.map(l => l.dealId)).size;
   const mrr = sumValue(current);
   const mrrPrev = sumValue(previous);
-  const clients = current.length;
-  const clientsPrev = previous.length;
+  const clients = distinctClients(current);
+  const clientsPrev = distinctClients(previous);
   const avg = clients ? mrr / clients : 0;
   const avgPrev = clientsPrev ? mrrPrev / clientsPrev : 0;
   const stripeCount = current.filter(d => d.paymentMode === 'stripe').length;
-  const stripeShare = clients ? (stripeCount / clients) * 100 : 0;
+  const stripeShare = current.length ? (stripeCount / current.length) * 100 : 0;
 
   // ARR = MRR annualisé (la valeur saisie est mensuelle → × 12).
   const arr = mrr * 12;
@@ -149,14 +156,14 @@ export default function DashboardPage() {
 
   // Cumul tout temps (sur l'enseigne filtrée)
   const mrrAllTime = sumValue(byBrand);
-  const clientsAllTime = byBrand.length;
+  const clientsAllTime = distinctClients(byBrand);
+  const subsAllTime = byBrand.length;
   const arrAllTime = mrrAllTime * 12;
 
-  // Durée d'abonnement moyenne (mois), calculée sur les abonnements.
-  const avgDurationOf = (deals: Closing[]) => {
-    let total = 0, n = 0;
-    for (const d of deals) for (const s of d.subscriptions ?? []) { total += s.months || 0; n += 1; }
-    return n ? total / n : 0;
+  // Durée d'abonnement moyenne (mois), moyenne sur les abonnements.
+  const avgDurationOf = (lines: Closing[]) => {
+    if (!lines.length) return 0;
+    return lines.reduce((s, l) => s + (l.months || 0), 0) / lines.length;
   };
   // Lifetime Value = MRR moyen par client × durée d'abonnement moyenne (mois).
   const arpuAllTime = clientsAllTime ? mrrAllTime / clientsAllTime : 0;
@@ -237,14 +244,8 @@ export default function DashboardPage() {
   const typeBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     for (const d of current) {
-      if (d.subscriptions && d.subscriptions.length) {
-        for (const s of d.subscriptions) {
-          const key = s.type?.trim() || 'Non renseigné';
-          map.set(key, (map.get(key) ?? 0) + (s.value || 0));
-        }
-      } else if (d.value) {
-        map.set('Non renseigné', (map.get('Non renseigné') ?? 0) + d.value);
-      }
+      const key = d.type?.trim() || 'Non renseigné';
+      map.set(key, (map.get(key) ?? 0) + (d.value || 0));
     }
     const palette = ['#4f46e5', '#8b5cf6', '#0ea5e9', '#16a34a', '#f59e0b', '#ec4899', '#14b8a6', '#ef4444', '#a855f7', '#64748b'];
     const total = Array.from(map.values()).reduce((s, v) => s + v, 0);
@@ -285,7 +286,7 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>📊 Closing &amp; MRR</div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>
-            {clientsAllTime} closing{clientsAllTime > 1 ? 's' : ''} au total · maj {formatDate(data.generatedAt)}
+            {subsAllTime} abonnement{subsAllTime > 1 ? 's' : ''} closé{subsAllTime > 1 ? 's' : ''} · {clientsAllTime} client{clientsAllTime > 1 ? 's' : ''} · maj {formatDate(data.generatedAt)}
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 16 }}>
@@ -349,10 +350,10 @@ export default function DashboardPage() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} width={28} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                  formatter={((value: any, name: any) => name === 'MRR' ? [formatCurrency(value), 'MRR'] : [value, 'Clients']) as any}
+                  formatter={((value: any, name: any) => name === 'MRR' ? [formatCurrency(value), 'MRR'] : [value, 'Closings']) as any}
                 />
                 <Bar yAxisId="left" dataKey="mrr" name="MRR" fill="#4f46e5" radius={[3, 3, 0, 0]} maxBarSize={42} />
-                <Line yAxisId="right" type="monotone" dataKey="clients" name="Clients" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} />
+                <Line yAxisId="right" type="monotone" dataKey="clients" name="Closings" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>
           ) : <div style={emptyChart}>Aucun closing sur cette période</div>}
@@ -367,7 +368,7 @@ export default function DashboardPage() {
                 <BarChart data={brandBreakdown} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                   <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v: number) => `${Math.round(v / 1000)}k`} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#475569' }} width={110} />
-                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} formatter={((v: any, _n: any, p: any) => [`${formatCurrency(v)} · ${p?.payload?.clients ?? 0} client(s)`, 'MRR']) as any} />
+                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} formatter={((v: any, _n: any, p: any) => [`${formatCurrency(v)} · ${p?.payload?.clients ?? 0} abonnement(s)`, 'MRR']) as any} />
                   <Bar dataKey="mrr" radius={[0, 4, 4, 0]} maxBarSize={26}>
                     {brandBreakdown.map((b, i) => <Cell key={i} fill={b.color} />)}
                   </Bar>
@@ -394,7 +395,7 @@ export default function DashboardPage() {
                   {paymentBreakdown.map((s, i) => (
                     <div key={i} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{s.count} client(s)</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>{s.count} abonnement(s)</div>
                     </div>
                   ))}
                 </div>
@@ -446,7 +447,7 @@ export default function DashboardPage() {
                 <thead>
                   <tr style={{ textAlign: 'left', color: '#94a3b8', fontSize: 11 }}>
                     <th style={th}>Date</th><th style={th}>Magasin</th><th style={th}>Enseigne</th>
-                    <th style={th}>Paiement</th><th style={{ ...th, textAlign: 'right' }}>Valeur</th>
+                    <th style={th}>Type</th><th style={th}>Paiement</th><th style={{ ...th, textAlign: 'right' }}>Valeur</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -455,6 +456,7 @@ export default function DashboardPage() {
                       <td style={td}>{formatDate(d.closingDate)}</td>
                       <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>{d.storeName || '—'}{d.city ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {d.city}</span> : null}</td>
                       <td style={td}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: d.brandColor }} />{d.brandName}</span></td>
+                      <td style={{ ...td, color: d.type ? '#334155' : '#cbd5e1' }}>{d.type || '—'}</td>
                       <td style={td}>
                         <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, color: d.paymentMode === 'stripe' ? '#6d28d9' : '#64748b', background: d.paymentMode === 'stripe' ? '#ede9fe' : '#f1f5f9' }}>
                           {d.paymentMode === 'stripe' ? 'Stripe' : 'Virement'}
