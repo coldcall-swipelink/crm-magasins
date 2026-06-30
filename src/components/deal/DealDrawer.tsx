@@ -9,6 +9,13 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
 
+/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
+ *  (comparaison insensible à la casse et aux accents). */
+function isSmartlinkColumn(title?: string | null) {
+  if (!title) return false;
+  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
+}
+
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 
@@ -416,6 +423,38 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 </span>
                 {deal.isPV ? 'PV' : 'PC'}
               </button>
+              {/* Mode de paiement : visible uniquement pour les affaires en étape
+                  « SMARTLINKÉ ». Interrupteur entre Virement (gris) et Stripe (violet). */}
+              {isSmartlinkColumn(deal.column?.title) && (() => {
+                const isStripe = deal.paymentMode === 'stripe';
+                return (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isStripe}
+                    onClick={() => patchDeal({ paymentMode: isStripe ? 'virement' : 'stripe' }, isStripe ? 'Mode de paiement : Virement' : 'Mode de paiement : Stripe')}
+                    title={isStripe ? 'Paiement par Stripe (activé = Stripe)' : 'Paiement par Virement (désactivé = Virement)'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none',
+                      background: 'none', border: 'none', padding: 0,
+                      fontSize: 11, fontWeight: 700, color: isStripe ? '#6d28d9' : '#64748b',
+                    }}
+                  >
+                    {/* Interrupteur à bascule : violet = Stripe, gris = Virement */}
+                    <span style={{
+                      position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0,
+                      background: isStripe ? '#8b5cf6' : '#cbd5e1', transition: 'background .15s',
+                    }}>
+                      <span style={{
+                        position: 'absolute', top: 2, left: isStripe ? 18 : 2, width: 18, height: 18,
+                        borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.25)',
+                        transition: 'left .15s',
+                      }} />
+                    </span>
+                    {isStripe ? 'Stripe' : 'Virement'}
+                  </button>
+                );
+              })()}
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>

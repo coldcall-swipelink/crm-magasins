@@ -115,6 +115,7 @@ export interface Deal {
   childDeals?:              { id: string; dealValue?: number | null }[];
   priority:                 Priority;
   isPV?:                    boolean;
+  paymentMode?:             'virement' | 'stripe';
   position:                 number;
   isNewFromLastImport:      boolean;
   hasNewOfferFromLastImport: boolean;

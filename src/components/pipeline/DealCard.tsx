@@ -24,6 +24,13 @@ function initials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
+/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
+ *  (comparaison insensible à la casse et aux accents). */
+function isSmartlinkColumn(title?: string | null): boolean {
+  if (!title) return false;
+  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
+}
+
 function getActionBackgroundColor(actions?: any[]): string {
   if (!actions || actions.length === 0) return '#ffffff';
   
@@ -112,6 +119,22 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
             >
               {deal.isPV ? 'PV' : 'PC'}
             </span>
+            {isSmartlinkColumn(deal.column?.title) && (() => {
+              const isStripe = deal.paymentMode === 'stripe';
+              return (
+                <span
+                  title={isStripe ? 'Paiement par Stripe' : 'Paiement par Virement'}
+                  style={{
+                    flexShrink: 0, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: '1px 6px',
+                    color: isStripe ? '#6d28d9' : '#64748b',
+                    background: isStripe ? '#ede9fe' : '#f1f5f9',
+                    border: `1px solid ${isStripe ? '#c4b5fd' : '#cbd5e1'}`,
+                  }}
+                >
+                  {isStripe ? 'Stripe' : 'Virement'}
+                </span>
+              );
+            })()}
           </div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
