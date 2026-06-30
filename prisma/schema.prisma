@@ -175,6 +175,32 @@ model Deal {
   emailLogs                 EmailLog[]
   candidateCalls            CandidateCall[]
   organizationLinks         DealOrganization[]
+  // Abonnements rattachés (1 ou 2 par affaire). Les champs subscription* /
+  // paymentMode / closingDate / dealValue ci-dessus sont conservés comme miroir
+  // dénormalisé de l'abonnement principal (position 0) et de la somme des
+  // valeurs, pour les cartes, totaux de colonnes et le dashboard.
+  subscriptions             Subscription[]
+}
+
+// Un abonnement vendu sur une affaire (jusqu'à 2 par deal). Chaque abonnement
+// porte sa propre valeur, son type, son mode/cadence de paiement, sa date de
+// closing et sa durée (→ date de fin calculée).
+model Subscription {
+  id                  String   @id @default(cuid())
+  dealId              String
+  deal                Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  position            Int      @default(0)
+  value               Float?
+  subscriptionType    String   @default("")
+  paymentMode         String   @default("stripe")
+  paymentTiming       String   @default("comptant")
+  closingDate         DateTime?
+  subscriptionMonths  Int      @default(12)
+  subscriptionEndDate DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([dealId])
 }
 
 model JobOffer {

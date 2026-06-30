@@ -104,6 +104,19 @@ export interface Note {
   updatedAt:  string;
 }
 
+export interface Subscription {
+  id:                  string;
+  dealId:              string;
+  position:            number;
+  value:               number | null;
+  subscriptionType:    string;
+  paymentMode:         'stripe' | 'virement';
+  paymentTiming:       'comptant' | 'mensuel';
+  closingDate:         string | null;
+  subscriptionMonths:  number;
+  subscriptionEndDate: string | null;
+}
+
 export interface Deal {
   id:                       string;
   storeId:                  string;
@@ -135,6 +148,7 @@ export interface Deal {
   paymentTiming?:           'comptant' | 'mensuel';
   subscriptionMonths?:      number;
   subscriptionEndDate?:     string | null;
+  subscriptions?:           Subscription[];
   assignedUserId?:          string | null;
   assignedUser?:            User | null;
   createdAt:                string;
