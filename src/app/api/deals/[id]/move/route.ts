@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
 import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
-import { addMonths } from '@/lib/utils';
+import { setPrimaryClosingDate } from '@/lib/subscriptions';
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -15,15 +15,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
-
-    // Date de fin d'abonnement recalculée si une date de closing est fournie
-    // (closingDate + durée d'abonnement de l'affaire).
-    let subscriptionEndDate: Date | null | undefined;
-    if (closingDate !== undefined) {
-      const existing = await prisma.deal.findUnique({ where: { id: params.id }, select: { subscriptionMonths: true } });
-      const months = existing?.subscriptionMonths ?? 12;
-      subscriptionEndDate = closingDate && months > 0 ? addMonths(new Date(closingDate), months) : null;
-    }
 
     const deal = await prisma.deal.update({
       where: { id: params.id },
@@ -38,9 +29,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Réponse à la pop-up « Prospection de Valeur ? » au passage en « Démo
         // prévue » : NON → l'affaire bascule en PC (isPV = false), OUI → PV.
         ...(pvChoice === 'oui' || pvChoice === 'non' ? { isPV: pvChoice === 'oui' } : {}),
-        // Date de closing demandée au passage en « SMARTLINKÉ » (ISO ou null),
-        // avec recalcul de la date de fin d'abonnement.
-        ...(closingDate !== undefined ? { closingDate: closingDate ? new Date(closingDate) : null, subscriptionEndDate } : {}),
       },
       include: {
         store: { include: { brand: true } },
@@ -48,6 +36,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         jobOffers: true,
       },
     });
+
+    // Date de closing demandée au passage en « SMARTLINKÉ » : on la pose sur
+    // l'abonnement principal (créé si besoin) puis on dénormalise sur le deal.
+    if (closingDate !== undefined) {
+      await setPrimaryClosingDate(params.id, closingDate ? new Date(closingDate) : null);
+    }
 
     // Webhook DEMO FAITE
     if (column.title === 'DEMO FAITE') {

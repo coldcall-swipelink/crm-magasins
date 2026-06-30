@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Action, Note, Priority } from '@/types';
-import { formatDate, isOverdue, formatRelativeDate, addMonths } from '@/lib/utils';
+import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
@@ -71,6 +71,125 @@ function toDateInput(v?: string | null) { return v ? String(v).slice(0, 10) : ''
 /** "YYYY-MM-DD" -> ISO (midi UTC pour éviter le décalage de jour), ou null. */
 function fromDateInput(v: string) { return v ? new Date(v + 'T12:00:00Z').toISOString() : null; }
 
+
+
+/** Carte d'édition d'un abonnement (onglet « Abonnement »). Gère son état local
+ *  pour une saisie fluide et persiste via onPatch. */
+function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: {
+  sub: any;
+  index: number;
+  subscriptionTypes: { id: string; name: string }[];
+  onPatch: (id: string, data: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [value, setValue] = useState(sub.value != null ? String(sub.value) : '');
+  const [closing, setClosing] = useState(toDateInput(sub.closingDate));
+  const [durYears, setDurYears] = useState(Math.floor((sub.subscriptionMonths ?? 12) / 12));
+  const [durMonths, setDurMonths] = useState((sub.subscriptionMonths ?? 12) % 12);
+
+  // Resynchronise les champs locaux quand on change d'abonnement (id différent).
+  useEffect(() => {
+    setValue(sub.value != null ? String(sub.value) : '');
+    setClosing(toDateInput(sub.closingDate));
+    setDurYears(Math.floor((sub.subscriptionMonths ?? 12) / 12));
+    setDurMonths((sub.subscriptionMonths ?? 12) % 12);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub.id]);
+
+  const totalMonths = durYears * 12 + durMonths;
+  const endDate = closing ? addMonths(new Date(closing + 'T12:00:00Z'), totalMonths) : null;
+  const isStripe = sub.paymentMode !== 'virement';
+  const applyDuration = (y: number, mo: number) => {
+    const yy = Math.max(0, Math.floor(y || 0));
+    const mm = Math.max(0, Math.floor(mo || 0));
+    setDurYears(yy); setDurMonths(mm);
+    onPatch(sub.id, { subscriptionMonths: yy * 12 + mm });
+  };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '.5px' }}>Abonnement {index + 1}</div>
+        <button type="button" onClick={() => onDelete(sub.id)} title="Supprimer cet abonnement"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12, fontWeight: 600 }}>
+          Supprimer
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div>
+          <label style={labelStyle}>Type d&apos;abonnement</label>
+          <select style={inp} value={sub.subscriptionType || ''} onChange={e => onPatch(sub.id, { subscriptionType: e.target.value })}>
+            <option value="">— Choisir —</option>
+            {subscriptionTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            {sub.subscriptionType && !subscriptionTypes.some(t => t.name === sub.subscriptionType) && (
+              <option value={sub.subscriptionType}>{sub.subscriptionType}</option>
+            )}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Valeur (€)</label>
+          <input
+            type="number" style={inp} placeholder="0" value={value}
+            onChange={e => setValue(e.target.value)}
+            onBlur={() => { const v = value === '' ? null : Number(value); if (v !== (sub.value ?? null)) onPatch(sub.id, { value: v }); }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 14 }}>
+        <div>
+          <label style={labelStyle}>Type de paiement</label>
+          <SegToggle
+            value={isStripe ? 'stripe' : 'virement'}
+            options={[{ value: 'stripe', label: 'Stripe', color: '#8b5cf6' }, { value: 'virement', label: 'Virement', color: '#64748b' }]}
+            onChange={v => onPatch(sub.id, { paymentMode: v })}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Paiement</label>
+          <SegToggle
+            value={sub.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant'}
+            options={[{ value: 'comptant', label: 'Comptant', color: '#4f46e5' }, { value: 'mensuel', label: 'Mensuel', color: '#0ea5e9' }]}
+            onChange={v => onPatch(sub.id, { paymentTiming: v })}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+        <div>
+          <label style={labelStyle}>Date de closing</label>
+          <input
+            type="date" style={inp} value={closing}
+            onChange={e => setClosing(e.target.value)}
+            onBlur={() => { if (closing !== toDateInput(sub.closingDate)) onPatch(sub.id, { closingDate: fromDateInput(closing) }); }}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Durée de l&apos;abonnement</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <input type="number" min={0} style={{ ...inp, width: 60 }} value={durYears} onChange={e => applyDuration(Number(e.target.value), durMonths)} />
+            <span style={{ fontSize: 12, color: '#475569' }}>an(s)</span>
+            <input type="number" min={0} style={{ ...inp, width: 60 }} value={durMonths} onChange={e => applyDuration(durYears, Number(e.target.value))} />
+            <span style={{ fontSize: 12, color: '#475569' }}>mois</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={labelStyle}>Date de fin (calculée automatiquement)</label>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8,
+          background: endDate ? '#ecfdf5' : '#f8fafc', border: `1px solid ${endDate ? '#a7f3d0' : '#e2e8f0'}`,
+          fontSize: 13.5, fontWeight: 700, color: endDate ? '#047857' : '#94a3b8',
+        }}>
+          🗓 {endDate ? formatDate(endDate) : '—'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: Props) {
   const { user: currentUser } = useCurrentUser();
   const [deal, setDeal] = useState<any | null>(null);
@@ -88,10 +207,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [columns, setColumns] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [subscriptionTypes, setSubscriptionTypes] = useState<{ id: string; name: string }[]>([]);
-  // Durée d'abonnement décomposée en années + mois (état local pour une saisie
-  // fluide ; persiste en mois cumulés via subscriptionMonths).
-  const [durYears, setDurYears] = useState(1);
-  const [durMonths, setDurMonths] = useState(0);
+  // Abonnements de l'affaire (1 ou 2). Source de vérité de l'onglet « Abonnement ».
+  const [subs, setSubs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
 
@@ -154,13 +271,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   useEffect(() => { fetch('/api/pipelines').then(r => r.json()).then(d => setPipelines(d.pipelines || [])).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/email-templates').then(r => r.json()).then(setTemplates).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/subscription-types').then(r => r.json()).then(setSubscriptionTypes).catch(() => {}); }, []);
-  // Synchronise les champs durée (années/mois) à l'ouverture d'une affaire.
-  useEffect(() => {
-    const m = deal?.subscriptionMonths ?? 12;
-    setDurYears(Math.floor(m / 12));
-    setDurMonths(m % 12);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deal?.id]);
+  const fetchSubs = useCallback(() => {
+    fetch(`/api/deals/${dealId}/subscriptions`).then(r => r.json()).then(d => setSubs(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [dealId]);
+  useEffect(() => { fetchSubs(); }, [fetchSubs]);
 
   // Fermeture au clavier (Échap)
   useEffect(() => {
@@ -192,6 +306,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const patchDeal = async (data: Record<string, unknown>, msg?: string) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     fetchDeal(); onUpdated(); if (msg) toast(msg);
+  };
+
+  // ---- Abonnements ---------------------------------------------------------
+  const patchSub = async (id: string, data: Record<string, unknown>) => {
+    const res = await fetch(`/api/subscriptions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (res.ok) { const updated = await res.json(); setSubs(prev => prev.map(s => s.id === id ? updated : s)); onUpdated(); }
+  };
+  const addSub = async () => {
+    const res = await fetch(`/api/deals/${dealId}/subscriptions`, { method: 'POST' });
+    if (res.ok) { fetchSubs(); onUpdated(); toast('Abonnement ajouté'); }
+    else { const d = await res.json().catch(() => ({})); toast(d.error || 'Erreur', 'error'); }
+  };
+  const deleteSub = async (id: string) => {
+    if (!confirm('Supprimer cet abonnement ?')) return;
+    const res = await fetch(`/api/subscriptions/${id}`, { method: 'DELETE' });
+    if (res.ok) { fetchSubs(); onUpdated(); toast('Abonnement supprimé'); }
   };
 
   const moveToColumn = async (columnId: string, msg = 'Étape mise à jour') => {
@@ -605,18 +735,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             <div style={sectionTitle}>Affaire</div>
             <div style={{ marginBottom: 18 }}>
               <div style={{ marginBottom: 9 }}>
-                <label style={labelStyle}>Valeur du deal (€)</label>
-                <input
-                  type="number" style={inp} placeholder="0" value={fields.dealValue ?? ''}
-                  onChange={e => setFields(f => ({ ...f, dealValue: e.target.value }))}
-                  onBlur={() => {
-                    const v = fields.dealValue === '' ? null : Number(fields.dealValue);
-                    const cur = deal.dealValue != null ? deal.dealValue : null;
-                    if (v !== cur) patchDeal({ dealValue: v });
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: 9 }}>
                 <label style={labelStyle}>Date de la démo</label>
                 <input
                   type="datetime-local" style={inp} value={fields.demoDate ?? ''}
@@ -1008,127 +1126,40 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </>
             )}
 
-            {activeTab === 'abonnement' && (() => {
-              const totalMonths = durYears * 12 + durMonths;
-              const endDate = fields.closingDate
-                ? addMonths(new Date(fields.closingDate + 'T12:00:00Z'), totalMonths)
-                : null;
-              const applyDuration = (y: number, mo: number) => {
-                const yy = Math.max(0, Math.floor(y || 0));
-                const mm = Math.max(0, Math.floor(mo || 0));
-                setDurYears(yy); setDurMonths(mm);
-                patchDeal({ subscriptionMonths: yy * 12 + mm });
-              };
-              return (
-                <div style={{ maxWidth: 580 }}>
-                  <div style={sectionTitle}>Abonnement</div>
-
-                  {/* Type d'abonnement (liste configurable en Paramètres) */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Type d&apos;abonnement</label>
-                    <select
-                      style={inp}
-                      value={deal.subscriptionType || ''}
-                      onChange={e => patchDeal({ subscriptionType: e.target.value }, 'Type d\'abonnement mis à jour')}
-                    >
-                      <option value="">— Choisir —</option>
-                      {subscriptionTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                      {deal.subscriptionType && !subscriptionTypes.some(t => t.name === deal.subscriptionType) && (
-                        <option value={deal.subscriptionType}>{deal.subscriptionType}</option>
-                      )}
-                    </select>
-                    {!subscriptionTypes.length && (
-                      <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>
-                        Aucun type configuré. Ajoutez-en dans <b>Paramètres › Types d&apos;abonnement</b>.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Type de paiement : Virement / Stripe */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Type de paiement</label>
-                    <div>
-                      <SegToggle
-                        value={deal.paymentMode === 'virement' ? 'virement' : 'stripe'}
-                        options={[{ value: 'stripe', label: 'Stripe', color: '#8b5cf6' }, { value: 'virement', label: 'Virement', color: '#64748b' }]}
-                        onChange={v => patchDeal({ paymentMode: v }, v === 'stripe' ? 'Paiement : Stripe' : 'Paiement : Virement')}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Cadence de paiement : Comptant / Mensuel */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Paiement</label>
-                    <div>
-                      <SegToggle
-                        value={deal.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant'}
-                        options={[{ value: 'comptant', label: 'Comptant', color: '#4f46e5' }, { value: 'mensuel', label: 'Mensuel', color: '#0ea5e9' }]}
-                        onChange={v => patchDeal({ paymentTiming: v }, v === 'mensuel' ? 'Paiement mensuel' : 'Paiement comptant')}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Date de closing */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Date de closing</label>
-                    <input
-                      type="date" style={{ ...inp, maxWidth: 220 }} value={fields.closingDate ?? ''}
-                      // On met à jour l'affichage à chaque frappe mais on ne
-                      // persiste qu'au blur : sinon chaque chiffre de l'année
-                      // déclenche un patch + refetch qui réinitialise la saisie.
-                      onChange={e => setFields(f => ({ ...f, closingDate: e.target.value }))}
-                      onBlur={() => { if ((fields.closingDate ?? '') !== toDateInput(deal.closingDate)) patchDeal({ closingDate: fromDateInput(fields.closingDate ?? '') }); }}
-                    />
-                  </div>
-
-                  {/* Durée de l'abonnement (années + mois) */}
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={labelStyle}>Durée de l&apos;abonnement</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input
-                          type="number" min={0} style={{ ...inp, width: 70 }} value={durYears}
-                          onChange={e => applyDuration(Number(e.target.value), durMonths)}
-                        />
-                        <span style={{ fontSize: 12.5, color: '#475569' }}>an(s)</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input
-                          type="number" min={0} style={{ ...inp, width: 70 }} value={durMonths}
-                          onChange={e => applyDuration(durYears, Number(e.target.value))}
-                        />
-                        <span style={{ fontSize: 12.5, color: '#475569' }}>mois</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => applyDuration(1, 0)}
-                        style={{ ...btnDef, padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Réinit. 1 an
-                      </button>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                        soit {totalMonths} mois au total
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Date de fin calculée automatiquement */}
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={labelStyle}>Date de fin (calculée automatiquement)</label>
-                    <div style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 8,
-                      background: endDate ? '#ecfdf5' : '#f8fafc', border: `1px solid ${endDate ? '#a7f3d0' : '#e2e8f0'}`,
-                      fontSize: 14, fontWeight: 700, color: endDate ? '#047857' : '#94a3b8',
-                    }}>
-                      🗓 {endDate ? formatDate(endDate) : '—'}
-                    </div>
-                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
-                      = date de closing + durée de l&apos;abonnement. {!fields.closingDate && 'Renseignez la date de closing pour la calculer.'}
-                    </p>
-                  </div>
+            {activeTab === 'abonnement' && (
+              <div style={{ maxWidth: 640 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={sectionTitle}>Abonnements ({subs.length}/2)</div>
+                  {subs.length > 0 && subs.length < 2 && (
+                    <button type="button" onClick={addSub} style={{ ...btnDef, padding: '6px 12px', fontSize: 12 }}>
+                      + Ajouter un 2ᵉ abonnement
+                    </button>
+                  )}
                 </div>
-              );
-            })()}
+
+                {subs.length === 0 ? (
+                  <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 24, textAlign: 'center', color: '#94a3b8' }}>
+                    <div style={{ fontSize: 13, marginBottom: 12 }}>Aucun abonnement sur cette affaire.</div>
+                    <button type="button" onClick={addSub} style={{ ...btnPri, padding: '8px 16px', fontSize: 13 }}>+ Créer un abonnement</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {subs.map((s, i) => (
+                      <SubscriptionCard key={s.id} sub={s} index={i} subscriptionTypes={subscriptionTypes} onPatch={patchSub} onDelete={deleteSub} />
+                    ))}
+                  </div>
+                )}
+
+                {subs.length > 0 && (
+                  <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                    <span style={{ fontSize: 12.5, color: '#475569' }}>Valeur totale de l&apos;affaire :</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#15803d' }}>
+                      {formatCurrency(subs.reduce((t, s) => t + (s.value || 0), 0)) || '0 €'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'recrutement' && <RecruitmentTab dealId={dealId} />}
 
