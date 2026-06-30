@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
 import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
-import { addMonths } from '@/lib/utils';
+import { addMonths, normalizeText } from '@/lib/utils';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -138,6 +138,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const existing = await prisma.deal.findUnique({ where: { id: params.id }, select: { storeId: true } });
       if (existing) {
         await prisma.store.update({ where: { id: existing.storeId }, data: { brandId: body.brandId || null } });
+      }
+    }
+
+    // Renommage du magasin (champ du Store lié). On met aussi à jour
+    // normalizedName pour rester cohérent avec la recherche / déduplication.
+    if ('storeName' in body && typeof body.storeName === 'string' && body.storeName.trim()) {
+      const existing = await prisma.deal.findUnique({ where: { id: params.id }, select: { storeId: true } });
+      if (existing) {
+        const name = body.storeName.trim();
+        await prisma.store.update({ where: { id: existing.storeId }, data: { name, normalizedName: normalizeText(name) } });
       }
     }
 
