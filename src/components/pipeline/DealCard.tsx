@@ -80,6 +80,7 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
       onDragEnd={onDragEnd}
       onClick={onSelect}
       style={{
+        position: 'relative',
         background: backgroundColor,
         border: '1px solid #e2e8f0',
         borderRadius: 9,
@@ -141,17 +142,8 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
           </div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
-        {(hasNewOffer || collaborator || assignedUser) && (
+        {(collaborator || assignedUser) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {hasNewOffer && (
-              <span
-                title="Nouvelle offre publiée par l'organisation"
-                style={{
-                  width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                  background: '#3b82f6', boxShadow: '0 0 0 2px #fff, 0 0 0 3px #bfdbfe',
-                }}
-              />
-            )}
             {assignedUser && (
               <div title={`Suivi par ${assignedUser.name}`} style={{ width: 22, height: 22, borderRadius: '50%', background: assignedUser.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + assignedUser.color }}>
                 {initials(assignedUser.name)}
@@ -188,6 +180,17 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
             💶 {groupValue.toLocaleString('fr-FR')} €{hasGroup ? ' · groupe' : ''}
           </span>
         </div>
+      )}
+
+      {hasNewOffer && (
+        <span
+          title="Nouvelle offre publiée par l'organisation"
+          style={{
+            position: 'absolute', bottom: 7, right: 7,
+            width: 9, height: 9, borderRadius: '50%',
+            background: '#3b82f6', boxShadow: '0 0 0 2px #fff, 0 0 0 3px #bfdbfe',
+          }}
+        />
       )}
     </div>
   );
