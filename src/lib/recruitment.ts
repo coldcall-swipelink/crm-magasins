@@ -231,6 +231,38 @@ export async function matchDealOrganization(input: {
   return { organizationId: null, matchedName: null, matchedBy: null, status: 'not_found' };
 }
 
+/** Offre produit brute (table Offer de Supabase), lecture seule. */
+export interface ProductOffer {
+  id: string;
+  title: string | null;
+  organization_id: string;
+  created_at: string | null;
+}
+
+/**
+ * Récupère les offres (id, title, organization_id, created_at) des Organizations
+ * demandées, les plus récentes d'abord. Ciblé (requêtes `in` par paquets) : on ne
+ * charge jamais toute la table Offer. Lecture seule ; [] si non configuré.
+ */
+export async function fetchOffersForOrganizations(
+  organizationIds: string[],
+): Promise<ProductOffer[]> {
+  const orgIds = Array.from(new Set(organizationIds.filter(Boolean)));
+  if (orgIds.length === 0) return [];
+
+  const chunkSize = 60; // limite la longueur d'URL
+  const out: ProductOffer[] = [];
+  for (let i = 0; i < orgIds.length; i += chunkSize) {
+    const chunk = orgIds.slice(i, i + chunkSize);
+    const rows = await selectRows<ProductOffer>(
+      'Offer',
+      `${inFilter('organization_id', chunk)}&select=id,title,organization_id,created_at&order=created_at.desc`,
+    );
+    out.push(...rows);
+  }
+  return out;
+}
+
 export interface OrganizationRecruitment {
   organizationId: string;
   organizationName: string;

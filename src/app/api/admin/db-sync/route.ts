@@ -196,7 +196,20 @@ const STATEMENTS: string[] = [
   "CREATE UNIQUE INDEX IF NOT EXISTS \"DealOrganization_dealId_organizationId_key\" ON \"DealOrganization\"(\"dealId\",\"organizationId\");",
   // Regroupement d'affaires (deal parent / sous-deals).
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"parentDealId\" TEXT;",
-  "CREATE INDEX IF NOT EXISTS \"Deal_parentDealId_idx\" ON \"Deal\"(\"parentDealId\");"
+  "CREATE INDEX IF NOT EXISTS \"Deal_parentDealId_idx\" ON \"Deal\"(\"parentDealId\");",
+  // Notifications d'offres produit (Supabase) rattachées aux affaires.
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"offersSyncedAt\" TIMESTAMP(3);",
+  "CREATE TABLE IF NOT EXISTS \"OfferNotification\" (\"id\" TEXT NOT NULL, CONSTRAINT \"OfferNotification_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"organizationId\" TEXT;",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"offerId\" TEXT;",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"offerTitle\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"offerCreatedAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"isRead\" BOOLEAN NOT NULL DEFAULT false;",
+  "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"OfferNotification_dealId_offerId_key\" ON \"OfferNotification\"(\"dealId\",\"offerId\");",
+  "CREATE INDEX IF NOT EXISTS \"OfferNotification_dealId_idx\" ON \"OfferNotification\"(\"dealId\");"
 ];
 
 export async function GET(req: NextRequest) {
