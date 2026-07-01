@@ -4,6 +4,9 @@ import type { Deal } from '@/types';
 interface Props {
   deal: Deal;
   isDragging: boolean;
+  // Vrai quand l'Organization rattachée a créé une nouvelle offre non acquittée
+  // (→ petit point bleu en haut à droite de la carte).
+  hasNewOffer?: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onSelect: () => void;
@@ -51,7 +54,7 @@ function getActionBackgroundColor(actions?: any[]): string {
   return '#ffffff'; // Blanc par défaut
 }
 
-export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onSelect }: Props) {
+export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, onDragEnd, onSelect }: Props) {
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
@@ -138,8 +141,17 @@ export default function DealCard({ deal, isDragging, onDragStart, onDragEnd, onS
           </div>
           {store?.city && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>📍 {store.city}{store.department ? ` (${store.department})` : ''}</div>}
         </div>
-        {(collaborator || assignedUser) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+        {(hasNewOffer || collaborator || assignedUser) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {hasNewOffer && (
+              <span
+                title="Nouvelle offre publiée par l'organisation"
+                style={{
+                  width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                  background: '#3b82f6', boxShadow: '0 0 0 2px #fff, 0 0 0 3px #bfdbfe',
+                }}
+              />
+            )}
             {assignedUser && (
               <div title={`Suivi par ${assignedUser.name}`} style={{ width: 22, height: 22, borderRadius: '50%', background: assignedUser.color, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + assignedUser.color }}>
                 {initials(assignedUser.name)}

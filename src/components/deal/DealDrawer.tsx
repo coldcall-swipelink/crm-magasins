@@ -211,6 +211,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [subs, setSubs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  // Offres créées par les organisations rattachées (Supabase), pour la trace
+  // « Nouvelle offre créée » de l'onglet Activité.
+  const [offerNotifs, setOfferNotifs] = useState<{ id: string; offerTitle: string; offerCreatedAt: string }[]>([]);
 
   // Champs éditables du sous-volet (saisie locale, sauvegarde au blur)
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -265,7 +268,16 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     if (res.ok) setEmailLogs(await res.json());
   }, [dealId]);
 
-  useEffect(() => { fetchDeal(); fetchEmailLogs(); }, [fetchDeal, fetchEmailLogs]);
+  const fetchOfferNotifs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/notifications?dealId=${dealId}`);
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.configured) setOfferNotifs(d.notifications || []);
+    } catch { /* silencieux */ }
+  }, [dealId]);
+
+  useEffect(() => { fetchDeal(); fetchEmailLogs(); fetchOfferNotifs(); }, [fetchDeal, fetchEmailLogs, fetchOfferNotifs]);
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
@@ -552,11 +564,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   type Feed =
     | { kind: 'note'; date: number; data: Note }
     | { kind: 'action'; date: number; data: any }
-    | { kind: 'email'; date: number; data: EmailLog };
+    | { kind: 'email'; date: number; data: EmailLog }
+    | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
     ...emailLogs.map(l => ({ kind: 'email' as const, date: new Date(l.sentAt).getTime(), data: l })),
+    ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
   ].sort((a, b) => b.date - a.date);
 
   const currentAssignedUser = deal.assignedUser as User | null;
@@ -1132,8 +1146,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#dbeafe' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
@@ -1142,6 +1156,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
+                      {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                     </div>
                   </div>
                 ))}
@@ -1280,6 +1295,17 @@ function EmailLogItem({ log }: { log: EmailLog }) {
           ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: '3px solid #6366f1' }} dangerouslySetInnerHTML={{ __html: log.body }} />
           : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>{log.body}</div>
       )}
+    </div>
+  );
+}
+
+function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: string } }) {
+  return (
+    <div>
+      <p style={{ fontSize: 13, marginBottom: 4, color: '#0f172a' }}>
+        Nouvelle offre créée : <strong>{offer.offerTitle || 'Offre'}</strong>
+      </p>
+      <p style={{ fontSize: 10.5, color: '#94a3b8', margin: 0 }}>{formatDate(offer.offerCreatedAt)}</p>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import ClosingDateModal from './ClosingDateModal';
+import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency } from '@/lib/utils';
 
@@ -37,6 +38,60 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
   const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; initialDate?: string } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
+
+  // Notifications d'offres (offres créées par les organisations rattachées).
+  const [notifications, setNotifications] = useState<OfferNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [dealsWithNewOffer, setDealsWithNewOffer] = useState<Set<string>>(new Set());
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      if (!res.ok) return;
+      const d = await res.json();
+      if (!d.configured) return;
+      setNotifications(d.notifications || []);
+      setUnreadCount(d.unreadCount || 0);
+      setDealsWithNewOffer(new Set<string>(d.dealIdsWithUnread || []));
+    } catch { /* silencieux : les notifications ne doivent pas casser le pipeline */ }
+  }, []);
+
+  // Relevé au montage puis toutes les 60 s (le relevé lit Supabase côté serveur).
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+  useEffect(() => {
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  // Ouvre une affaire et acquitte ses offres non lues (retire le point bleu).
+  const openDeal = useCallback((dealId: string) => {
+    setOpenDealId(dealId);
+    setDealsWithNewOffer((prev) => {
+      if (!prev.has(dealId)) return prev;
+      const next = new Set(prev);
+      next.delete(dealId);
+      return next;
+    });
+    setUnreadCount((c) => {
+      const unreadForDeal = notifications.filter((n) => n.dealId === dealId && !n.isRead).length;
+      return Math.max(0, c - unreadForDeal);
+    });
+    setNotifications((prev) => prev.map((n) => (n.dealId === dealId ? { ...n, isRead: true } : n)));
+    fetch('/api/notifications', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dealId }),
+    }).catch(() => {});
+  }, [notifications]);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+    setDealsWithNewOffer(new Set());
+    fetch('/api/notifications', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
+  }, []);
 
   // Save pipeline selection to localStorage
   useEffect(() => {
@@ -284,10 +339,16 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
           </div>
 
           {/* Centre : recherche */}
-          <DealSearch onSelect={setOpenDealId} />
+          <DealSearch onSelect={openDeal} />
 
           {/* Droite : actions */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minWidth: 0 }}>
+            <NotificationCenter
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onOpenDeal={openDeal}
+              onMarkAllRead={markAllRead}
+            />
             <button onClick={fetchDeals} title="Rafraîchir"
               style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
               {loading ? '⟳' : '↺'} Rafraîchir
@@ -331,7 +392,8 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
               <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5, minHeight: 50 }}>
                 {colDeals.map(deal => (
                   <DealCard key={deal.id} deal={deal} isDragging={draggingId === deal.id}
-                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => setOpenDealId(deal.id)} />
+                    hasNewOffer={dealsWithNewOffer.has(deal.id)}
+                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => openDeal(deal.id)} />
                 ))}
               </div>
             </div>
@@ -339,7 +401,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
         })}
       </div>
 
-      {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={setOpenDealId} />}
+      {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={openDeal} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
       {closing && <ClosingDateModal storeName={closing.storeName} initialDate={closing.initialDate} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}

@@ -162,6 +162,11 @@ model Deal {
   // True quand l'utilisateur a géré manuellement les organisations rattachées :
   // on n'exécute alors plus le rattachement automatique par nom.
   supabaseOrgManual         Boolean  @default(false)
+  // Date du premier relevé des offres produit (Supabase) rattachées à l'affaire.
+  // Sert de ligne de base : les offres déjà présentes lors de ce premier relevé
+  // sont marquées « lues » (pré-existantes) ; seules les offres créées ENSUITE
+  // déclenchent point bleu + notification + trace d'activité. Null = jamais relevé.
+  offersSyncedAt            DateTime?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
@@ -175,6 +180,7 @@ model Deal {
   emailLogs                 EmailLog[]
   candidateCalls            CandidateCall[]
   organizationLinks         DealOrganization[]
+  offerNotifications        OfferNotification[]
   // Abonnements rattachés (1 ou 2 par affaire). Les champs subscription* /
   // paymentMode / closingDate / dealValue ci-dessus sont conservés comme miroir
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
@@ -338,6 +344,32 @@ model DealOrganization {
   createdAt      DateTime @default(now())
 
   @@unique([dealId, organizationId])
+}
+
+// Trace CRM des offres créées côté produit (Supabase) par les Organizations
+// rattachées à une affaire. Alimentée en LECTURE SEULE depuis Supabase (rien
+// n'y est écrit) : à chaque relevé, les nouvelles offres de la table Offer
+// (id, title, organization_id, created_at) sont enregistrées ici. Sert à trois
+// usages : trace « Nouvelle offre créée » dans l'onglet Activité, point bleu sur
+// la carte de l'affaire, et centre de notifications du pipeline. isRead distingue
+// une offre nouvellement apparue (point bleu) d'une offre déjà acquittée.
+model OfferNotification {
+  id             String   @id @default(cuid())
+  dealId         String
+  deal           Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  organizationId String
+  // Id de l'Offer dans Supabase produit (unique par offre).
+  offerId        String
+  offerTitle     String   @default("")
+  // Date de publication de l'offre (Offer.created_at côté Supabase).
+  offerCreatedAt DateTime
+  // False = nouvelle offre non acquittée (déclenche point bleu + badge).
+  isRead         Boolean  @default(false)
+  // Date de découverte de l'offre côté CRM (relevé Supabase).
+  createdAt      DateTime @default(now())
+
+  @@unique([dealId, offerId])
+  @@index([dealId])
 }
 
 // Réglages globaux de l'application (clé/valeur). Ex. « emailSignature » :
