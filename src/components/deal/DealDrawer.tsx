@@ -1480,21 +1480,26 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   const [data, setData] = useState<RecruitmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [calledIds, setCalledIds] = useState<Set<string>>(new Set());
   // Saisie manuelle d'un organization_id.
   const [newOrgId, setNewOrgId] = useState('');
   const [addingOrg, setAddingOrg] = useState(false);
+  // Création à la volée de l'Organization dans Supabase (même logique que « Démo prévue »).
+  const [creatingOrg, setCreatingOrg] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
+    setErrorMsg('');
     try {
       const res = await fetch(`/api/deals/${dealId}/recruitment`);
-      if (!res.ok) throw new Error();
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d?.detail || d?.error || `HTTP ${res.status}`);
       setData(d);
       setCalledIds(new Set(d.calledCandidateIds || []));
-    } catch {
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
       setError(true);
     } finally {
       setLoading(false);
@@ -1544,6 +1549,21 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       toast(e instanceof Error ? e.message : 'Échec de l\'ajout', 'error');
     } finally {
       setAddingOrg(false);
+    }
+  };
+
+  const createOrg = async () => {
+    setCreatingOrg(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/provision-organization`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      toast(`✓ Organisation « ${body.organizationName} » créée dans Supabase`);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec de la création', 'error');
+    } finally {
+      setCreatingOrg(false);
     }
   };
 
@@ -1612,7 +1632,14 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   };
 
   if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement du recrutement…</p>;
-  if (error) return <p style={{ color: '#dc2626', fontSize: 13 }}>Erreur lors du chargement des données de recrutement.</p>;
+  if (error) return (
+    <div style={{ color: '#dc2626', fontSize: 13 }}>
+      <p style={{ margin: '0 0 6px' }}>Erreur lors du chargement des données de recrutement.</p>
+      {errorMsg && (
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: 8, margin: 0, color: '#991b1b' }}>{errorMsg}</pre>
+      )}
+    </div>
+  );
   if (!data?.configured) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
 
   const orgs = data.organizations || [];
@@ -1623,9 +1650,18 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: 12, marginBottom: 16, background: '#f8fafc' }}>
         <div style={{ ...sectionTitle, marginBottom: 8 }}>Organisations rattachées</div>
         {orgs.length === 0 && (
-          <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
-            Aucune organisation. Elle est rattachée automatiquement en « Démo prévue » ; sinon ajoutez son <code>organization_id</code> ci-dessous.
-          </p>
+          <>
+            <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
+              Aucune organisation. Elle est rattachée automatiquement en « Démo prévue » ; sinon créez-la ci-dessous (même logique : enseigne + nom du magasin, logo déduit) ou rattachez son <code>organization_id</code>.
+            </p>
+            <button
+              style={{ ...btnPri, width: '100%', marginBottom: 8, opacity: creatingOrg ? .7 : 1, cursor: creatingOrg ? 'not-allowed' : 'pointer' }}
+              onClick={createOrg}
+              disabled={creatingOrg}
+            >
+              {creatingOrg ? '⟳ Création…' : 'Créer l\'Organization dans Supabase'}
+            </button>
+          </>
         )}
         {orgs.map(o => (
           <div key={o.organizationId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>

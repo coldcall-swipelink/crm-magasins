@@ -28,8 +28,6 @@ export interface DemoOrganizationInput {
   brandName?: string | null;
   storeName: string;
   city: string;
-  contactEmail?: string | null;
-  siret?: string | null;
 }
 
 export interface DemoOrganizationResult {
@@ -134,11 +132,12 @@ export async function createDemoOrganizationRecords(
   const organizationName = buildOrganizationName(input.brandName, input.storeName, input.city);
 
   // 1. Organization
+  // On ne renseigne QUE le nom (enseigne + nom du magasin) et le logo déduit de
+  // l'enseigne : les champs contact_email / siret sont volontairement laissés
+  // vides côté produit (demande métier).
   const org = await insertRow<{ id: string }>('Organization', {
     name: organizationName,
     logo: getOrganizationLogo(input.brandName),
-    contact_email: input.contactEmail ?? null,
-    siret: input.siret ?? null,
   });
 
   if (onOrganizationCreated) await onOrganizationCreated(org.id);

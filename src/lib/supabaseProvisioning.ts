@@ -43,11 +43,50 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
       brandName: deal.store.brand?.name,
       storeName: deal.store.name,
       city: deal.store.city,
-      contactEmail: deal.dealEmail || null,
-      siret: deal.store.siret || null,
     },
     // On mémorise l'id sur le deal dès l'Organization créée : garantit
     // l'idempotence même si le plan ou le recruiter échoue ensuite.
+    async (organizationId) => {
+      await prisma.deal.update({
+        where: { id: deal.id },
+        data: { supabaseOrganizationId: organizationId },
+      });
+    },
+  );
+}
+
+/**
+ * Crée manuellement (bouton « Créer l'Organization dans Supabase ») l'Organization
+ * produit pour une affaire qui n'en a pas encore, avec la MÊME logique que le
+ * passage en « Démo prévue » (Organization + plan + Recruiter, nom = enseigne +
+ * nom du magasin, logo déduit de l'enseigne).
+ *
+ * Contrairement à provisionDemoOrganization, ne dépend PAS de la colonne du deal
+ * et remonte les erreurs (plutôt que de no-op) afin que l'appelant HTTP puisse
+ * les afficher. Reste idempotent : refuse si une Organization est déjà rattachée.
+ */
+export async function createOrganizationForDeal(
+  dealId: string,
+): Promise<{ organizationId: string; organizationName: string }> {
+  if (!isProductSupabaseConfigured()) {
+    throw new Error('Intégration Supabase produit non configurée');
+  }
+
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    include: { store: { include: { brand: true } } },
+  });
+  if (!deal) throw new Error('Affaire non trouvée');
+  if (deal.supabaseOrganizationId) {
+    throw new Error('Une organisation est déjà rattachée à cette affaire');
+  }
+
+  return createDemoOrganizationRecords(
+    {
+      brandName: deal.store.brand?.name,
+      storeName: deal.store.name,
+      city: deal.store.city,
+    },
     async (organizationId) => {
       await prisma.deal.update({
         where: { id: deal.id },
