@@ -1146,13 +1146,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#dbeafe' : '#dbeafe' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : '#dbeafe' }}>
                         {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
+                    <div style={item.kind === 'offer'
+                      ? { flex: 1, minWidth: 0, padding: '4px 2px', alignSelf: 'center' }
+                      : { flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
@@ -1300,12 +1302,14 @@ function EmailLogItem({ log }: { log: EmailLog }) {
 }
 
 function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: string } }) {
+  // Entrée volontairement discrète (non encadrée, estompée) : information de
+  // contexte à ne pas confondre avec les notes / actions / emails du CRM.
   return (
     <div>
-      <p style={{ fontSize: 13, marginBottom: 4, color: '#0f172a' }}>
-        Nouvelle offre créée : <strong>{offer.offerTitle || 'Offre'}</strong>
+      <p style={{ fontSize: 12, margin: 0, color: '#94a3b8' }}>
+        Nouvelle offre créée : <span style={{ fontWeight: 600, color: '#64748b' }}>{offer.offerTitle || 'Offre'}</span>
+        <span style={{ color: '#cbd5e1' }}> · {formatDate(offer.offerCreatedAt)}</span>
       </p>
-      <p style={{ fontSize: 10.5, color: '#94a3b8', margin: 0 }}>{formatDate(offer.offerCreatedAt)}</p>
     </div>
   );
 }
