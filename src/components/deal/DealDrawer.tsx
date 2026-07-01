@@ -380,6 +380,16 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   };
   const deleteAction = async (id: string) => { await fetch(`/api/actions/${id}`, { method: 'DELETE' }); fetchDeal(); onUpdated(); };
 
+  const editNote = async (id: string, content: string) => {
+    await fetch(`/api/notes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+    fetchDeal(); onUpdated(); toast('Note modifiée');
+  };
+  const deleteNote = async (id: string) => {
+    if (!window.confirm('Supprimer cette note ?')) return;
+    await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    fetchDeal(); onUpdated(); toast('Note supprimée');
+  };
+
   const getVars = (d: any) => ({
     civilite,
     nom_famille: d?.contactLastName || '',
@@ -1129,7 +1139,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
-                      {item.kind === 'note' && <NoteItem note={item.data as Note} />}
+                      {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
                     </div>
@@ -1186,14 +1196,41 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   );
 }
 
-function NoteItem({ note }: { note: Note }) {
+function NoteItem({ note, onSave, onDelete }: { note: Note; onSave: (id: string, content: string) => void; onDelete: (id: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.content);
+  useEffect(() => { setDraft(note.content); }, [note.content]);
+
+  if (editing) {
+    return (
+      <div>
+        <textarea style={{ ...inp, height: 70, resize: 'vertical', marginBottom: 8 }} value={draft} onChange={e => setDraft(e.target.value)} autoFocus />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            style={{ ...btnPri, padding: '5px 12px', fontSize: 12 }}
+            onClick={() => { const v = draft.trim(); if (v && v !== note.content) onSave(note.id, v); setEditing(false); }}
+          >
+            Enregistrer
+          </button>
+          <button style={{ ...btnDef, padding: '5px 12px', fontSize: 12 }} onClick={() => { setDraft(note.content); setEditing(false); }}>Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 6, color: '#0f172a' }}>{note.content}</p>
-      <p style={{ fontSize: 10.5, color: '#94a3b8' }}>
-        {(note as any).authorName ? <span style={{ fontWeight: 600, color: '#64748b' }}>{(note as any).authorName}</span> : <span style={{ fontStyle: 'italic' }}>Anonyme</span>}
-        {' · '}{formatDate(note.createdAt)}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <p style={{ fontSize: 10.5, color: '#94a3b8', margin: 0 }}>
+          {(note as any).authorName ? <span style={{ fontWeight: 600, color: '#64748b' }}>{(note as any).authorName}</span> : <span style={{ fontStyle: 'italic' }}>Anonyme</span>}
+          {' · '}{formatDate(note.createdAt)}
+        </p>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button onClick={() => setEditing(true)} title="Modifier la note" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 12, padding: 2 }}>✎</button>
+          <button onClick={() => onDelete(note.id)} title="Supprimer la note" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12, padding: 2 }}>🗑</button>
+        </div>
+      </div>
     </>
   );
 }
