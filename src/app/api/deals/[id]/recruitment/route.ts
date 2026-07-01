@@ -75,8 +75,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ configured: true, organizations, calledCandidateIds });
   } catch (err) {
     console.error('Recruitment fetch error:', err);
+    // On remonte le détail au client : CRM interne, et cela permet de
+    // diagnostiquer précisément la cause (DB, colonne manquante, réseau…).
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération du recrutement' },
+      {
+        error: 'Erreur lors de la récupération du recrutement',
+        detail: err instanceof Error ? err.message : String(err),
+      },
       { status: 500 },
     );
   }

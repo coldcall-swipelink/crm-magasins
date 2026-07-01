@@ -1450,6 +1450,7 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   const [data, setData] = useState<RecruitmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [calledIds, setCalledIds] = useState<Set<string>>(new Set());
   // Saisie manuelle d'un organization_id.
@@ -1460,13 +1461,15 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
 
   const load = useCallback(async () => {
     setError(false);
+    setErrorMsg('');
     try {
       const res = await fetch(`/api/deals/${dealId}/recruitment`);
-      if (!res.ok) throw new Error();
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d?.detail || d?.error || `HTTP ${res.status}`);
       setData(d);
       setCalledIds(new Set(d.calledCandidateIds || []));
-    } catch {
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
       setError(true);
     } finally {
       setLoading(false);
@@ -1599,7 +1602,14 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   };
 
   if (loading) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Chargement du recrutement…</p>;
-  if (error) return <p style={{ color: '#dc2626', fontSize: 13 }}>Erreur lors du chargement des données de recrutement.</p>;
+  if (error) return (
+    <div style={{ color: '#dc2626', fontSize: 13 }}>
+      <p style={{ margin: '0 0 6px' }}>Erreur lors du chargement des données de recrutement.</p>
+      {errorMsg && (
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: 8, margin: 0, color: '#991b1b' }}>{errorMsg}</pre>
+      )}
+    </div>
+  );
   if (!data?.configured) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
 
   const orgs = data.organizations || [];
