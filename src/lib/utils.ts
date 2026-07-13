@@ -102,11 +102,34 @@ function csvNumber(value: number | null | undefined): string {
 }
 
 /**
+ * Assemble un fichier CSV (délimiteur `;` + BOM UTF-8) et déclenche son
+ * téléchargement. `headers` sont automatiquement échappés/quotés ; `rows`
+ * contient déjà des cellules formatées (via `csvCell`/`csvNumber`), une par
+ * colonne, dans le même ordre que `headers`.
+ */
+function downloadCsv(headers: string[], rows: string[][], fileName: string): void {
+  const csv = '\uFEFF' + [
+    headers.map(csvCell).join(';'),
+    ...rows.map((cells) => cells.join(';')),
+  ].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const safeName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'export';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `export-${safeName}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * Construit un fichier CSV des affaires (enseigne, magasin, étape, contact
  * calling, valeur, date de closing, type d'abonnement) et déclenche son
- * téléchargement. Délimiteur `;` + BOM UTF-8. Les montants sont écrits en
- * nombre brut (point décimal, sans guillemets) pour rester numériques dans
- * Google Sheets.
+ * téléchargement. Les montants sont écrits en nombre brut (point décimal, sans
+ * guillemets) pour rester numériques dans Google Sheets.
  */
 export function exportDealsToCsv(
   deals: Array<{
@@ -128,20 +151,39 @@ export function exportDealsToCsv(
     csvNumber(d.dealValue), // nombre brut non-quoté → reste numérique dans le tableur
     csvCell(csvDate(d.closingDate)),
     csvCell(d.subscriptionType || ''),
-  ].join(';'));
+  ]);
+  downloadCsv(headers, rows, fileName);
+}
 
-  const csv = '\uFEFF' + [headers.map(csvCell).join(';'), ...rows].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const stamp = new Date().toISOString().slice(0, 10);
-  const safeName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'pipeline';
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `export-${safeName}-${stamp}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+/**
+ * Construit un fichier CSV des closings d'une p\u00E9riode (date, magasin, ville,
+ * enseigne, type, paiement, valeur), tel qu'affich\u00E9 dans le tableau du
+ * dashboard, et d\u00E9clenche son t\u00E9l\u00E9chargement. La valeur est en nombre brut
+ * (point d\u00E9cimal, sans guillemets) pour rester num\u00E9rique dans Google Sheets.
+ */
+export function exportClosingsToCsv(
+  closings: Array<{
+    closingDate?: string | null;
+    storeName?: string;
+    city?: string;
+    brandName?: string;
+    type?: string;
+    paymentMode?: 'stripe' | 'virement';
+    value?: number | null;
+  }>,
+  fileName = 'closings',
+): void {
+  const headers = ['Date', 'Magasin', 'Ville', 'Enseigne', 'Type', 'Paiement', 'Valeur'];
+  const rows = closings.map((c) => [
+    csvCell(csvDate(c.closingDate)),
+    csvCell(c.storeName || ''),
+    csvCell(c.city || ''),
+    csvCell(c.brandName || ''),
+    csvCell(c.type || ''),
+    csvCell(c.paymentMode === 'stripe' ? 'Stripe' : c.paymentMode === 'virement' ? 'Virement' : ''),
+    csvNumber(c.value), // nombre brut non-quot\u00E9 \u2192 reste num\u00E9rique dans le tableur
+  ]);
+  downloadCsv(headers, rows, fileName);
 }
 
 /** Ajoute `months` mois à une date en gérant les débordements de fin de mois

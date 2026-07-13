@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportClosingsToCsv } from '@/lib/utils';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, PieChart, Pie, Cell, Legend,
@@ -437,9 +437,22 @@ export default function DashboardPage() {
 
         {/* Table des closings de la période */}
         <div style={{ ...card, marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={cardTitle}>Closings de la période ({current.length})</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5' }}>{formatCurrency(mrr) || '0 €'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={() => current.length && exportClosingsToCsv(current, `closings-${range.label}`)}
+                disabled={!current.length}
+                title="Exporter les closings de la période (CSV)"
+                style={{
+                  height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #e2e8f0',
+                  background: '#fff', fontSize: 12.5, color: current.length ? '#475569' : '#cbd5e1',
+                  cursor: current.length ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                }}>
+                ⬇ Exporter
+              </button>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5' }}>{formatCurrency(mrr) || '0 €'}</div>
+            </div>
           </div>
           {current.length ? (
             <div style={{ overflowX: 'auto' }}>
