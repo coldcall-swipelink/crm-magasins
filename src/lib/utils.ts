@@ -97,13 +97,15 @@ function csvNumber(value: number | null | undefined): string {
 }
 
 /**
- * Construit un fichier CSV des affaires (enseigne, magasin, contact calling,
- * valeur, date de closing, type d'abonnement) et déclenche son téléchargement.
- * Délimiteur `;` + BOM UTF-8 pour une ouverture directe dans Excel FR.
+ * Construit un fichier CSV des affaires (enseigne, magasin, étape, contact
+ * calling, valeur, date de closing, type d'abonnement) et déclenche son
+ * téléchargement. Délimiteur `;` + BOM UTF-8 pour une ouverture directe dans
+ * Excel FR.
  */
 export function exportDealsToCsv(
   deals: Array<{
     store?: { name?: string; brand?: { name?: string } | null } | null;
+    column?: { title?: string } | null;
     contactCalling?: string;
     dealValue?: number | null;
     closingDate?: string | null;
@@ -111,10 +113,11 @@ export function exportDealsToCsv(
   }>,
   fileName = 'pipeline',
 ): void {
-  const headers = ['Enseigne', 'Nom du magasin', 'Contact calling', 'Valeur', 'Date de closing', "Type d'abonnement"];
+  const headers = ['Enseigne', 'Nom du magasin', 'Étape', 'Contact calling', 'Valeur', 'Date de closing', "Type d'abonnement"];
   const rows = deals.map((d) => [
     csvCell(d.store?.brand?.name || ''),
     csvCell(d.store?.name || ''),
+    csvCell(d.column?.title || ''),
     csvCell(d.contactCalling || ''),
     csvCell(csvNumber(d.dealValue)),
     csvCell(csvDate(d.closingDate)),
