@@ -76,6 +76,65 @@ export function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
+/** Échappe une valeur pour un champ CSV (délimiteur `;`) et l'entoure de guillemets. */
+function csvCell(value: unknown): string {
+  const s = value == null ? '' : String(value);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+/** Formate une date pour l'export CSV : "JJ/MM/AAAA" ou chaîne vide. */
+function csvDate(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** Formate un montant pour l'export CSV (virgule décimale FR, sans symbole). Vide si absent. */
+function csvNumber(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '';
+  return String(value).replace('.', ',');
+}
+
+/**
+ * Construit un fichier CSV des affaires (enseigne, magasin, contact calling,
+ * valeur, date de closing, type d'abonnement) et déclenche son téléchargement.
+ * Délimiteur `;` + BOM UTF-8 pour une ouverture directe dans Excel FR.
+ */
+export function exportDealsToCsv(
+  deals: Array<{
+    store?: { name?: string; brand?: { name?: string } | null } | null;
+    contactCalling?: string;
+    dealValue?: number | null;
+    closingDate?: string | null;
+    subscriptionType?: string;
+  }>,
+  fileName = 'pipeline',
+): void {
+  const headers = ['Enseigne', 'Nom du magasin', 'Contact calling', 'Valeur', 'Date de closing', "Type d'abonnement"];
+  const rows = deals.map((d) => [
+    csvCell(d.store?.brand?.name || ''),
+    csvCell(d.store?.name || ''),
+    csvCell(d.contactCalling || ''),
+    csvCell(csvNumber(d.dealValue)),
+    csvCell(csvDate(d.closingDate)),
+    csvCell(d.subscriptionType || ''),
+  ].join(';'));
+
+  const csv = '\uFEFF' + [headers.map(csvCell).join(';'), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const safeName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'pipeline';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `export-${safeName}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /** Ajoute `months` mois à une date en gérant les débordements de fin de mois
  *  (ex. 31 janvier + 1 mois → 28/29 février). Renvoie une nouvelle Date. */
 export function addMonths(date: Date | string, months: number): Date {

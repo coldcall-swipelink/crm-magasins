@@ -9,7 +9,7 @@ import PVModal from './PVModal';
 import ClosingDateModal from './ClosingDateModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
@@ -352,6 +352,17 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
             <button onClick={fetchDeals} title="Rafraîchir"
               style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer' }}>
               {loading ? '⟳' : '↺'} Rafraîchir
+            </button>
+
+            <button
+              onClick={() => {
+                if (deals.length === 0) { toast('Aucune affaire à exporter', 'error'); return; }
+                exportDealsToCsv(deals, currentPipeline?.name || 'pipeline');
+                toast(`${deals.length} affaire${deals.length > 1 ? 's' : ''} exportée${deals.length > 1 ? 's' : ''}`);
+              }}
+              title="Exporter les affaires du pipeline (CSV)"
+              style={{ height: 38, padding: '0 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              ⬇ Exporter
             </button>
 
             <button onClick={() => setShowCreate(true)}
