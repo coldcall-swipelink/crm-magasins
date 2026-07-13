@@ -90,17 +90,23 @@ function csvDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-/** Formate un montant pour l'export CSV (virgule décimale FR, sans symbole). Vide si absent. */
+/**
+ * Formate un montant pour l'export CSV en nombre « brut » : point décimal,
+ * sans séparateur de milliers ni symbole, non entouré de guillemets. Ce format
+ * est reconnu comme numérique par Google Sheets (et Excel en locale point).
+ * Chaîne vide si la valeur est absente.
+ */
 function csvNumber(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return '';
-  return String(value).replace('.', ',');
+  return String(value);
 }
 
 /**
  * Construit un fichier CSV des affaires (enseigne, magasin, étape, contact
  * calling, valeur, date de closing, type d'abonnement) et déclenche son
- * téléchargement. Délimiteur `;` + BOM UTF-8 pour une ouverture directe dans
- * Excel FR.
+ * téléchargement. Délimiteur `;` + BOM UTF-8. Les montants sont écrits en
+ * nombre brut (point décimal, sans guillemets) pour rester numériques dans
+ * Google Sheets.
  */
 export function exportDealsToCsv(
   deals: Array<{
@@ -119,7 +125,7 @@ export function exportDealsToCsv(
     csvCell(d.store?.name || ''),
     csvCell(d.column?.title || ''),
     csvCell(d.contactCalling || ''),
-    csvCell(csvNumber(d.dealValue)),
+    csvNumber(d.dealValue), // nombre brut non-quoté → reste numérique dans le tableur
     csvCell(csvDate(d.closingDate)),
     csvCell(d.subscriptionType || ''),
   ].join(';'));
