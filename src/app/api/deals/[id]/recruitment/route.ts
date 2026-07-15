@@ -39,31 +39,49 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }
 
     // Rattachement automatique à la volée, sauf si géré manuellement.
+    // Un échec de lecture Supabase (réseau, timeout, requête) ne doit pas faire
+    // planter tout l'onglet : on dégrade gracieusement (pas de rattachement auto
+    // ce coup-ci) pour que la fiche reste utilisable (dont le bouton de création).
     let primaryOrgId = deal.supabaseOrganizationId;
     if (!primaryOrgId && !manual) {
-      const match = await matchDealOrganization({
-        brandName: deal.store?.brand?.name,
-        storeName: deal.store?.name,
-        city: deal.store?.city,
-      });
-      if (match.organizationId) {
-        primaryOrgId = match.organizationId;
-        await prisma.deal.update({
-          where: { id: params.id },
-          data: { supabaseOrganizationId: primaryOrgId },
+      try {
+        const match = await matchDealOrganization({
+          brandName: deal.store?.brand?.name,
+          storeName: deal.store?.name,
+          city: deal.store?.city,
         });
+        if (match.organizationId) {
+          primaryOrgId = match.organizationId;
+          await prisma.deal.update({
+            where: { id: params.id },
+            data: { supabaseOrganizationId: primaryOrgId },
+          });
+        }
+      } catch (matchErr) {
+        console.error('Auto-rattachement organisation (non bloquant) :', matchErr);
       }
     }
 
     const orgIds = Array.from(new Set([primaryOrgId, ...manualOrgIds].filter((x): x is string => Boolean(x))));
-    const organizations = orgIds.length ? await fetchOrganizationsRecruitment(orgIds) : [];
+    // Idem : une erreur de lecture des offres ne doit pas casser l'onglet.
+    let organizations: Awaited<ReturnType<typeof fetchOrganizationsRecruitment>> = [];
+    try {
+      organizations = orgIds.length ? await fetchOrganizationsRecruitment(orgIds) : [];
+    } catch (recErr) {
+      console.error('Lecture recrutement (non bloquant) :', recErr);
+    }
     const calledCandidateIds = await getCalledCandidateIds(params.id);
 
     return NextResponse.json({ configured: true, organizations, calledCandidateIds });
   } catch (err) {
     console.error('Recruitment fetch error:', err);
+    // On remonte le détail au client : CRM interne, et cela permet de
+    // diagnostiquer précisément la cause (DB, colonne manquante, réseau…).
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération du recrutement' },
+      {
+        error: 'Erreur lors de la récupération du recrutement',
+        detail: err instanceof Error ? err.message : String(err),
+      },
       { status: 500 },
     );
   }
