@@ -120,14 +120,24 @@ export default function PaymentsPage() {
     [filtered, windowEnd],
   );
 
+  // L'échéancier est borné aux 12 prochains mois (dans tous les cas).
+  const twelveEnd = useMemo(() => addMonths(today, 12), [today]);
+
   // Portée de l'échéancier : quand un deal précis est sélectionné, on affiche
-  // TOUTES ses échéances à venir (au-delà de la fenêtre) pour n'en masquer aucune.
-  const scope = useMemo(() => (dealId ? filtered : inWindow), [dealId, filtered, inWindow]);
+  // ses échéances des 12 prochains mois ; sinon on suit la fenêtre choisie
+  // (elle-même bornée à 12 mois au maximum).
+  const scope = useMemo(
+    () => (dealId ? filtered.filter(p => new Date(p.date).getTime() <= twelveEnd.getTime()) : inWindow),
+    [dealId, filtered, inWindow, twelveEnd],
+  );
 
   // Récapitulatif par abonnement du deal sélectionné (montant, périodicité,
-  // prochaine échéance) — permet de vérifier le calcul d'un deal précis.
+  // prochaine échéance) — permet de vérifier le calcul d'un deal précis. Le
+  // nombre / total « à venir » est compté sur les 12 prochains mois, pour rester
+  // cohérent avec l'échéancier affiché.
   const dealRecap = useMemo(() => {
     if (!dealId) return [];
+    const end = twelveEnd.getTime();
     const bySub = new Map<string, Payment[]>();
     for (const p of filtered) {
       const arr = bySub.get(p.subscriptionId);
@@ -136,13 +146,14 @@ export default function PaymentsPage() {
     return Array.from(bySub.values()).map(arr => {
       const s = arr.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const interval = s[1] ? (new Date(s[1].date).getFullYear() - new Date(s[0].date).getFullYear()) * 12 + (new Date(s[1].date).getMonth() - new Date(s[0].date).getMonth()) : null;
+      const within = s.filter(p => new Date(p.date).getTime() <= end);
       return {
         subscriptionId: s[0].subscriptionId, storeName: s[0].storeName, type: s[0].type,
         timing: s[0].paymentTiming, amount: s[0].amount, interval, next: s[0].date,
-        count: s.length, total: s.reduce((sum, p) => sum + p.amount, 0),
+        count: within.length, total: within.reduce((sum, p) => sum + p.amount, 0),
       };
     }).sort((a, b) => new Date(a.next).getTime() - new Date(b.next).getTime());
-  }, [dealId, filtered]);
+  }, [dealId, filtered, twelveEnd]);
 
   // KPIs
   const totalWindow = useMemo(() => scope.reduce((s, p) => s + p.amount, 0), [scope]);
@@ -228,7 +239,7 @@ export default function PaymentsPage() {
         {/* Fenêtre active */}
         <div style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
           {selectedDeal
-            ? <>Magasin : <b>{selectedDeal.storeName}{selectedDeal.city ? ` · ${selectedDeal.city}` : ''} ({selectedDeal.brandName})</b> — toutes les échéances à venir affichées.</>
+            ? <>Magasin : <b>{selectedDeal.storeName}{selectedDeal.city ? ` · ${selectedDeal.city}` : ''} ({selectedDeal.brandName})</b> — échéances des 12 prochains mois.</>
             : <>Fenêtre : <b>{formatDate(today)} → {formatDate(windowEnd)}</b></>}
         </div>
 
@@ -247,7 +258,7 @@ export default function PaymentsPage() {
                   <b>{formatCurrency(r.amount)}</b>{r.interval ? ` tous les ${r.interval} mois` : ''}
                 </span>
                 <span style={{ flex: 1 }} />
-                <span style={{ fontSize: 12, color: '#64748b' }}>Prochaine : <b style={{ color: '#0f172a' }}>{formatDate(r.next)}</b> · {r.count} à venir · total {formatCurrency(r.total)}</span>
+                <span style={{ fontSize: 12, color: '#64748b' }}>Prochaine : <b style={{ color: '#0f172a' }}>{formatDate(r.next)}</b> · {r.count} sur 12 mois · total {formatCurrency(r.total)}</span>
               </div>
             ))}
           </div>
@@ -255,7 +266,7 @@ export default function PaymentsPage() {
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
-          <Kpi label={dealId ? 'Total à venir (ce magasin)' : `Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${scope.length} échéance(s)`} accent />
+          <Kpi label={dealId ? 'Total à venir (12 mois)' : `Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${scope.length} échéance(s)`} accent />
           <Kpi label="Prochains 30 jours" value={formatCurrency(next30Total) || '0 €'} sub="à partir d'aujourd'hui" />
           <Kpi label="Ce mois-ci" value={formatCurrency(thisMonthTotal) || '0 €'} sub={today.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} />
           <Kpi
