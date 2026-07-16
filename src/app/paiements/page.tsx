@@ -34,7 +34,7 @@ interface PaymentData {
   generatedAt: string;
 }
 
-type WindowKey = 'next30' | 'next3m' | 'next6m' | 'next12m' | 'all';
+type WindowKey = 'next30' | 'next3m' | 'next6m' | 'next12m';
 
 // ---------------------------------------------------------------------------
 // Helpers dates
@@ -49,7 +49,6 @@ const windows: { key: WindowKey; label: string; months: number | null; days?: nu
   { key: 'next3m', label: '3 mois', months: 3 },
   { key: 'next6m', label: '6 mois', months: 6 },
   { key: 'next12m', label: '12 mois', months: 12 },
-  { key: 'all', label: 'Tout', months: null },
 ];
 
 // ---------------------------------------------------------------------------
@@ -61,6 +60,7 @@ export default function PaymentsPage() {
   const [win, setWin] = useState<WindowKey>('next3m');
   const [brandId, setBrandId] = useState<string>('');
   const [timing, setTiming] = useState<'' | 'mensuel' | 'comptant'>('');
+  const [dealSearch, setDealSearch] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/payments')
@@ -75,22 +75,23 @@ export default function PaymentsPage() {
   // Borne de fin de la fenêtre sélectionnée (à partir d'aujourd'hui).
   const windowEnd = useMemo(() => {
     const w = windows.find(x => x.key === win)!;
-    if (w.key === 'all') return addMonths(today, data?.horizonMonths ?? 60);
     if (w.days) return addDays(today, w.days);
     return addMonths(today, w.months ?? 12);
-  }, [win, today, data]);
+  }, [win, today]);
 
   // Échéances filtrées par enseigne / cadence, restreintes aux paiements à venir
   // (>= aujourd'hui). Les échéances déjà passées ne sont pas affichées.
+  const q = dealSearch.trim().toLowerCase();
   const filtered = useMemo(() => {
     const all = data?.payments ?? [];
     return all.filter(p => {
       if (brandId && p.brandId !== brandId) return false;
       if (timing && p.paymentTiming !== timing) return false;
+      if (q && !`${p.storeName} ${p.city} ${p.brandName}`.toLowerCase().includes(q)) return false;
       const t = new Date(p.date).getTime();
       return t >= today.getTime();
     });
-  }, [data, brandId, timing, today]);
+  }, [data, brandId, timing, q, today]);
 
   // Échéances dans la fenêtre courante.
   const inWindow = useMemo(
@@ -98,8 +99,33 @@ export default function PaymentsPage() {
     [filtered, windowEnd],
   );
 
+  // Portée de l'échéancier : quand une recherche magasin est active, on affiche
+  // TOUTES ses échéances à venir (au-delà de la fenêtre) pour n'en masquer aucune.
+  const searching = q !== '';
+  const scope = useMemo(() => (searching ? filtered : inWindow), [searching, filtered, inWindow]);
+
+  // Récapitulatif par abonnement des magasins recherchés (montant, périodicité,
+  // prochaine échéance) — permet de vérifier le calcul d'un deal précis.
+  const dealRecap = useMemo(() => {
+    if (!searching) return [];
+    const bySub = new Map<string, Payment[]>();
+    for (const p of filtered) {
+      const arr = bySub.get(p.subscriptionId);
+      if (arr) arr.push(p); else bySub.set(p.subscriptionId, [p]);
+    }
+    return Array.from(bySub.values()).map(arr => {
+      const s = arr.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const interval = s[1] ? (new Date(s[1].date).getFullYear() - new Date(s[0].date).getFullYear()) * 12 + (new Date(s[1].date).getMonth() - new Date(s[0].date).getMonth()) : null;
+      return {
+        subscriptionId: s[0].subscriptionId, storeName: s[0].storeName, type: s[0].type,
+        timing: s[0].paymentTiming, amount: s[0].amount, interval, next: s[0].date,
+        count: s.length, total: s.reduce((sum, p) => sum + p.amount, 0),
+      };
+    }).sort((a, b) => new Date(a.next).getTime() - new Date(b.next).getTime());
+  }, [searching, filtered]);
+
   // KPIs
-  const totalWindow = useMemo(() => inWindow.reduce((s, p) => s + p.amount, 0), [inWindow]);
+  const totalWindow = useMemo(() => scope.reduce((s, p) => s + p.amount, 0), [scope]);
   const next = useMemo(() => filtered[0] ?? null, [filtered]); // filtered déjà trié par date croissante
   const thisMonthTotal = useMemo(() => {
     const k = monthKey(today);
@@ -126,10 +152,10 @@ export default function PaymentsPage() {
     return Array.from(buckets.values());
   }, [filtered, today]);
 
-  // Regroupement du tableau par mois (dans la fenêtre courante).
+  // Regroupement du tableau par mois (fenêtre courante, ou tout le magasin recherché).
   const groups = useMemo(() => {
     const map = new Map<string, { key: string; label: string; total: number; rows: Payment[] }>();
-    for (const p of inWindow) {
+    for (const p of scope) {
       const d = new Date(p.date);
       const k = monthKey(d);
       const g = map.get(k) ?? { key: k, label: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), total: 0, rows: [] };
@@ -137,7 +163,7 @@ export default function PaymentsPage() {
       map.set(k, g);
     }
     return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [inWindow]);
+  }, [scope]);
 
   // ---- Rendu --------------------------------------------------------------
   if (error) return <AppLayout><div style={center}>Erreur de chargement des paiements.</div></AppLayout>;
@@ -176,16 +202,52 @@ export default function PaymentsPage() {
             <option value="">Toutes les enseignes</option>
             {data.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              value={dealSearch}
+              onChange={e => setDealSearch(e.target.value)}
+              placeholder="🔍 Rechercher un magasin…"
+              style={{ ...dateInp, minWidth: 220, paddingRight: dealSearch ? 26 : 10 }}
+            />
+            {dealSearch && (
+              <button type="button" onClick={() => setDealSearch('')} title="Effacer"
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, lineHeight: 1 }}>×</button>
+            )}
+          </div>
         </div>
 
         {/* Fenêtre active */}
         <div style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
-          Fenêtre : <b>{formatDate(today)} → {win === 'all' ? `${Math.round((data.horizonMonths ?? 60) / 12)} ans` : formatDate(windowEnd)}</b>
+          {searching
+            ? <>Recherche : <b>« {dealSearch} »</b> — toutes les échéances à venir affichées ({dealRecap.length} abonnement{dealRecap.length > 1 ? 's' : ''}).</>
+            : <>Fenêtre : <b>{formatDate(today)} → {formatDate(windowEnd)}</b></>}
         </div>
+
+        {/* Récapitulatif des abonnements recherchés (vérification du calcul) */}
+        {searching && dealRecap.length > 0 && (
+          <div style={{ ...card, marginBottom: 16, background: '#f8fafc' }}>
+            <div style={cardTitle}>Abonnement(s) correspondant à la recherche</div>
+            {dealRecap.map((r, i) => (
+              <div key={r.subscriptionId} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8, padding: '8px 0', borderTop: i > 0 ? '1px solid #e2e8f0' : 'none' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.storeName || 'Sans nom'}</span>
+                <span style={{ fontSize: 12.5, color: '#475569' }}>{r.type || 'Type non renseigné'}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, color: r.timing === 'mensuel' ? '#0369a1' : '#4338ca', background: r.timing === 'mensuel' ? '#e0f2fe' : '#eef2ff' }}>
+                  {r.timing === 'mensuel' ? 'Mensuel' : 'Comptant'}
+                </span>
+                <span style={{ fontSize: 12.5, color: '#334155' }}>
+                  <b>{formatCurrency(r.amount)}</b>{r.interval ? ` tous les ${r.interval} mois` : ''}
+                </span>
+                <span style={{ flex: 1 }} />
+                <span style={{ fontSize: 12, color: '#64748b' }}>Prochaine : <b style={{ color: '#0f172a' }}>{formatDate(r.next)}</b> · {r.count} à venir · total {formatCurrency(r.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
-          <Kpi label={`Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${inWindow.length} échéance(s)`} accent />
+          <Kpi label={searching ? 'Total à venir (recherche)' : `Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${scope.length} échéance(s)`} accent />
           <Kpi label="Prochains 30 jours" value={formatCurrency(next30Total) || '0 €'} sub="à partir d'aujourd'hui" />
           <Kpi label="Ce mois-ci" value={formatCurrency(thisMonthTotal) || '0 €'} sub={today.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} />
           <Kpi
@@ -219,7 +281,7 @@ export default function PaymentsPage() {
         {/* Tableau des échéances de la fenêtre, groupées par mois */}
         <div style={{ ...card, marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <div style={cardTitle}>Échéancier ({inWindow.length})</div>
+            <div style={cardTitle}>Échéancier ({scope.length})</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#4f46e5' }}>{formatCurrency(totalWindow) || '0 €'}</div>
           </div>
           {groups.length ? (
@@ -257,7 +319,7 @@ export default function PaymentsPage() {
                 </div>
               ))}
             </div>
-          ) : <div style={emptyChart}>Aucune échéance sur cette fenêtre</div>}
+          ) : <div style={emptyChart}>{searching ? 'Aucune échéance à venir pour ce magasin' : 'Aucune échéance sur cette fenêtre'}</div>}
         </div>
       </div>
     </AppLayout>
