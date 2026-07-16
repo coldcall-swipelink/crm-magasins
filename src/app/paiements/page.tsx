@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import {
@@ -36,6 +36,14 @@ interface PaymentData {
 
 type WindowKey = 'next30' | 'next3m' | 'next6m' | 'next12m';
 
+interface DealOption {
+  id: string;
+  storeName: string;
+  city: string;
+  brandName: string;
+  brandColor: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers dates
 // ---------------------------------------------------------------------------
@@ -60,7 +68,7 @@ export default function PaymentsPage() {
   const [win, setWin] = useState<WindowKey>('next3m');
   const [brandId, setBrandId] = useState<string>('');
   const [timing, setTiming] = useState<'' | 'mensuel' | 'comptant'>('');
-  const [dealSearch, setDealSearch] = useState<string>('');
+  const [dealId, setDealId] = useState<string>('');
 
   useEffect(() => {
     fetch('/api/payments')
@@ -79,19 +87,32 @@ export default function PaymentsPage() {
     return addMonths(today, w.months ?? 12);
   }, [win, today]);
 
-  // Échéances filtrées par enseigne / cadence, restreintes aux paiements à venir
-  // (>= aujourd'hui). Les échéances déjà passées ne sont pas affichées.
-  const q = dealSearch.trim().toLowerCase();
+  // Liste des deals (magasins) ayant au moins une échéance, pour le sélecteur.
+  // Un deal = un id unique ; l'enseigne est affichée pour distinguer deux
+  // magasins de même nom mais d'enseignes différentes.
+  const dealOptions = useMemo(() => {
+    const m = new Map<string, DealOption>();
+    for (const p of data?.payments ?? []) {
+      if (!p.dealId || m.has(p.dealId)) continue;
+      m.set(p.dealId, { id: p.dealId, storeName: p.storeName || 'Sans nom', city: p.city, brandName: p.brandName, brandColor: p.brandColor });
+    }
+    return Array.from(m.values()).sort((a, b) =>
+      a.storeName.localeCompare(b.storeName) || a.brandName.localeCompare(b.brandName));
+  }, [data]);
+  const selectedDeal = useMemo(() => dealOptions.find(o => o.id === dealId) ?? null, [dealOptions, dealId]);
+
+  // Échéances filtrées par enseigne / cadence / deal, restreintes aux paiements
+  // à venir (>= aujourd'hui). Les échéances déjà passées ne sont pas affichées.
   const filtered = useMemo(() => {
     const all = data?.payments ?? [];
     return all.filter(p => {
       if (brandId && p.brandId !== brandId) return false;
       if (timing && p.paymentTiming !== timing) return false;
-      if (q && !`${p.storeName} ${p.city} ${p.brandName}`.toLowerCase().includes(q)) return false;
+      if (dealId && p.dealId !== dealId) return false;
       const t = new Date(p.date).getTime();
       return t >= today.getTime();
     });
-  }, [data, brandId, timing, q, today]);
+  }, [data, brandId, timing, dealId, today]);
 
   // Échéances dans la fenêtre courante.
   const inWindow = useMemo(
@@ -99,15 +120,14 @@ export default function PaymentsPage() {
     [filtered, windowEnd],
   );
 
-  // Portée de l'échéancier : quand une recherche magasin est active, on affiche
+  // Portée de l'échéancier : quand un deal précis est sélectionné, on affiche
   // TOUTES ses échéances à venir (au-delà de la fenêtre) pour n'en masquer aucune.
-  const searching = q !== '';
-  const scope = useMemo(() => (searching ? filtered : inWindow), [searching, filtered, inWindow]);
+  const scope = useMemo(() => (dealId ? filtered : inWindow), [dealId, filtered, inWindow]);
 
-  // Récapitulatif par abonnement des magasins recherchés (montant, périodicité,
+  // Récapitulatif par abonnement du deal sélectionné (montant, périodicité,
   // prochaine échéance) — permet de vérifier le calcul d'un deal précis.
   const dealRecap = useMemo(() => {
-    if (!searching) return [];
+    if (!dealId) return [];
     const bySub = new Map<string, Payment[]>();
     for (const p of filtered) {
       const arr = bySub.get(p.subscriptionId);
@@ -122,7 +142,7 @@ export default function PaymentsPage() {
         count: s.length, total: s.reduce((sum, p) => sum + p.amount, 0),
       };
     }).sort((a, b) => new Date(a.next).getTime() - new Date(b.next).getTime());
-  }, [searching, filtered]);
+  }, [dealId, filtered]);
 
   // KPIs
   const totalWindow = useMemo(() => scope.reduce((s, p) => s + p.amount, 0), [scope]);
@@ -202,32 +222,20 @@ export default function PaymentsPage() {
             <option value="">Toutes les enseignes</option>
             {data.brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              value={dealSearch}
-              onChange={e => setDealSearch(e.target.value)}
-              placeholder="🔍 Rechercher un magasin…"
-              style={{ ...dateInp, minWidth: 220, paddingRight: dealSearch ? 26 : 10 }}
-            />
-            {dealSearch && (
-              <button type="button" onClick={() => setDealSearch('')} title="Effacer"
-                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, lineHeight: 1 }}>×</button>
-            )}
-          </div>
+          <DealPicker options={dealOptions} value={dealId} onChange={setDealId} />
         </div>
 
         {/* Fenêtre active */}
         <div style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
-          {searching
-            ? <>Recherche : <b>« {dealSearch} »</b> — toutes les échéances à venir affichées ({dealRecap.length} abonnement{dealRecap.length > 1 ? 's' : ''}).</>
+          {selectedDeal
+            ? <>Magasin : <b>{selectedDeal.storeName}{selectedDeal.city ? ` · ${selectedDeal.city}` : ''} ({selectedDeal.brandName})</b> — toutes les échéances à venir affichées.</>
             : <>Fenêtre : <b>{formatDate(today)} → {formatDate(windowEnd)}</b></>}
         </div>
 
-        {/* Récapitulatif des abonnements recherchés (vérification du calcul) */}
-        {searching && dealRecap.length > 0 && (
+        {/* Récapitulatif de l'abonnement du deal sélectionné (vérification du calcul) */}
+        {dealId && dealRecap.length > 0 && (
           <div style={{ ...card, marginBottom: 16, background: '#f8fafc' }}>
-            <div style={cardTitle}>Abonnement(s) correspondant à la recherche</div>
+            <div style={cardTitle}>Abonnement(s) de ce magasin</div>
             {dealRecap.map((r, i) => (
               <div key={r.subscriptionId} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8, padding: '8px 0', borderTop: i > 0 ? '1px solid #e2e8f0' : 'none' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{r.storeName || 'Sans nom'}</span>
@@ -247,7 +255,7 @@ export default function PaymentsPage() {
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
-          <Kpi label={searching ? 'Total à venir (recherche)' : `Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${scope.length} échéance(s)`} accent />
+          <Kpi label={dealId ? 'Total à venir (ce magasin)' : `Total à venir (${windows.find(w => w.key === win)!.label})`} value={formatCurrency(totalWindow) || '0 €'} sub={`${scope.length} échéance(s)`} accent />
           <Kpi label="Prochains 30 jours" value={formatCurrency(next30Total) || '0 €'} sub="à partir d'aujourd'hui" />
           <Kpi label="Ce mois-ci" value={formatCurrency(thisMonthTotal) || '0 €'} sub={today.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} />
           <Kpi
@@ -319,7 +327,7 @@ export default function PaymentsPage() {
                 </div>
               ))}
             </div>
-          ) : <div style={emptyChart}>{searching ? 'Aucune échéance à venir pour ce magasin' : 'Aucune échéance sur cette fenêtre'}</div>}
+          ) : <div style={emptyChart}>{dealId ? 'Aucune échéance à venir pour ce magasin' : 'Aucune échéance sur cette fenêtre'}</div>}
         </div>
       </div>
     </AppLayout>
@@ -329,6 +337,63 @@ export default function PaymentsPage() {
 // ---------------------------------------------------------------------------
 // Sous-composants & styles
 // ---------------------------------------------------------------------------
+// Sélecteur de magasin : on tape pour filtrer, on clique pour sélectionner un
+// deal précis (par son id). L'enseigne est affichée sur chaque ligne pour
+// distinguer deux magasins de même nom mais d'enseignes différentes.
+function DealPicker({ options, value, onChange }: {
+  options: DealOption[]; value: string; onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find(o => o.id === value) ?? null;
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const list = q ? options.filter(o => `${o.storeName} ${o.city} ${o.brandName}`.toLowerCase().includes(q)) : options;
+  const label = selected ? `${selected.storeName}${selected.city ? ' · ' + selected.city : ''}` : '';
+
+  return (
+    <div ref={ref} style={{ position: 'relative', minWidth: 250 }}>
+      <input
+        value={open ? query : label}
+        onChange={e => { setQuery(e.target.value); if (!open) setOpen(true); }}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        placeholder="🔍 Sélectionner un magasin…"
+        style={{ ...dateInp, width: '100%', paddingRight: 52, cursor: 'text' }}
+      />
+      {selected && !open && (
+        <span style={{ position: 'absolute', right: 30, top: '50%', transform: 'translateY(-50%)', fontSize: 10, fontWeight: 700, color: selected.brandColor, pointerEvents: 'none', maxWidth: 78, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{selected.brandName}</span>
+      )}
+      {value && (
+        <button type="button" onClick={() => { onChange(''); setQuery(''); setOpen(false); }} title="Réinitialiser"
+          style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 15, lineHeight: 1 }}>×</button>
+      )}
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 20, top: 38, left: 0, right: 0, maxHeight: 300, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(15,23,42,.12)' }}>
+          {list.length === 0 && <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#94a3b8' }}>Aucun magasin</div>}
+          {list.slice(0, 60).map(o => (
+            <div key={o.id} onClick={() => { onChange(o.id); setOpen(false); setQuery(''); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: o.id === value ? '#eef2ff' : '#fff' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: o.brandColor, flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a' }}>{o.storeName}</span>
+              {o.city && <span style={{ fontSize: 11.5, color: '#94a3b8' }}>· {o.city}</span>}
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: o.brandColor, whiteSpace: 'nowrap' }}>{o.brandName}</span>
+            </div>
+          ))}
+          {list.length > 60 && <div style={{ padding: '8px 12px', fontSize: 11, color: '#94a3b8' }}>Affinez la recherche — {list.length} magasins</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div style={{ background: accent ? '#eef2ff' : '#fff', border: `1px solid ${accent ? '#c7d2fe' : '#e2e8f0'}`, borderRadius: 12, padding: '14px 16px' }}>
