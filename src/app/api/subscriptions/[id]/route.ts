@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { recomputeDealFromSubscriptions, computeSubscriptionEnd } from '@/lib/subscriptions';
+import { USE_MOCK_DATA, mockUpdateSubscription, mockDeleteSubscription } from '@/lib/mockData';
+
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
+
+  // Preview (mock) : mise à jour en mémoire.
+  if (USE_MOCK_DATA) {
+    const sub = mockUpdateSubscription(params.id, body);
+    if (!sub) return NextResponse.json({ error: 'Abonnement introuvable' }, { status: 404 });
+    return NextResponse.json(sub);
+  }
+
   const data: Record<string, unknown> = {};
 
   if ('value' in body) data.value = body.value === null || body.value === '' ? null : Number(body.value);
@@ -35,6 +46,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  // Preview (mock) : suppression en mémoire.
+  if (USE_MOCK_DATA) {
+    const ok = mockDeleteSubscription(params.id);
+    if (!ok) return NextResponse.json({ error: 'Abonnement introuvable' }, { status: 404 });
+    return NextResponse.json({ success: true });
+  }
+
   const sub = await prisma.subscription.delete({ where: { id: params.id } });
   // Renumérote les positions restantes (0, 1).
   const rest = await prisma.subscription.findMany({ where: { dealId: sub.dealId }, orderBy: { position: 'asc' } });

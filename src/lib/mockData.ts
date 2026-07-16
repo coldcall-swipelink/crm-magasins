@@ -182,12 +182,31 @@ const SUBSCRIBED: MockSubSpec[] = [
 ];
 
 export interface MockSubscription {
-  id: string; dealId: string; value: number; subscriptionType: string;
+  id: string; dealId: string; position: number; value: number | null; subscriptionType: string;
   paymentTiming: 'mensuel' | 'comptant'; paymentMode: 'stripe' | 'virement';
-  closingDate: string; subscriptionMonths: number;
+  closingDate: string | null; subscriptionMonths: number; subscriptionEndDate: string | null;
 }
 
+// Types d'abonnement (Paramètres) proposés dans le menu déroulant de la fiche
+// affaire en preview. Reproduit les libellés utilisés par les règles de paiement.
+export const mockSubscriptionTypes = [
+  '1 crédit par mois', '2 crédit par mois', '3 crédit par mois',
+  '4 crédit par an', '6 crédit par an', '2 crédit par an', '1 crédit par an',
+  '10 crédit par an', 'multidiffusion',
+].map((name, i) => ({ id: `st${i + 1}`, name, position: i, createdAt: NOW, updatedAt: NOW }));
+
 export const mockSubscriptions: MockSubscription[] = [];
+
+/** Ajoute `months` mois à une date ISO en gérant les fins de mois. Renvoie ISO. */
+function addMonthsIso(iso: string | null, months: number): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() < day) d.setDate(0);
+  return d.toISOString();
+}
 
 for (const s of SUBSCRIBED) {
   const deal = makeDeal({
@@ -201,8 +220,78 @@ for (const s of SUBSCRIBED) {
   (deal as Record<string, unknown>).paymentTiming = s.timing;
   (deal as Record<string, unknown>).paymentMode = s.mode;
   mockDeals.push(deal);
+  const closingIso = new Date(s.closingDate).toISOString();
   mockSubscriptions.push({
-    id: `sub-${deal.id}`, dealId: deal.id, value: s.value, subscriptionType: s.type,
-    paymentTiming: s.timing, paymentMode: s.mode, closingDate: s.closingDate, subscriptionMonths: 24,
+    id: `sub-${deal.id}`, dealId: deal.id, position: 0, value: s.value, subscriptionType: s.type,
+    paymentTiming: s.timing, paymentMode: s.mode, closingDate: closingIso, subscriptionMonths: 24,
+    subscriptionEndDate: addMonthsIso(closingIso, 24),
   });
+}
+
+// ─── CRUD des abonnements en mémoire (mode preview / mock) ────────────────────
+// Les routes API branchent sur ces helpers quand USE_MOCK_DATA est actif, pour
+// que l'ajout / la modification / la suppression d'un abonnement fonctionne sans
+// base de données (mutation en mémoire, comme le reste du mock).
+let mockSubSeq = 0;
+
+/** Recalcule les champs dénormalisés d'un deal mock à partir de ses abonnements. */
+function recomputeMockDeal(dealId: string): void {
+  const deal = mockDeals.find(d => d.id === dealId) as Record<string, unknown> | undefined;
+  if (!deal) return;
+  const subs = mockSubscriptions.filter(s => s.dealId === dealId).sort((a, b) => a.position - b.position);
+  const primary = subs[0];
+  const total = subs.reduce((sum, x) => sum + (x.value ?? 0), 0);
+  deal.dealValue = subs.length ? total : null;
+  deal.closingDate = primary?.closingDate ?? null;
+  deal.paymentMode = primary?.paymentMode ?? 'stripe';
+  deal.paymentTiming = primary?.paymentTiming ?? 'comptant';
+  deal.subscriptionType = primary?.subscriptionType ?? '';
+  deal.subscriptionMonths = primary?.subscriptionMonths ?? 12;
+  deal.subscriptionEndDate = primary?.subscriptionEndDate ?? null;
+}
+
+/** Abonnements d'une affaire, triés par position. */
+export function mockGetSubscriptions(dealId: string): MockSubscription[] {
+  return mockSubscriptions.filter(s => s.dealId === dealId).sort((a, b) => a.position - b.position);
+}
+
+/** Crée un abonnement vide (max 2 / affaire). Renvoie l'abonnement ou une erreur. */
+export function mockCreateSubscription(dealId: string): { sub?: MockSubscription; error?: string } {
+  const existing = mockSubscriptions.filter(s => s.dealId === dealId);
+  if (existing.length >= 2) return { error: 'Maximum 2 abonnements par affaire' };
+  const sub: MockSubscription = {
+    id: `sub-new-${++mockSubSeq}`, dealId, position: existing.length, value: null,
+    subscriptionType: '', paymentTiming: 'comptant', paymentMode: 'stripe',
+    closingDate: null, subscriptionMonths: 12, subscriptionEndDate: null,
+  };
+  mockSubscriptions.push(sub);
+  recomputeMockDeal(dealId);
+  return { sub };
+}
+
+/** Met à jour un abonnement mock (champs partiels). Renvoie l'abonnement à jour. */
+export function mockUpdateSubscription(id: string, body: Record<string, unknown>): MockSubscription | null {
+  const sub = mockSubscriptions.find(s => s.id === id);
+  if (!sub) return null;
+  if ('value' in body) sub.value = body.value === null || body.value === '' ? null : Number(body.value);
+  if ('subscriptionType' in body) sub.subscriptionType = String(body.subscriptionType);
+  if ('paymentMode' in body) sub.paymentMode = body.paymentMode === 'virement' ? 'virement' : 'stripe';
+  if ('paymentTiming' in body) sub.paymentTiming = body.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant';
+  if ('closingDate' in body) sub.closingDate = body.closingDate ? new Date(body.closingDate as string).toISOString() : null;
+  if ('subscriptionMonths' in body) sub.subscriptionMonths = Number(body.subscriptionMonths);
+  sub.subscriptionEndDate = addMonthsIso(sub.closingDate, sub.subscriptionMonths || 12);
+  recomputeMockDeal(sub.dealId);
+  return sub;
+}
+
+/** Supprime un abonnement mock et renumérote les positions restantes. */
+export function mockDeleteSubscription(id: string): boolean {
+  const idx = mockSubscriptions.findIndex(s => s.id === id);
+  if (idx === -1) return false;
+  const { dealId } = mockSubscriptions[idx];
+  mockSubscriptions.splice(idx, 1);
+  mockSubscriptions.filter(s => s.dealId === dealId).sort((a, b) => a.position - b.position)
+    .forEach((s, i) => { s.position = i; });
+  recomputeMockDeal(dealId);
+  return true;
 }

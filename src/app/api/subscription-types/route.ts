@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { USE_MOCK_DATA, mockSubscriptionTypes } from '@/lib/mockData';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // Preview (mock) : liste figée des types, pas de base de données.
+  if (USE_MOCK_DATA) return NextResponse.json(mockSubscriptionTypes);
+
   const types = await prisma.subscriptionType.findMany({
     orderBy: [{ position: 'asc' }, { name: 'asc' }],
   });
