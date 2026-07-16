@@ -35,7 +35,8 @@ const p1Columns = [
 const p2Columns = [
   { id: 'c5', title: 'Démo prévue', position: 0, color: '#f59e0b', isDefault: true,  createdAt: NOW, updatedAt: NOW },
   { id: 'c6', title: 'Négociation', position: 1, color: '#8b5cf6', isDefault: false, createdAt: NOW, updatedAt: NOW },
-  { id: 'c7', title: 'Signé',       position: 2, color: '#10b981', isDefault: false, createdAt: NOW, updatedAt: NOW },
+  { id: 'c8', title: 'SMARTLINKÉ',  position: 2, color: '#10b981', isDefault: false, createdAt: NOW, updatedAt: NOW },
+  { id: 'c7', title: 'Signé',       position: 3, color: '#84cc16', isDefault: false, createdAt: NOW, updatedAt: NOW },
 ];
 
 export const mockPipelines = [
@@ -154,3 +155,54 @@ function wireDealGroup(parentId: string, childIds: string[]) {
 }
 // Intermarché La Teste de Buch (d12) absorbe Intermarché Arcachon (d13).
 wireDealGroup('d12', ['d13']);
+
+// ─── Abonnements (onglet « Paiements ») ───────────────────────────────────────
+// En preview (mock), impossible de créer un abonnement depuis l'UI : on
+// pré-remplit donc des affaires « SMARTLINKÉ » (pipeline Closing) portant chacune
+// un abonnement, une par règle de paiement, pour alimenter l'onglet Paiements et
+// le closing du Dashboard. `closingDate` en 2026 pour générer des échéances à
+// venir. Les montants suivent les règles (cf. src/lib/payments.ts).
+interface MockSubSpec {
+  storeId: string; storeName: string; city: string; department: string;
+  brand: typeof mockBrands[number]; contact: string;
+  type: string; timing: 'mensuel' | 'comptant'; mode: 'stripe' | 'virement';
+  value: number; closingDate: string;
+}
+
+const SUBSCRIBED: MockSubSpec[] = [
+  { storeId: 's14', storeName: 'E.Leclerc Nantes Atlantis', city: 'Saint-Herblain', department: '44', brand: leclerc,   contact: '06 10 10 10 10', type: '1 crédit par mois', timing: 'mensuel',  mode: 'stripe',   value: 100, closingDate: '2026-05-15' },
+  { storeId: 's15', storeName: 'Intermarché Vannes Ouest', city: 'Vannes',          department: '56', brand: inter,     contact: '06 20 20 20 20', type: '1 crédit par mois', timing: 'comptant', mode: 'virement', value: 100, closingDate: '2026-02-10' },
+  { storeId: 's16', storeName: 'Super U Quimper Sud',      city: 'Quimper',         department: '29', brand: superu,    contact: '06 30 30 30 30', type: '2 crédit par mois', timing: 'mensuel',  mode: 'stripe',   value: 150, closingDate: '2026-04-01' },
+  { storeId: 's17', storeName: 'Carrefour Rennes Est',     city: 'Rennes',          department: '35', brand: carrefour, contact: '06 40 40 40 40', type: '4 crédit par an',   timing: 'mensuel',  mode: 'stripe',   value: 300, closingDate: '2026-06-01' },
+  { storeId: 's18', storeName: 'E.Leclerc Brest Iroise',   city: 'Brest',           department: '29', brand: leclerc,   contact: '06 50 50 50 50', type: '6 crédit par an',   timing: 'mensuel',  mode: 'virement', value: 250, closingDate: '2026-03-20' },
+  { storeId: 's19', storeName: 'Intermarché Lorient Port', city: 'Lorient',         department: '56', brand: inter,     contact: '06 60 60 60 60', type: '2 crédit par an',   timing: 'mensuel',  mode: 'stripe',   value: 400, closingDate: '2026-06-20' },
+  { storeId: 's20', storeName: 'Super U Auray Centre',     city: 'Auray',           department: '56', brand: superu,    contact: '06 70 70 70 70', type: '1 crédit par an',   timing: 'mensuel',  mode: 'virement', value: 500, closingDate: '2026-01-15' },
+  { storeId: 's21', storeName: 'Carrefour Nantes Beaulieu',city: 'Nantes',          department: '44', brand: carrefour, contact: '06 80 80 80 80', type: '10 crédit par an',  timing: 'comptant', mode: 'stripe',   value: 120, closingDate: '2026-05-01' },
+  { storeId: 's22', storeName: 'E.Leclerc Rennes Nord',    city: 'Rennes',          department: '35', brand: leclerc,   contact: '06 90 90 90 90', type: 'multidiffusion',    timing: 'comptant', mode: 'virement', value: 80,  closingDate: '2026-01-25' },
+];
+
+export interface MockSubscription {
+  id: string; dealId: string; value: number; subscriptionType: string;
+  paymentTiming: 'mensuel' | 'comptant'; paymentMode: 'stripe' | 'virement';
+  closingDate: string; subscriptionMonths: number;
+}
+
+export const mockSubscriptions: MockSubscription[] = [];
+
+for (const s of SUBSCRIBED) {
+  const deal = makeDeal({
+    pipelineId: 'p2', columnId: 'c8', contact: s.contact,
+    store: makeStore(s.storeId, s.brand, s.storeName, s.city, s.department),
+    dealValue: s.value,
+  });
+  // Miroir dénormalisé lu par la carte / la fiche affaire.
+  (deal as Record<string, unknown>).closingDate = s.closingDate;
+  (deal as Record<string, unknown>).subscriptionType = s.type;
+  (deal as Record<string, unknown>).paymentTiming = s.timing;
+  (deal as Record<string, unknown>).paymentMode = s.mode;
+  mockDeals.push(deal);
+  mockSubscriptions.push({
+    id: `sub-${deal.id}`, dealId: deal.id, value: s.value, subscriptionType: s.type,
+    paymentTiming: s.timing, paymentMode: s.mode, closingDate: s.closingDate, subscriptionMonths: 24,
+  });
+}
