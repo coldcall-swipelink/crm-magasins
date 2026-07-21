@@ -255,10 +255,10 @@ export function mockGetSubscriptions(dealId: string): MockSubscription[] {
   return mockSubscriptions.filter(s => s.dealId === dealId).sort((a, b) => a.position - b.position);
 }
 
-/** Crée un abonnement vide (max 2 / affaire). Renvoie l'abonnement ou une erreur. */
+/** Crée un abonnement vide (max 3 / affaire). Renvoie l'abonnement ou une erreur. */
 export function mockCreateSubscription(dealId: string): { sub?: MockSubscription; error?: string } {
   const existing = mockSubscriptions.filter(s => s.dealId === dealId);
-  if (existing.length >= 2) return { error: 'Maximum 2 abonnements par affaire' };
+  if (existing.length >= 3) return { error: 'Maximum 3 abonnements par affaire' };
   const sub: MockSubscription = {
     id: `sub-new-${++mockSubSeq}`, dealId, position: existing.length, value: null,
     subscriptionType: '', paymentTiming: 'comptant', paymentMode: 'stripe',

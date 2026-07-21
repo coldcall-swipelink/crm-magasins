@@ -181,7 +181,7 @@ model Deal {
   candidateCalls            CandidateCall[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
-  // Abonnements rattachés (1 ou 2 par affaire). Les champs subscription* /
+  // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
   // paymentMode / closingDate / dealValue ci-dessus sont conservés comme miroir
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
   // valeurs, pour les cartes, totaux de colonnes et le dashboard.

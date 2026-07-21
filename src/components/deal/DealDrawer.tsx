@@ -207,7 +207,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [columns, setColumns] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [subscriptionTypes, setSubscriptionTypes] = useState<{ id: string; name: string }[]>([]);
-  // Abonnements de l'affaire (1 ou 2). Source de vérité de l'onglet « Abonnement ».
+  // Abonnements de l'affaire (1 à 3). Source de vérité de l'onglet « Abonnement ».
   const [subs, setSubs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
@@ -1170,10 +1170,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             {activeTab === 'abonnement' && (
               <div style={{ maxWidth: 640 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={sectionTitle}>Abonnements ({subs.length}/2)</div>
-                  {subs.length > 0 && subs.length < 2 && (
+                  <div style={sectionTitle}>Abonnements ({subs.length}/3)</div>
+                  {subs.length > 0 && subs.length < 3 && (
                     <button type="button" onClick={addSub} style={{ ...btnDef, padding: '6px 12px', fontSize: 12 }}>
-                      + Ajouter un 2ᵉ abonnement
+                      + Ajouter un {subs.length === 1 ? '2ᵉ' : '3ᵉ'} abonnement
                     </button>
                   )}
                 </div>

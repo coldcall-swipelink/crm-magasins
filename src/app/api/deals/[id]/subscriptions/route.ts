@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(subs);
 }
 
-// Ajoute un abonnement (maximum 2 par affaire).
+// Ajoute un abonnement (maximum 3 par affaire).
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   if (USE_MOCK_DATA) {
     const { sub, error } = mockCreateSubscription(params.id);
@@ -26,8 +26,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   const count = await prisma.subscription.count({ where: { dealId: params.id } });
-  if (count >= 2) {
-    return NextResponse.json({ error: 'Maximum 2 abonnements par affaire' }, { status: 400 });
+  if (count >= 3) {
+    return NextResponse.json({ error: 'Maximum 3 abonnements par affaire' }, { status: 400 });
   }
   const sub = await prisma.subscription.create({ data: { dealId: params.id, position: count } });
   await recomputeDealFromSubscriptions(params.id);
