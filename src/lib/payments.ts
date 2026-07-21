@@ -11,8 +11,9 @@
 //  - Paiement MENSUEL :
 //      · « N crédit par mois »  → Valeur, chaque mois.
 //      · « N crédit par an »    → Valeur × (12 / N), tous les (12 / N) mois,
-//        lorsque 12 / N est entier (1, 2, 4, 6, 12 crédits/an). Sinon, repli
+//        lorsque 12 / N est entier (1, 2, 3, 4, 6, 12 crédits/an). Sinon, repli
 //        au comptant. Exemples issus des règles :
+//          3 crédit/an → Valeur × 4 tous les 4 mois
 //          4 crédit/an → Valeur × 3 tous les 3 mois
 //          6 crédit/an → Valeur × 2 tous les 2 mois
 //          2 crédit/an → Valeur × 6 tous les 6 mois
