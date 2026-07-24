@@ -1474,7 +1474,7 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
 interface RecruitmentCandidate { id: string; firstName: string; lastName: string; phoneNumber: string; }
 interface RecruitmentOffer { id: string; title: string; candidates: RecruitmentCandidate[]; }
 interface RecruitmentOrganization { organizationId: string; organizationName: string; offers: RecruitmentOffer[]; }
-interface RecruitmentData { configured: boolean; organizations: RecruitmentOrganization[]; calledCandidateIds?: string[]; }
+interface RecruitmentData { configured: boolean; organizations: RecruitmentOrganization[]; calledCandidateIds?: string[]; primaryOrganizationId?: string | null; manual?: boolean; }
 
 function RecruitmentTab({ dealId }: { dealId: string }) {
   const [data, setData] = useState<RecruitmentData | null>(null);
@@ -1482,9 +1482,12 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [calledIds, setCalledIds] = useState<Set<string>>(new Set());
-  // Saisie manuelle d'un organization_id.
+  // Saisie manuelle d'un organization_id (organisation secondaire).
   const [newOrgId, setNewOrgId] = useState('');
   const [addingOrg, setAddingOrg] = useState(false);
+  // Saisie / modification de l'organisation principale (id figé sur le deal).
+  const [newPrimaryId, setNewPrimaryId] = useState('');
+  const [savingPrimary, setSavingPrimary] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -1544,6 +1547,29 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       toast(e instanceof Error ? e.message : 'Échec de l\'ajout', 'error');
     } finally {
       setAddingOrg(false);
+    }
+  };
+
+  // Fige (ou remplace) l'organisation principale : écrit l'organization_id en
+  // dur sur le deal. Ne dépend plus du nom → un renommage Supabase ne casse rien.
+  const setPrimary = async (id?: string) => {
+    const organizationId = (id ?? newPrimaryId).trim();
+    if (!organizationId) return;
+    setSavingPrimary(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/organizations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId, primary: true }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      setNewPrimaryId('');
+      toast('✓ Organisation principale enregistrée');
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec de l\'enregistrement', 'error');
+    } finally {
+      setSavingPrimary(false);
     }
   };
 
@@ -1616,23 +1642,56 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   if (!data?.configured) return <p style={{ color: '#94a3b8', fontSize: 13 }}>Intégration Supabase produit non configurée.</p>;
 
   const orgs = data.organizations || [];
+  const primaryId = data.primaryOrganizationId ?? null;
+  const primaryOrg = primaryId ? orgs.find(o => o.organizationId === primaryId) ?? null : null;
+  const secondaryOrgs = orgs.filter(o => o.organizationId !== primaryId);
 
   return (
     <div>
       {/* Gestion des organisations rattachées */}
       <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: 12, marginBottom: 16, background: '#f8fafc' }}>
-        <div style={{ ...sectionTitle, marginBottom: 8 }}>Organisations rattachées</div>
-        {orgs.length === 0 && (
+        {/* Organisation principale (id figé sur le deal) */}
+        <div style={{ ...sectionTitle, marginBottom: 8 }}>Organisation principale</div>
+        {primaryId ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a' }}>{primaryOrg?.organizationName ?? 'Organisation'}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{primaryId}</div>
+            </div>
+            <button onClick={() => removeOrg(primaryId)} title="Retirer l'organisation principale" style={{ background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, cursor: 'pointer', fontSize: 11, padding: '3px 7px', flexShrink: 0 }}>Retirer</button>
+          </div>
+        ) : (
           <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
-            Aucune organisation. Elle est rattachée automatiquement en « Démo prévue » ; sinon ajoutez son <code>organization_id</code> ci-dessous.
+            Rattachée automatiquement en « Démo prévue ». Vous pouvez la fixer / la corriger manuellement ci-dessous.
           </p>
         )}
-        {orgs.map(o => (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <input
+            style={{ ...inp, flex: 1, fontSize: 12, fontFamily: 'monospace' }}
+            placeholder={primaryId ? 'Remplacer par un autre organization_id' : 'organization_id principal (UUID)'}
+            value={newPrimaryId}
+            onChange={e => setNewPrimaryId(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') setPrimary(); }}
+          />
+          <button style={{ ...btnPri, opacity: savingPrimary ? .7 : 1, cursor: savingPrimary ? 'not-allowed' : 'pointer' }} onClick={() => setPrimary()} disabled={savingPrimary}>
+            {savingPrimary ? '⟳' : (primaryId ? 'Remplacer' : 'Définir')}
+          </button>
+        </div>
+
+        {/* Organisations secondaires */}
+        <div style={{ ...sectionTitle, marginTop: 16, marginBottom: 8 }}>Organisations secondaires</div>
+        {secondaryOrgs.length === 0 && (
+          <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
+            Aucune organisation secondaire. Ajoutez un <code>organization_id</code> pour rattacher une organisation supplémentaire.
+          </p>
+        )}
+        {secondaryOrgs.map(o => (
           <div key={o.organizationId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0f172a' }}>{o.organizationName}</div>
               <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.organizationId}</div>
             </div>
+            <button onClick={() => setPrimary(o.organizationId)} title="Définir comme principale" style={{ background: 'none', border: '1px solid #c7d2fe', color: '#4f46e5', borderRadius: 6, cursor: 'pointer', fontSize: 11, padding: '3px 7px', flexShrink: 0 }}>Principale</button>
             <button onClick={() => removeOrg(o.organizationId)} title="Retirer" style={{ background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, cursor: 'pointer', fontSize: 11, padding: '3px 7px', flexShrink: 0 }}>Retirer</button>
           </div>
         ))}
@@ -1655,6 +1714,9 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
         <div key={o.organizationId} style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>🏢 {o.organizationName}</span>
+            {o.organizationId === primaryId
+              ? <span style={{ fontSize: 10, fontWeight: 600, background: '#eef2ff', color: '#4338ca', padding: '1px 6px', borderRadius: 999 }}>Principale</span>
+              : <span style={{ fontSize: 10, fontWeight: 600, background: '#f1f5f9', color: '#64748b', padding: '1px 6px', borderRadius: 999 }}>Secondaire</span>}
             <span style={{ fontSize: 11, color: '#94a3b8' }}>{o.offers.length} offre{o.offers.length > 1 ? 's' : ''}</span>
           </div>
           {o.offers.length === 0
