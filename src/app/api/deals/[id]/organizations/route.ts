@@ -14,6 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     const body = await req.json();
     const organizationId = typeof body?.organizationId === 'string' ? body.organizationId.trim() : '';
+    // primary=true → devient l'organisation PRINCIPALE (figée sur le deal via
+    // supabaseOrganizationId). Sinon → organisation secondaire (DealOrganization).
+    const primary = body?.primary === true;
     if (!organizationId) {
       return NextResponse.json({ error: 'organizationId requis' }, { status: 400 });
     }
@@ -21,21 +24,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const deal = await prisma.deal.findUnique({ where: { id: params.id }, select: { id: true } });
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
 
-    // Validation : l'organisation doit exister côté produit.
+    // Validation : l'organisation doit exister côté produit. La recherche se fait
+    // par id (pas par nom) : un renommage côté Supabase ne l'invalide donc pas.
     const org = await fetchOrganizationById(organizationId);
     if (!org) {
       return NextResponse.json({ error: 'Organisation introuvable dans Supabase (id invalide ?)' }, { status: 404 });
     }
 
-    await prisma.dealOrganization.upsert({
-      where: { dealId_organizationId: { dealId: params.id, organizationId } },
-      create: { dealId: params.id, organizationId },
-      update: {},
-    });
-    // L'utilisateur gère désormais manuellement : on coupe l'auto-rattachement.
-    await prisma.deal.update({ where: { id: params.id }, data: { supabaseOrgManual: true } });
+    if (primary) {
+      // On fige l'id sur le deal comme organisation principale. S'il figurait
+      // parmi les secondaires, on l'en retire pour éviter le doublon.
+      await prisma.dealOrganization.deleteMany({ where: { dealId: params.id, organizationId } });
+      await prisma.deal.update({
+        where: { id: params.id },
+        data: { supabaseOrganizationId: organizationId, supabaseOrgManual: true },
+      });
+    } else {
+      await prisma.dealOrganization.upsert({
+        where: { dealId_organizationId: { dealId: params.id, organizationId } },
+        create: { dealId: params.id, organizationId },
+        update: {},
+      });
+      // L'utilisateur gère désormais manuellement : on coupe l'auto-rattachement.
+      await prisma.deal.update({ where: { id: params.id }, data: { supabaseOrgManual: true } });
+    }
 
-    return NextResponse.json({ ok: true, organizationId, organizationName: org.name });
+    return NextResponse.json({ ok: true, organizationId, organizationName: org.name, primary });
   } catch (err) {
     console.error('Deal organizations POST error:', err);
     return NextResponse.json({ error: 'Erreur lors de l\'ajout (migration db-sync effectuée ?)' }, { status: 500 });

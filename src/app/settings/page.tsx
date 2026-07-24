@@ -81,6 +81,9 @@ export default function SettingsPage() {
   const [signature, setSignature] = useState('');
   const [savingSig, setSavingSig] = useState(false);
   const [savingCols, setSavingCols] = useState(false);
+  // Backfill : rattachement des affaires existantes à leur Organization Supabase.
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
   const colorTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const fetchAll = useCallback(async () => {
@@ -347,6 +350,31 @@ export default function SettingsPage() {
     toast('Supprimé');
   };
 
+  // Backfill : fige l'organization_id Supabase sur les affaires existantes qui
+  // n'en ont pas encore (retrouvé par nom). En dry-run d'abord (aperçu), puis
+  // apply=true pour écrire. Une fois figé, le lien ne dépend plus du nom.
+  const runBackfill = async (apply: boolean) => {
+    if (apply && !window.confirm('Figer l\'organization_id sur toutes les affaires correspondantes ? (les liens déjà figés ne sont pas écrasés)')) return;
+    setBackfillRunning(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch(`/api/admin/link-organizations?token=sync-crm-2026${apply ? '&apply=true' : ''}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      const s = body.summary || {};
+      setBackfillResult(
+        `${apply ? 'Appliqué' : 'Aperçu'} — ${s.total ?? 0} affaire(s) sans id examinée(s) : `
+        + `${s.matched ?? 0} correspondance(s) unique(s), ${s.ambiguous ?? 0} ambiguë(s), ${s.notFound ?? 0} sans correspondance`
+        + (apply ? `. ${s.updated ?? 0} affaire(s) mise(s) à jour.` : ' (rien écrit).'),
+      );
+      toast(apply ? '✓ Backfill appliqué' : '✓ Aperçu généré');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec du backfill', 'error');
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
+
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0', padding: '8px 12px', marginBottom: 6 };
 
   return (
@@ -554,6 +582,29 @@ export default function SettingsPage() {
             <input type="color" value={newColColor} onChange={e => setNewColColor(e.target.value)} style={{ width: 38, height: 36, borderRadius: 7, border: '1px solid #e2e8f0', cursor: 'pointer' }} />
             <button style={btnPri} onClick={addColumn}>+ Ajouter</button>
           </div>
+        </div>
+
+        {/* Organisations produit (Supabase) — backfill */}
+        <div style={{ marginBottom: 28, border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Organisations produit (Supabase)</div>
+          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+            Fige l&apos;<code>organization_id</code> Supabase sur les affaires existantes qui n&apos;en ont pas encore, en le
+            retrouvant par nom (« Enseigne Nom-magasin »). Une fois figé, le lien ne dépend plus du nom : le renommer côté
+            Supabase ne le casse plus. Les affaires déjà rattachées ne sont pas écrasées.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={{ ...btnDef, opacity: backfillRunning ? 0.7 : 1, cursor: backfillRunning ? 'not-allowed' : 'pointer' }} onClick={() => runBackfill(false)} disabled={backfillRunning}>
+              {backfillRunning ? '⟳…' : 'Aperçu (dry-run)'}
+            </button>
+            <button style={{ ...btnPri, opacity: backfillRunning ? 0.7 : 1, cursor: backfillRunning ? 'not-allowed' : 'pointer' }} onClick={() => runBackfill(true)} disabled={backfillRunning}>
+              {backfillRunning ? '⟳…' : 'Appliquer le backfill'}
+            </button>
+          </div>
+          {backfillResult && (
+            <div style={{ marginTop: 10, fontSize: 12.5, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px' }}>
+              {backfillResult}
+            </div>
+          )}
         </div>
 
         {/* Reset */}

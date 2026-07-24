@@ -59,7 +59,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const organizations = orgIds.length ? await fetchOrganizationsRecruitment(orgIds) : [];
     const calledCandidateIds = await getCalledCandidateIds(params.id);
 
-    return NextResponse.json({ configured: true, organizations, calledCandidateIds });
+    // primaryOrganizationId : l'organisation « principale » figée sur le deal
+    // (celle que l'UI met en avant et laisse modifier). manual : true si
+    // l'utilisateur a pris la main (auto-rattachement par nom désactivé).
+    return NextResponse.json({
+      configured: true,
+      organizations,
+      calledCandidateIds,
+      primaryOrganizationId: primaryOrgId ?? null,
+      manual,
+    });
   } catch (err) {
     console.error('Recruitment fetch error:', err);
     return NextResponse.json(
