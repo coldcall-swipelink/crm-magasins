@@ -15,14 +15,22 @@
 //   SUPABASE_PRODUCT_URL                  (ex : https://xxxx.supabase.co)
 //   SUPABASE_PRODUCT_SERVICE_ROLE_KEY     (clé service_role / secret)
 // Optionnelles :
-//   SUPABASE_PRODUCT_PLAN_ID              (défaut : plan Standard)
-//   SUPABASE_PRODUCT_RECRUITER_USER_ID    (défaut : user fixe)
-//   SUPABASE_PRODUCT_SMARTLINK_CREDITS    (défaut : 3)
+//   SUPABASE_PRODUCT_PLAN_ID                     (défaut : plan Standard)
+//   SUPABASE_PRODUCT_RECRUITER_USER_ID           (défaut : user fixe)
+//   SUPABASE_PRODUCT_SMARTLINK_CREDITS           (défaut : 3)
+//   SUPABASE_PRODUCT_SUPPORT_RECRUITER_USER_ID   (défaut : user Support fixe)
+//   SUPABASE_PRODUCT_SUPPORT_COMPANY_POSITION    (défaut : « Support »)
 
 // Valeurs par défaut (staging). Surchargeables via variables d'environnement.
 const DEFAULT_PLAN_ID = 'de1d4cbf-5a51-4de5-9aeb-df8119a65489'; // plan « Standard »
 const DEFAULT_RECRUITER_USER_ID = 'e05bd473-a010-4658-b0b7-cfd5e344b919';
 const DEFAULT_SMARTLINK_CREDITS = 3;
+// Recruiter « Support » créé au passage en « SMARTLINKÉ » (pipeline Closing).
+// Son user_id est FIXE et distinct de celui du Recruiter « Démo prévue »
+// (SUPABASE_PRODUCT_RECRUITER_USER_ID) : le Support est toujours rattaché à ce
+// user précis, quelle que soit la valeur du user « Démo prévue ».
+const DEFAULT_SUPPORT_RECRUITER_USER_ID = 'e05bd473-a010-4658-b0b7-cfd5e344b919';
+const DEFAULT_SUPPORT_COMPANY_POSITION = 'Support';
 
 export interface DemoOrganizationInput {
   brandName?: string | null;
@@ -159,4 +167,66 @@ export async function createDemoOrganizationRecords(
   });
 
   return { organizationId: org.id, organizationName };
+}
+
+/** Lit des lignes via l'API REST PostgREST (lecture seule, filtre PostgREST brut). */
+async function selectRows<T>(table: string, query: string): Promise<T[]> {
+  const baseUrl = (process.env.SUPABASE_PRODUCT_URL as string).replace(/\/$/, '');
+  const key = process.env.SUPABASE_PRODUCT_SERVICE_ROLE_KEY as string;
+
+  const res = await fetch(`${baseUrl}/rest/v1/${table}?${query}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Select Supabase « ${table} » échoué (${res.status}) : ${detail}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? (data as T[]) : [];
+}
+
+export interface SupportRecruiterResult {
+  /** false si l'intégration n'est pas configurée ou si le Recruiter existait déjà. */
+  created: boolean;
+}
+
+/**
+ * Crée un Recruiter « Support » rattaché à une Organization EXISTANTE dans la
+ * base produit Supabase (déclenché au passage d'une affaire en « SMARTLINKÉ »,
+ * pipeline Closing). Contrairement à `createDemoOrganizationRecords`, on ne crée
+ * ni Organization ni plan : uniquement le Recruiter, sur l'organisation du deal.
+ *
+ * Idempotent : ne recrée rien si un Recruiter identique (même user_id +
+ * organization_id + company_position) existe déjà — évite les doublons quand une
+ * affaire entre plusieurs fois dans la colonne « SMARTLINKÉ ».
+ */
+export async function createSupportRecruiterRecord(
+  organizationId: string,
+): Promise<SupportRecruiterResult> {
+  if (!isProductSupabaseConfigured() || !organizationId) return { created: false };
+
+  // user_id dédié au Support (≠ SUPABASE_PRODUCT_RECRUITER_USER_ID du « Démo prévue »).
+  const recruiterUserId =
+    process.env.SUPABASE_PRODUCT_SUPPORT_RECRUITER_USER_ID || DEFAULT_SUPPORT_RECRUITER_USER_ID;
+  const companyPosition =
+    process.env.SUPABASE_PRODUCT_SUPPORT_COMPANY_POSITION || DEFAULT_SUPPORT_COMPANY_POSITION;
+
+  // Idempotence : un Recruiter Support pour ce couple user/organisation existe-t-il déjà ?
+  const existing = await selectRows<{ id: string }>(
+    'Recruiter',
+    `user_id=eq.${encodeURIComponent(recruiterUserId)}` +
+      `&organization_id=eq.${encodeURIComponent(organizationId)}` +
+      `&company_position=eq.${encodeURIComponent(companyPosition)}` +
+      `&select=id&limit=1`,
+  );
+  if (existing.length > 0) return { created: false };
+
+  await insertRow('Recruiter', {
+    user_id: recruiterUserId,
+    organization_id: organizationId,
+    company_position: companyPosition,
+  });
+
+  return { created: true };
 }

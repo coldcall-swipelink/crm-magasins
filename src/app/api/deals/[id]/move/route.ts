@@ -2,8 +2,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncDemoMeeting } from '@/lib/googleCalendar';
-import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
+import {
+  provisionDemoOrganization,
+  provisionSmartlinkeSupportRecruiter,
+} from '@/lib/supabaseProvisioning';
 import { setPrimaryClosingDate } from '@/lib/subscriptions';
+
+/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
+ *  (insensible à la casse et aux accents). */
+function isSmartlinkColumn(title?: string | null): boolean {
+  if (!title) return false;
+  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
+}
 
 /**
  * Déplace une affaire dans une nouvelle colonne (drag & drop kanban).
@@ -41,6 +51,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // l'abonnement principal (créé si besoin) puis on dénormalise sur le deal.
     if (closingDate !== undefined) {
       await setPrimaryClosingDate(params.id, closingDate ? new Date(closingDate) : null);
+    }
+
+    // SMARTLINKÉ (pipeline Closing) → création d'un Recruiter « Support » sur
+    // l'Organization produit du deal (base Supabase). Best-effort : une erreur
+    // de provisioning ne doit pas faire échouer le déplacement de l'affaire.
+    if (isSmartlinkColumn(column.title)) {
+      try {
+        await provisionSmartlinkeSupportRecruiter(deal.id);
+      } catch (provisionErr) {
+        console.error('Supabase provisioning (SMARTLINKÉ) error:', provisionErr);
+      }
     }
 
     // Webhook DEMO FAITE
