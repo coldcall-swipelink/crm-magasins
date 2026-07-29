@@ -232,7 +232,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
   // Variable {{2mag}} : les 2 magasins de la MÊME enseigne les plus proches
   // présents dans le pipeline « Closing » (toutes étapes confondues). Calculé
-  // à partir de l'endpoint « Magasins proches » (distance Haversine, < 50 km).
+  // à partir de l'endpoint « Magasins proches » (distance Haversine, < 75 km).
   const [twoMag, setTwoMag] = useState('');
   // Formulaire d'ajout manuel d'offre (null = masqué)
   const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
@@ -1350,7 +1350,7 @@ function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: str
 }
 
 // ---- Onglet « Magasins proches » -------------------------------------------
-// Liste les magasins du CRM situés à moins de 50 km (distance Haversine sur les
+// Liste les magasins du CRM situés à moins de 75 km (distance Haversine sur les
 // coordonnées géocodées), filtrables par enseigne, avec l'étape de pipeline du
 // deal associé. Clic → ouvre la fiche du magasin proche.
 interface NearbyDealItem {
@@ -1449,7 +1449,7 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: '#475569' }}>
-          <strong style={{ color: '#4338ca' }}>{visible.length}</strong> magasin{visible.length > 1 ? 's' : ''} à moins de 50&nbsp;km
+          <strong style={{ color: '#4338ca' }}>{visible.length}</strong> magasin{visible.length > 1 ? 's' : ''} à moins de 75&nbsp;km
         </span>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
           <select value={pipeline} onChange={(e) => setPipeline(e.target.value)} style={{ ...inp, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}>
@@ -1464,7 +1464,7 @@ function NearbyTab({ dealId, onNavigate }: { dealId: string; onNavigate?: (dealI
       </div>
 
       {visible.length === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun magasin à moins de 50&nbsp;km{brand || pipeline ? ' pour ce filtre' : ''}.</p>
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>Aucun magasin à moins de 75&nbsp;km{brand || pipeline ? ' pour ce filtre' : ''}.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {visible.map((it) => (

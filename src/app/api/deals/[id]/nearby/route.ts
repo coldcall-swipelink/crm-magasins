@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { USE_MOCK_DATA, mockDeals, mockPipelines } from '@/lib/mockData';
 
-// Magasins du CRM proches (< 50 km) de l'affaire courante, avec leur étape de
+// Magasins du CRM proches (< 75 km) de l'affaire courante, avec leur étape de
 // pipeline. Calcul de distance Haversine côté serveur sur les coordonnées déjà
 // géocodées (les magasins non localisés sont ignorés). Jamais mis en cache.
 export const dynamic = 'force-dynamic';
 
-const RADIUS_KM = 50;
+const RADIUS_KM = 75;
 
 /** Distance en km entre deux points (formule de Haversine). */
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
