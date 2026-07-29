@@ -226,6 +226,7 @@ export async function createSupportRecruiterRecord(
     user_id: recruiterUserId,
     organization_id: organizationId,
     company_position: companyPosition,
+    is_admin: true,
   });
 
   return { created: true };
