@@ -243,10 +243,11 @@ export async function runCsvImport(
           data: {
             isPresentInLastImport: true,
             lastImportAt: new Date(),
-            // Mettre à jour les contacts si fournis dans le CSV
-            ...(mapped.directeur     && { directeur:     mapped.directeur }),
-            ...(mapped.contactCalling && { contactCalling: mapped.contactCalling }),
-            ...(mapped.dealEmail      && { dealEmail:      mapped.dealEmail }),
+            // NB : on ne touche PAS aux contacts (directeur / contactCalling /
+            // dealEmail) d'une affaire existante. L'import d'offres ne doit
+            // mettre à jour que l'offre et faire remonter l'affaire en
+            // « À appeler » — les infos de contact restent celles saisies
+            // manuellement dans le CRM.
           },
         });
         updatedDeals++;
