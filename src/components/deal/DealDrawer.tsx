@@ -297,7 +297,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // l'affaire courante, présents dans le pipeline « Closing » (peu importe
   // l'étape) et les plus proches géographiquement. Réutilise l'endpoint
   // « Magasins proches » (déjà trié par distance croissante) puis filtre sur
-  // l'enseigne et le pipeline. Format : « Nom magasin (Ville) et Nom magasin (Ville) ».
+  // l'enseigne et le pipeline. Format : « Nom magasin et de Nom magasin » (nom
+  // du magasin seul, séparés par « et de »).
   useEffect(() => {
     const myBrand = deal?.store?.brand?.name;
     if (!myBrand) { setTwoMag(''); return; }
@@ -312,8 +313,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             it.pipelineName === 'Closing' &&
             (it.brandName || '').toLowerCase() === myBrand.toLowerCase())
           .slice(0, 2)
-          .map((it: any) => (it.city ? `${it.storeName} (${it.city})` : it.storeName))
-          .join(' et ');
+          .map((it: any) => it.storeName)
+          .join(' et de ');
         if (!cancelled) setTwoMag(nearest);
       } catch {
         if (!cancelled) setTwoMag('');
