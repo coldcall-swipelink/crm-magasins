@@ -14,8 +14,10 @@
 import { prisma } from '@/lib/prisma';
 import {
   createDemoOrganizationRecords,
+  createSupportRecruiterRecord,
   isProductSupabaseConfigured,
 } from '@/lib/demoOrganization';
+import { matchDealOrganization } from '@/lib/recruitment';
 
 export { isProductSupabaseConfigured };
 
@@ -55,4 +57,50 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
       });
     },
   );
+}
+
+/**
+ * Crée un Recruiter « Support » sur l'Organization du deal dans la base produit
+ * Supabase quand une affaire passe en « SMARTLINKÉ » (pipeline Closing).
+ *
+ * L'Organization n'est PAS créée ici : on réutilise celle rattachée au deal
+ * (supabaseOrganizationId, posée en « Démo prévue »). Si elle est absente, on
+ * tente de la retrouver par nom (comme l'onglet « Recrutement ») et on la
+ * mémorise. Sans organisation résolue, on ne fait rien.
+ *
+ * Idempotent : `createSupportRecruiterRecord` ne recrée pas un Recruiter
+ * Support déjà présent pour ce couple user/organisation.
+ */
+export async function provisionSmartlinkeSupportRecruiter(dealId: string): Promise<void> {
+  if (!isProductSupabaseConfigured()) return;
+
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    include: { store: { include: { brand: true } }, column: true },
+  });
+  if (!deal) return;
+  // « SMARTLINKÉ » (insensible à la casse et aux accents).
+  const columnTitle = deal.column?.title ?? '';
+  const normalized = columnTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!normalized.includes('smartlink')) return;
+
+  let organizationId = deal.supabaseOrganizationId;
+  if (!organizationId) {
+    // Pas encore rattaché : on tente une correspondance par nom (enseigne + magasin).
+    const match = await matchDealOrganization({
+      brandName: deal.store.brand?.name,
+      storeName: deal.store.name,
+      city: deal.store.city,
+    });
+    if (match.organizationId) {
+      organizationId = match.organizationId;
+      await prisma.deal.update({
+        where: { id: deal.id },
+        data: { supabaseOrganizationId: organizationId },
+      });
+    }
+  }
+  if (!organizationId) return; // aucune organisation → rien à faire
+
+  await createSupportRecruiterRecord(organizationId);
 }
