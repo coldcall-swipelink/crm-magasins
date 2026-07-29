@@ -54,9 +54,13 @@ async function createImportNote(dealId: string, mapped: MappedRow): Promise<bool
 /**
  * Retrouve un magasin existant pour une ligne CSV, de façon tolérante :
  *   1) clé de déduplication exacte (enseigne + ville + magasin, ou SIRET / id) ;
- *   2) repli : enseigne + nom magasin en ignorant la ville — utile quand le
- *      fichier de notes ne contient pas la ville alors que le deal a été créé
- *      avec. On ne renvoie le repli que s'il est NON ambigu (un seul magasin).
+ *   2) repli : enseigne + nom magasin en ignorant la ville — utile quand la
+ *      ville varie d'un import à l'autre (vide, libellé différent, code
+ *      postal…) alors que le deal a été créé avec, ou quand le fichier de
+ *      notes ne contient pas la ville. On ne renvoie le repli que s'il est NON
+ *      ambigu (un seul magasin).
+ * Utilisé par l'import principal (création/màj des affaires), l'import de notes
+ * et la correspondance tolérante en général.
  * Renvoie null si aucun magasin (ou repli ambigu).
  */
 async function findStoreForRow(mapped: MappedRow) {
@@ -165,8 +169,14 @@ export async function runCsvImport(
       }
 
       // ── B. Déduplication magasin ─────────────────────────────────────────
+      // Recherche tolérante (cf. findStoreForRow) : clé exacte
+      // (enseigne + ville + magasin, ou SIRET / id), PUIS repli enseigne + nom
+      // magasin en ignorant la ville. Sans ce repli, une simple variation de
+      // ville (vide, « Bordeaux » vs « Bordeaux Lac », code postal…) ou de
+      // ponctuation dans le nom produit une clé différente et recrée un doublon
+      // au lieu de mettre l'affaire à jour — bug constaté sur Super U.
       const dedupKey = buildDeduplicationKey(mapped);
-      let store = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
+      let store = await findStoreForRow(mapped);
       let deal;
 
       if (!store) {
