@@ -230,6 +230,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
+  // Variable {{2mag}} : les 2 magasins de la MÊME enseigne les plus proches
+  // présents dans le pipeline « Closing » (toutes étapes confondues). Calculé
+  // à partir de l'endpoint « Magasins proches » (distance Haversine, < 50 km).
+  const [twoMag, setTwoMag] = useState('');
   // Formulaire d'ajout manuel d'offre (null = masqué)
   const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
   const [savingOffer, setSavingOffer] = useState(false);
@@ -288,6 +292,36 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     fetch(`/api/deals/${dealId}/subscriptions`).then(r => r.json()).then(d => setSubs(Array.isArray(d) ? d : [])).catch(() => {});
   }, [dealId]);
   useEffect(() => { fetchSubs(); }, [fetchSubs]);
+
+  // Calcule la variable {{2mag}} : les 2 magasins de la même enseigne que
+  // l'affaire courante, présents dans le pipeline « Closing » (peu importe
+  // l'étape) et les plus proches géographiquement. Réutilise l'endpoint
+  // « Magasins proches » (déjà trié par distance croissante) puis filtre sur
+  // l'enseigne et le pipeline. Format : « Nom magasin et de Nom magasin » (nom
+  // du magasin seul, séparés par « et de »).
+  useEffect(() => {
+    const myBrand = deal?.store?.brand?.name;
+    if (!myBrand) { setTwoMag(''); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/deals/${dealId}/nearby`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const nearest = (data.deals || [])
+          .filter((it: any) =>
+            it.pipelineName === 'Closing' &&
+            (it.brandName || '').toLowerCase() === myBrand.toLowerCase())
+          .slice(0, 2)
+          .map((it: any) => it.storeName)
+          .join(' et de ');
+        if (!cancelled) setTwoMag(nearest);
+      } catch {
+        if (!cancelled) setTwoMag('');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [dealId, deal?.store?.brand?.name]);
 
   // Fermeture au clavier (Échap)
   useEffect(() => {
@@ -412,6 +446,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     contact_calling: d?.contactCalling || '',
     poste: d?.jobOffers?.[0]?.jobTitle || '',
     prenom_expediteur: '',
+    '2mag': twoMag,
   });
   const applyTemplate = (templateId: string) => {
     const tpl = templates.find(t => t.id === templateId);

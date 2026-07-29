@@ -15,7 +15,7 @@ interface EmailTemplate { id: string; name: string; subject: string; body: strin
 interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
 interface SubscriptionType { id: string; name: string; position: number; }
 
-const VARIABLES = ['{{civilite}}', '{{nom_famille}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}'];
+const VARIABLES = ['{{civilite}}', '{{nom_famille}}', '{{enseigne}}', '{{nom_magasin}}', '{{ville}}', '{{directeur}}', '{{contact_calling}}', '{{poste}}', '{{prenom_expediteur}}', '{{2mag}}'];
 
 interface TemplateFormProps {
   value: EmailTemplate | { name: string; subject: string; body: string };
