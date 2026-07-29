@@ -18,6 +18,7 @@
 //   SUPABASE_PRODUCT_PLAN_ID                     (défaut : plan Standard)
 //   SUPABASE_PRODUCT_RECRUITER_USER_ID           (défaut : user fixe)
 //   SUPABASE_PRODUCT_SMARTLINK_CREDITS           (défaut : 3)
+//   SUPABASE_PRODUCT_SUPPORT_RECRUITER_USER_ID   (défaut : user Support fixe)
 //   SUPABASE_PRODUCT_SUPPORT_COMPANY_POSITION    (défaut : « Support »)
 
 // Valeurs par défaut (staging). Surchargeables via variables d'environnement.
@@ -25,6 +26,10 @@ const DEFAULT_PLAN_ID = 'de1d4cbf-5a51-4de5-9aeb-df8119a65489'; // plan « Stand
 const DEFAULT_RECRUITER_USER_ID = 'e05bd473-a010-4658-b0b7-cfd5e344b919';
 const DEFAULT_SMARTLINK_CREDITS = 3;
 // Recruiter « Support » créé au passage en « SMARTLINKÉ » (pipeline Closing).
+// Son user_id est FIXE et distinct de celui du Recruiter « Démo prévue »
+// (SUPABASE_PRODUCT_RECRUITER_USER_ID) : le Support est toujours rattaché à ce
+// user précis, quelle que soit la valeur du user « Démo prévue ».
+const DEFAULT_SUPPORT_RECRUITER_USER_ID = 'e05bd473-a010-4658-b0b7-cfd5e344b919';
 const DEFAULT_SUPPORT_COMPANY_POSITION = 'Support';
 
 export interface DemoOrganizationInput {
@@ -201,8 +206,9 @@ export async function createSupportRecruiterRecord(
 ): Promise<SupportRecruiterResult> {
   if (!isProductSupabaseConfigured() || !organizationId) return { created: false };
 
+  // user_id dédié au Support (≠ SUPABASE_PRODUCT_RECRUITER_USER_ID du « Démo prévue »).
   const recruiterUserId =
-    process.env.SUPABASE_PRODUCT_RECRUITER_USER_ID || DEFAULT_RECRUITER_USER_ID;
+    process.env.SUPABASE_PRODUCT_SUPPORT_RECRUITER_USER_ID || DEFAULT_SUPPORT_RECRUITER_USER_ID;
   const companyPosition =
     process.env.SUPABASE_PRODUCT_SUPPORT_COMPANY_POSITION || DEFAULT_SUPPORT_COMPANY_POSITION;
 
