@@ -4,6 +4,7 @@ import { syncDemoMeeting } from '@/lib/googleCalendar';
 import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 import { addMonths, normalizeText } from '@/lib/utils';
+import { buildDeduplicationKey } from '@/lib/import/deduplication';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -148,6 +149,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (existing) {
         const name = body.storeName.trim();
         await prisma.store.update({ where: { id: existing.storeId }, data: { name, normalizedName: normalizeText(name) } });
+      }
+    }
+
+    // Réalignement de la clé de déduplication du magasin après un changement
+    // d'enseigne ou de nom. La clé encode enseigne + ville + nom : laissée figée
+    // sur l'ancienne valeur (ex. « U » renommé en « Super U »), un futur import
+    // CSV ne retrouve plus le magasin par clé exacte et crée un doublon. On la
+    // recalcule pour que l'import redevienne exact. Garde-fous : on n'écrase
+    // jamais la clé si elle entre en collision avec un autre magasin (cas des
+    // duplications volontaires), et toute erreur ici reste sans effet sur la
+    // mise à jour de l'affaire.
+    if ('brandId' in body || 'storeName' in body) {
+      try {
+        const dealRow = await prisma.deal.findUnique({ where: { id: params.id }, select: { storeId: true } });
+        const store = dealRow && await prisma.store.findUnique({
+          where: { id: dealRow.storeId },
+          include: { brand: { select: { name: true } } },
+        });
+        if (store) {
+          const newKey = buildDeduplicationKey({
+            brand:      store.brand?.name ?? '',
+            city:       store.city ?? '',
+            storeName:  store.name ?? '',
+            siret:      store.siret ?? '',
+            externalId: store.externalId ?? '',
+          });
+          if (newKey !== store.deduplicationKey) {
+            const clash = await prisma.store.findUnique({
+              where: { deduplicationKey: newKey },
+              select: { id: true },
+            });
+            if (!clash) {
+              await prisma.store.update({ where: { id: store.id }, data: { deduplicationKey: newKey } });
+            }
+          }
+        }
+      } catch (keyErr) {
+        console.error('Réalignement deduplicationKey (PATCH deal) échoué:', keyErr);
       }
     }
 
