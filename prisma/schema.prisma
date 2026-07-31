@@ -71,6 +71,11 @@ model SubscriptionType {
 model User {
   id              String   @id @default(cuid())
   name            String   @unique
+  // Identifiants de connexion. Optionnels pour ne pas casser les utilisateurs
+  // historiques créés à la volée (assignation d'affaires) sans compte : seuls
+  // les comptes disposant d'un email + passwordHash peuvent se connecter.
+  email           String?  @unique
+  passwordHash    String?  // hash scrypt « salt:hash » — jamais renvoyé au client
   color           String   @default("#6366f1")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

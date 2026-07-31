@@ -175,6 +175,10 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"sentAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");",
+  // Authentification : identifiants de connexion par utilisateur.
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"email\" TEXT;",
+  "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"passwordHash\" TEXT;",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"User_email_key\" ON \"User\"(\"email\");",
   "CREATE TABLE IF NOT EXISTS \"CandidateCall\" (\"id\" TEXT NOT NULL, CONSTRAINT \"CandidateCall_pkey\" PRIMARY KEY (\"id\"));",
   "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
   "ALTER TABLE \"CandidateCall\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",

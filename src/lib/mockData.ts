@@ -12,10 +12,14 @@ const NOW = '2026-06-09T10:00:00.000Z';
 
 // ─── Utilisateurs ───────────────────────────────────────────────────────────
 export const mockUsers = [
-  { id: 'u1', name: 'Bilal Yacouti', color: '#6366f1', createdAt: NOW, updatedAt: NOW },
-  { id: 'u2', name: 'Sophie Martin',  color: '#ec4899', createdAt: NOW, updatedAt: NOW },
-  { id: 'u3', name: 'Karim Benali',   color: '#10b981', createdAt: NOW, updatedAt: NOW },
+  { id: 'u1', name: 'Bilal Yacouti', email: 'bilal@swipelink.fr',  color: '#6366f1', createdAt: NOW, updatedAt: NOW },
+  { id: 'u2', name: 'Sophie Martin',  email: 'sophie@swipelink.fr', color: '#ec4899', createdAt: NOW, updatedAt: NOW },
+  { id: 'u3', name: 'Karim Benali',   email: 'karim@swipelink.fr',  color: '#10b981', createdAt: NOW, updatedAt: NOW },
 ];
+
+// Mot de passe commun de démonstration (mode données fictives / preview
+// uniquement). En base réelle, chaque utilisateur a son propre mot de passe.
+export const MOCK_DEMO_PASSWORD = 'demo';
 
 // ─── Enseignes ──────────────────────────────────────────────────────────────
 export const mockBrands = [

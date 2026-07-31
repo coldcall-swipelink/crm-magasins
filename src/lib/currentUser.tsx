@@ -5,6 +5,7 @@ export interface CurrentUser {
   id:    string;
   name:  string;
   color: string;
+  email?: string;
 }
 
 const STORAGE_KEY = 'crmCurrentUser';
@@ -12,7 +13,7 @@ const STORAGE_KEY = 'crmCurrentUser';
 interface Ctx {
   user:   CurrentUser | null;
   ready:  boolean;                 // localStorage lu (évite le flash au démarrage)
-  login:  (name: string) => Promise<void>;
+  login:  (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -32,11 +33,12 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
     setReady(true);
   }, []);
 
-  const login = useCallback(async (name: string) => {
-    const res = await fetch('/api/users', {
+  // Connexion par email + mot de passe (identifiants fixés au préalable en base).
+  const login = useCallback(async (email: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
       // Lit la réponse en texte d'abord pour ne pas planter si le corps n'est
@@ -47,7 +49,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
       throw new Error(msg);
     }
     const u: CurrentUser = await res.json();
-    const compact = { id: u.id, name: u.name, color: u.color };
+    const compact = { id: u.id, name: u.name, color: u.color, email: u.email };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(compact));
     setUser(compact);
   }, []);

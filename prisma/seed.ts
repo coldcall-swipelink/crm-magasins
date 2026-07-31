@@ -1,7 +1,25 @@
 // prisma/seed.ts
 import { PrismaClient } from '@prisma/client';
+import { randomBytes, scryptSync } from 'crypto';
 
 const prisma = new PrismaClient();
+
+// Hash scrypt « salt:hash » (identique à src/lib/password.ts, réimplémenté ici
+// pour rester autonome sous ts-node).
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+// Comptes de connexion créés au seed. Le mot de passe initial est commun et
+// configurable via SEED_USER_PASSWORD (défaut : « changeme ») — à changer
+// ensuite par utilisateur via `npm run user:set-password`.
+const SEED_USERS = [
+  { name: 'Bilal Yacouti', email: 'bilal@swipelink.fr',  color: '#6366f1' },
+  { name: 'Sophie Martin', email: 'sophie@swipelink.fr', color: '#ec4899' },
+  { name: 'Karim Benali',  email: 'karim@swipelink.fr',  color: '#10b981' },
+];
 
 const DEFAULT_COLUMNS = [
   { title: 'À appeler',      position: 0, color: '#6366f1', isDefault: true  },
@@ -36,6 +54,20 @@ async function main() {
       color: '#6366f1',
     },
   });
+
+  // 0b. Utilisateurs (comptes de connexion)
+  console.log('  → Création des utilisateurs');
+  const seedPassword = process.env.SEED_USER_PASSWORD || 'changeme';
+  for (const u of SEED_USERS) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, color: u.color },
+      // Ne réécrit le mot de passe qu'à la création (ne pas écraser un mot de
+      // passe déjà personnalisé lors d'un re-seed).
+      create: { name: u.name, email: u.email, color: u.color, passwordHash: hashPassword(seedPassword) },
+    });
+  }
+  console.log(`     (${SEED_USERS.length} comptes — mot de passe initial : « ${seedPassword} », à changer via npm run user:set-password)`);
 
   // 1. Colonnes pipeline
   console.log('  → Création des colonnes pipeline');
@@ -237,6 +269,7 @@ async function main() {
   }
 
   console.log('✅ Seed terminé avec succès !');
+  console.log(`   - ${SEED_USERS.length} utilisateurs (connexion email + mot de passe)`);
   console.log(`   - 1 pipeline (Prospection)`);
   console.log(`   - ${DEFAULT_COLUMNS.length} colonnes pipeline`);
   console.log(`   - ${BRANDS.length} enseignes`);
