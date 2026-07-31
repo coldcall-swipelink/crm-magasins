@@ -281,6 +281,43 @@ export async function fetchOrganizationById(
   return rows[0] ? { id: rows[0].id, name: rows[0].name?.trim() || 'Organisation' } : null;
 }
 
+export interface ClientReference {
+  /** Valeur à passer en client_reference_id (group_id si présent, sinon organization_id). */
+  referenceId: string;
+  /** Nature de la référence retenue. */
+  kind: 'group' | 'organization';
+  /** Nom de l'Organization (pour l'affichage côté CRM). */
+  organizationName: string;
+}
+
+/**
+ * Résout la valeur de `client_reference_id` pour une Organization produit.
+ *
+ * Règle métier : si l'Organization est rattachée à un groupe (colonne
+ * `group_id` non nulle dans la table Organization de Supabase), on renvoie le
+ * `group_id` — c'est lui qui doit servir de référence de paiement. Sinon on
+ * renvoie l'`organization_id`.
+ *
+ * Renvoie null si l'Organization est introuvable côté produit (id invalide).
+ */
+export async function resolveClientReference(
+  organizationId: string,
+): Promise<ClientReference | null> {
+  if (!organizationId) return null;
+  const rows = await selectRows<{ id: string; name: string | null; group_id: string | null }>(
+    'Organization',
+    `id=eq.${encodeURIComponent(organizationId)}&select=id,name,group_id&limit=1`,
+  );
+  const org = rows[0];
+  if (!org) return null;
+
+  const groupId = typeof org.group_id === 'string' ? org.group_id.trim() : '';
+  const organizationName = org.name?.trim() || 'Organisation';
+  return groupId
+    ? { referenceId: groupId, kind: 'group', organizationName }
+    : { referenceId: org.id, kind: 'organization', organizationName };
+}
+
 /**
  * Récupère, pour une ou plusieurs Organizations, leurs offres avec les
  * candidats likés envoyés (regroupées par organisation). Chaque organisation
