@@ -107,8 +107,19 @@ async function stripeGet<T>(path: string): Promise<T> {
   }
 
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`Appel Stripe « ${path} » échoué (${res.status}) : ${detail}`);
+    const raw = await res.text();
+    // Stripe renvoie un JSON { error: { message, code, type } } : on en extrait
+    // un message lisible (ex. permissions manquantes sur une clé restreinte).
+    let message = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      message = parsed?.error?.message || raw;
+    } catch { /* corps non-JSON : on garde le texte brut */ }
+    const hint =
+      res.status === 401 ? ' (clé invalide ou absente)' :
+      res.status === 403 ? ' (clé restreinte : autorisez la lecture de Payment Links, Products et Prices)' :
+      '';
+    throw new Error(`Stripe ${res.status}${hint} : ${message}`);
   }
   return (await res.json()) as T;
 }

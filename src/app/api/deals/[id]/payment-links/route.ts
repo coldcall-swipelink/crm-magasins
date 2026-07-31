@@ -66,7 +66,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       );
     }
 
-    const links = await fetchActivePaymentLinks();
+    let links;
+    try {
+      links = await fetchActivePaymentLinks();
+    } catch (stripeErr) {
+      // Erreur côté Stripe (clé invalide, permissions manquantes, etc.) : on
+      // remonte le message réel pour faciliter le diagnostic côté CRM.
+      console.error('Stripe payment-links error:', stripeErr);
+      return NextResponse.json(
+        { error: (stripeErr as Error).message || 'Erreur Stripe inconnue.', code: 'STRIPE_ERROR' },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({
       organizationId,
