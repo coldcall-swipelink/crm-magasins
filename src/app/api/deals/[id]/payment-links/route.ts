@@ -91,8 +91,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
   } catch (err) {
     console.error('Deal payment-links GET error:', err);
+    // On expose le message réel (Supabase, colonne manquante, etc.) pour le
+    // diagnostic. Aucun secret n'y transite (ni clé Stripe ni clé Supabase).
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des liens de paiement Stripe.' },
+      { error: `Erreur lors de la récupération des liens de paiement : ${(err as Error).message || 'inconnue'}` },
       { status: 500 },
     );
   }

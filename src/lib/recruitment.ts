@@ -304,11 +304,26 @@ export async function resolveClientReference(
   organizationId: string,
 ): Promise<ClientReference | null> {
   if (!organizationId) return null;
-  const rows = await selectRows<{ id: string; name: string | null; group_id: string | null }>(
-    'Organization',
-    `id=eq.${encodeURIComponent(organizationId)}&select=id,name,group_id&limit=1`,
-  );
-  const org = rows[0];
+  const idFilter = `id=eq.${encodeURIComponent(organizationId)}`;
+
+  // Lecture avec group_id. Si la colonne n'existe pas sur cette instance
+  // Supabase (PostgREST 400 « column ... does not exist »), on retente sans, et
+  // on se rabat sur l'organization_id — la fonctionnalité reste opérationnelle.
+  let org: { id: string; name: string | null; group_id?: string | null } | undefined;
+  try {
+    const rows = await selectRows<{ id: string; name: string | null; group_id: string | null }>(
+      'Organization',
+      `${idFilter}&select=id,name,group_id&limit=1`,
+    );
+    org = rows[0];
+  } catch (e) {
+    console.warn('resolveClientReference: lecture group_id impossible, repli sur organization_id :', (e as Error).message);
+    const rows = await selectRows<{ id: string; name: string | null }>(
+      'Organization',
+      `${idFilter}&select=id,name&limit=1`,
+    );
+    org = rows[0];
+  }
   if (!org) return null;
 
   const groupId = typeof org.group_id === 'string' ? org.group_id.trim() : '';
