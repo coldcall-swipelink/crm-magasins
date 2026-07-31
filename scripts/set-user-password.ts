@@ -55,11 +55,14 @@ async function main() {
 
   const passwordHash = hashPassword(password);
 
-  const existing = await prisma.user.findFirst({ where: { email } });
+  // Retrouve le compte par email, puis en secours par nom (pour rattacher les
+  // identifiants à un utilisateur historique créé sans email).
+  let existing = await prisma.user.findFirst({ where: { email } });
+  if (!existing && name) existing = await prisma.user.findFirst({ where: { name } });
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
-      data: { passwordHash, name: name || existing.name, ...(color ? { color } : {}) },
+      data: { email, passwordHash, name: name || existing.name, ...(color ? { color } : {}) },
     });
     console.log(`✅ Mot de passe mis à jour pour ${email} (${name || existing.name}).`);
   } else {

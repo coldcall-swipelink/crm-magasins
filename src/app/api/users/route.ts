@@ -47,10 +47,16 @@ export async function POST(req: NextRequest) {
     const mail = (email || '').trim().toLowerCase();
     if (!trimmedName) return NextResponse.json({ error: 'name requis' }, { status: 400 });
 
-    // Retrouve un compte existant : priorité à l'email, sinon au nom.
-    const existing = mail
+    // Retrouve un compte existant : d'abord par email, puis en secours par nom.
+    // Le secours par nom est essentiel pour rattacher email + mot de passe à un
+    // utilisateur historique créé sans email (ancienne connexion par nom), au
+    // lieu d'échouer sur la contrainte d'unicité du nom en tentant un doublon.
+    let existing = mail
       ? await prisma.user.findFirst({ where: { email: { equals: mail, mode: 'insensitive' } } })
-      : await prisma.user.findFirst({ where: { name: { equals: trimmedName, mode: 'insensitive' } } });
+      : null;
+    if (!existing) {
+      existing = await prisma.user.findFirst({ where: { name: { equals: trimmedName, mode: 'insensitive' } } });
+    }
 
     const data: {
       name?: string; email?: string; color?: string; passwordHash?: string;
