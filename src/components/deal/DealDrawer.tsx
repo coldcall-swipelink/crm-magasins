@@ -198,8 +198,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // Onglet actif de la zone de droite : activité (par défaut) ou recrutement.
   const [activeTab, setActiveTab] = useState<'activite' | 'abonnement' | 'recrutement' | 'proches'>('activite');
 
-  // Volet de composition actif : note / action / email
-  const [composer, setComposer] = useState<null | 'note' | 'action' | 'email'>(null);
+  // Volet de composition actif : note / action / email / lien de paiement
+  const [composer, setComposer] = useState<null | 'note' | 'action' | 'email' | 'payment'>(null);
 
   // Données annexes
   const [users, setUsers] = useState<User[]>([]);
@@ -230,6 +230,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
+  // Formulaire « lien de paiement » : liens Stripe actifs résolus pour ce deal,
+  // chacun avec son URL finale (client_reference_id = group_id ou organization_id).
+  const [payLinks, setPayLinks] = useState<{ id: string; label: string; url: string }[]>([]);
+  const [payLinkId, setPayLinkId] = useState('');
+  const [payLoading, setPayLoading] = useState(false);
+  const [payError, setPayError] = useState('');
+  const [payReference, setPayReference] = useState<{ referenceId: string; kind: 'group' | 'organization'; organizationName: string } | null>(null);
   // Variable {{2mag}} : les 2 magasins de la MÊME enseigne les plus proches
   // présents dans le pipeline « Closing » (toutes étapes confondues). Calculé
   // à partir de l'endpoint « Magasins proches » (distance Haversine, < 50 km).
@@ -472,6 +479,110 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       toast((e as Error).message || 'Erreur envoi', 'error');
     } finally { setSendingEmail(false); }
   };
+
+  // ---- Lien de paiement Stripe --------------------------------------------
+  // Charge les liens de paiement Stripe actifs, résolus pour ce deal (URL finale
+  // avec client_reference_id = group_id ou organization_id). Appelé à l'ouverture
+  // du composer « Envoyer un lien de paiement ».
+  const loadPaymentLinks = useCallback(async () => {
+    setPayLoading(true); setPayError(''); setPayLinks([]); setPayLinkId(''); setPayReference(null);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/payment-links`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setPayError(data.error || 'Erreur de chargement des liens de paiement.'); return; }
+      const links = Array.isArray(data.links) ? data.links : [];
+      setPayLinks(links);
+      setPayReference(data.reference || null);
+      if (links.length > 0) setPayLinkId(links[0].id);
+    } catch {
+      setPayError('Erreur réseau lors du chargement des liens Stripe.');
+    } finally { setPayLoading(false); }
+  }, [dealId]);
+
+  const selectedPayLink = payLinks.find(l => l.id === payLinkId) || null;
+
+  const copyPaymentLink = async () => {
+    if (!selectedPayLink) return;
+    try { await navigator.clipboard.writeText(selectedPayLink.url); toast('✓ Lien de paiement copié !'); }
+    catch { toast('Copie impossible (autorisez le presse-papiers)', 'error'); }
+  };
+
+  const insertPaymentLink = () => {
+    if (!selectedPayLink) return;
+    const anchor = `<a href="${selectedPayLink.url}">${selectedPayLink.url}</a>`;
+    setEmailBody(prev => (prev ? `${prev}<p>${anchor}</p>` : `<p>${anchor}</p>`));
+    toast('Lien inséré dans le message');
+  };
+
+  // Ouvre/ferme le composer « lien de paiement » et charge les liens à l'ouverture.
+  const togglePaymentComposer = () => {
+    const opening = composer !== 'payment';
+    setComposer(opening ? 'payment' : null);
+    if (opening) loadPaymentLinks();
+  };
+
+  // Champs de composition d'un email (template, civilité, destinataire, sujet,
+  // corps, pièces jointes, bouton envoyer). Réutilisés par le composer « Email »
+  // ET par le composer « Lien de paiement » (qui envoie aussi un email).
+  const renderEmailFields = () => (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div>
+          <label style={labelStyle}>Template</label>
+          <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
+            <option value="">— Choisir un template —</option>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Civilité</label>
+          <select style={inp} value={civilite} onChange={e => { setCivilite(e.target.value); if (selectedTemplate) applyTemplate(selectedTemplate); }}>
+            <option>Monsieur</option>
+            <option>Madame</option>
+          </select>
+        </div>
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Destinataire *</label>
+        <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Sujet *</label>
+        <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Message *</label>
+        <RichTextEditor value={emailBody} onChange={setEmailBody} placeholder="Corps de l'email…" minHeight={160} />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Pièce jointe PDF</label>
+        <input type="file" accept=".pdf" multiple onChange={async e => {
+          const files = Array.from(e.target.files || []);
+          const converted = await Promise.all(files.map(f => new Promise<{ name: string; content: string }>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ name: f.name, content: (reader.result as string).split(',')[1] });
+            reader.onerror = reject;
+            reader.readAsDataURL(f);
+          })));
+          setAttachments(converted);
+        }} style={{ fontSize: 12, color: '#334155' }} />
+        {attachments.length > 0 && (
+          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {attachments.map((a, i) => (
+              <span key={i} style={{ fontSize: 11, background: '#eef2ff', color: '#4338ca', padding: '2px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                📎 {a.name}
+                <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 12, padding: 0 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>{sendingEmail ? '⟳ Envoi…' : '📧 Envoyer'}</button>
+        <button style={btnDef} onClick={() => setComposer(null)}>Annuler</button>
+      </div>
+    </>
+  );
 
   const deleteDeal = async () => {
     const name = deal?.store?.name || 'cette affaire';
@@ -1045,6 +1156,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
               <button onClick={() => setComposer(composer === 'note' ? null : 'note')} style={composer === 'note' ? { ...btnPri, padding: '10px 16px', fontSize: 13 } : { ...btnDef, padding: '10px 16px', fontSize: 13, background: '#fff' }}>📝 Ajouter une note</button>
               <button onClick={() => { setComposer(composer === 'action' ? null : 'action'); if (composer !== 'action') setAF({ title: '', type: 'Appeler', dueDate: new Date().toISOString().slice(0, 10), priority: 'normale', note: '', dueTime: '', assignedUserId: currentUser?.id || '' } as any); }} style={composer === 'action' ? { ...btnPri, padding: '10px 16px', fontSize: 13 } : { ...btnDef, padding: '10px 16px', fontSize: 13, background: '#fff' }}>✅ Ajouter une action</button>
               <button onClick={() => setComposer(composer === 'email' ? null : 'email')} style={composer === 'email' ? { ...btnPri, padding: '10px 16px', fontSize: 13 } : { ...btnDef, padding: '10px 16px', fontSize: 13, background: '#fff' }}>📧 Envoyer un mail</button>
+              <button onClick={togglePaymentComposer} style={composer === 'payment'
+                ? { padding: '10px 16px', fontSize: 13, borderRadius: 7, border: 'none', background: '#7c3aed', color: '#fff', fontWeight: 600, cursor: 'pointer' }
+                : { padding: '10px 16px', fontSize: 13, borderRadius: 7, border: '1px solid #ddd6fe', background: '#faf5ff', color: '#7c3aed', fontWeight: 600, cursor: 'pointer' }}>💳 Envoyer un lien de paiement</button>
             </div>
 
             {/* Composer : Note */}
@@ -1083,61 +1197,50 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             {/* Composer : Email */}
             {composer === 'email' && (
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 22 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div>
-                    <label style={labelStyle}>Template</label>
-                    <select style={inp} value={selectedTemplate} onChange={e => applyTemplate(e.target.value)}>
-                      <option value="">— Choisir un template —</option>
-                      {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Civilité</label>
-                    <select style={inp} value={civilite} onChange={e => { setCivilite(e.target.value); if (selectedTemplate) applyTemplate(selectedTemplate); }}>
-                      <option>Monsieur</option>
-                      <option>Madame</option>
-                    </select>
-                  </div>
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <label style={labelStyle}>Destinataire *</label>
-                  <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <label style={labelStyle}>Sujet *</label>
-                  <input style={inp} placeholder="Objet de l'email" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} />
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <label style={labelStyle}>Message *</label>
-                  <RichTextEditor value={emailBody} onChange={setEmailBody} placeholder="Corps de l'email…" minHeight={160} />
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={labelStyle}>Pièce jointe PDF</label>
-                  <input type="file" accept=".pdf" multiple onChange={async e => {
-                    const files = Array.from(e.target.files || []);
-                    const converted = await Promise.all(files.map(f => new Promise<{ name: string; content: string }>((resolve, reject) => {
-                      const reader = new FileReader();
-                      reader.onload = () => resolve({ name: f.name, content: (reader.result as string).split(',')[1] });
-                      reader.onerror = reject;
-                      reader.readAsDataURL(f);
-                    })));
-                    setAttachments(converted);
-                  }} style={{ fontSize: 12, color: '#334155' }} />
-                  {attachments.length > 0 && (
-                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {attachments.map((a, i) => (
-                        <span key={i} style={{ fontSize: 11, background: '#eef2ff', color: '#4338ca', padding: '2px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          📎 {a.name}
-                          <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 12, padding: 0 }}>×</button>
-                        </span>
-                      ))}
+                {renderEmailFields()}
+              </div>
+            )}
+
+            {/* Composer : Lien de paiement (Stripe) — envoie aussi un email */}
+            {composer === 'payment' && (
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 22 }}>
+                {/* Sélection du lien de paiement Stripe + URL finale à copier */}
+                <div style={{ background: '#faf5ff', border: '1px solid #ede9fe', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                  <label style={labelStyle}>💳 Lien de paiement Stripe</label>
+                  {payLoading ? (
+                    <div style={{ fontSize: 12.5, color: '#7c3aed' }}>⟳ Chargement des liens de paiement…</div>
+                  ) : payError ? (
+                    <div style={{ fontSize: 12.5, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>{payError}</span>
+                      <button onClick={loadPaymentLinks} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Réessayer</button>
                     </div>
+                  ) : payLinks.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucun lien de paiement actif sur Stripe.</div>
+                  ) : (
+                    <>
+                      <select style={inp} value={payLinkId} onChange={e => setPayLinkId(e.target.value)}>
+                        {payLinks.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+                      </select>
+                      {payReference && (
+                        <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 6 }}>
+                          Rattaché à <b>{payReference.organizationName}</b> · <code style={{ fontFamily: 'monospace' }}>{payReference.kind === 'group' ? 'group_id' : 'organization_id'}={payReference.referenceId}</code>
+                        </div>
+                      )}
+                      {selectedPayLink && (
+                        <div style={{ marginTop: 10 }}>
+                          <label style={labelStyle}>Lien à envoyer (client_reference_id ajouté)</label>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input readOnly value={selectedPayLink.url} onFocus={e => e.currentTarget.select()} style={{ ...inp, flex: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                            <button onClick={copyPaymentLink} style={{ ...btnPri, background: '#7c3aed', whiteSpace: 'nowrap' }}>Copier</button>
+                            <button onClick={insertPaymentLink} style={{ ...btnDef, whiteSpace: 'nowrap' }} title="Insérer le lien dans le message">Insérer</button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>{sendingEmail ? '⟳ Envoi…' : '📧 Envoyer'}</button>
-                  <button style={btnDef} onClick={() => setComposer(null)}>Annuler</button>
-                </div>
+                {/* Champs email (le lien se colle / s'insère dans le message) */}
+                {renderEmailFields()}
               </div>
             )}
 
