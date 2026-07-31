@@ -69,9 +69,8 @@ function formatAmount(unitAmount: number | null | undefined, currency: string | 
   }
 }
 
-/** Construit un libellé lisible pour un Payment Link à partir de sa 1re ligne. */
-function buildLabel(link: StripePaymentLinkRaw): string {
-  const item = link.line_items?.data?.[0];
+/** Construit un libellé lisible à partir de la 1re ligne de commande d'un lien. */
+function buildLabel(item: StripeLineItem | undefined): string {
   const price = item?.price ?? null;
   const product = price?.product;
   const productName =
@@ -125,15 +124,47 @@ async function stripeGet<T>(path: string): Promise<T> {
 }
 
 /**
+ * Récupère le libellé d'un Payment Link via ses line items. On utilise
+ * l'endpoint dédié `/payment_links/{id}/line_items` (qui, contrairement au
+ * « list » des payment links, autorise l'expansion de line_items) avec
+ * expansion du produit pour afficher son nom.
+ *
+ * Best-effort : renvoie un libellé générique en cas d'échec (ex. permissions
+ * Products/Prices absentes sur une clé restreinte) plutôt que de faire échouer
+ * la récupération de tout le lien.
+ */
+async function fetchPaymentLinkLabel(id: string): Promise<string> {
+  try {
+    const params = new URLSearchParams();
+    params.set('limit', '1');
+    params.append('expand[]', 'data.price.product');
+    const res = await stripeGet<StripeList<StripeLineItem>>(
+      `/payment_links/${encodeURIComponent(id)}/line_items?${params.toString()}`,
+    );
+    return buildLabel(res.data?.[0]);
+  } catch {
+    return 'Lien de paiement';
+  }
+}
+
+/**
  * Récupère tous les Payment Links ACTIFS de Stripe, résumés pour le front.
- * On développe (`expand`) les lignes de commande et le produit pour construire
- * un libellé lisible. Pagine jusqu'à épuisement (garde-fou à 5 pages / 500 liens).
- * Renvoie [] si l'intégration n'est pas configurée.
+ *
+ * En deux temps, pour rester robuste :
+ *   1. Liste des liens actifs SANS expansion — l'expansion de `line_items`
+ *      n'est pas autorisée sur les endpoints « list » de Stripe. Ne requiert
+ *      que la permission « Payment Links » en lecture.
+ *   2. Enrichissement du libellé par lien via l'endpoint `line_items` (voir
+ *      fetchPaymentLinkLabel), en best-effort.
+ *
+ * Pagine jusqu'à épuisement (garde-fou à 5 pages / 500 liens). Renvoie [] si
+ * l'intégration n'est pas configurée.
  */
 export async function fetchActivePaymentLinks(): Promise<StripePaymentLink[]> {
   if (!isStripeConfigured()) return [];
 
-  const out: StripePaymentLink[] = [];
+  // 1. Liste des liens actifs (sans expand).
+  const active: StripePaymentLinkRaw[] = [];
   let startingAfter: string | null = null;
   const MAX_PAGES = 5;
 
@@ -141,21 +172,20 @@ export async function fetchActivePaymentLinks(): Promise<StripePaymentLink[]> {
     const params = new URLSearchParams();
     params.set('active', 'true');
     params.set('limit', '100');
-    // Expansions : lignes de commande + prix + produit (≤ 4 niveaux, OK Stripe).
-    params.append('expand[]', 'data.line_items');
-    params.append('expand[]', 'data.line_items.data.price.product');
     if (startingAfter) params.set('starting_after', startingAfter);
 
     const list = await stripeGet<StripeList<StripePaymentLinkRaw>>(`/payment_links?${params.toString()}`);
     for (const link of list.data) {
-      if (!link.active || !link.url) continue;
-      out.push({ id: link.id, url: link.url, label: buildLabel(link) });
+      if (link.active && link.url) active.push(link);
     }
     if (!list.has_more || list.data.length === 0) break;
     startingAfter = list.data[list.data.length - 1].id;
   }
 
-  return out;
+  // 2. Libellés (en parallèle, best-effort).
+  const labels = await Promise.all(active.map(l => fetchPaymentLinkLabel(l.id)));
+
+  return active.map((l, i) => ({ id: l.id, url: l.url, label: labels[i] || 'Lien de paiement' }));
 }
 
 /**
