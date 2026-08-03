@@ -2,11 +2,19 @@
 import { normalizeText } from '@/lib/utils';
 import type { MappedRow } from './csvParser';
 
+/** Sous-ensemble de champs suffisant pour calculer une clé de déduplication.
+ *  Permet de réutiliser `buildDeduplicationKey` hors import (ex. réalignement
+ *  de la clé d'un magasin existant après un changement d'enseigne/nom). */
+export type DeduplicationInput = Pick<
+  MappedRow,
+  'brand' | 'city' | 'storeName' | 'siret' | 'externalId'
+>;
+
 /**
  * Génère une clé de déduplication unique par magasin.
  * Priorité : identifiant externe > SIRET > clé normalisée enseigne+ville+nom
  */
-export function buildDeduplicationKey(row: MappedRow): string {
+export function buildDeduplicationKey(row: DeduplicationInput): string {
   if (row.externalId?.trim()) {
     return `ext:${row.externalId.trim()}`;
   }
