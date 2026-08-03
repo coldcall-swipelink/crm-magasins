@@ -48,7 +48,7 @@ async function main() {
     groups.get(key)!.push(s);
   }
 
-  const dupGroups = [...groups.entries()].filter(([, arr]) => arr.length > 1);
+  const dupGroups = Array.from(groups.entries()).filter(([, arr]) => arr.length > 1);
 
   console.log('══════════════════════════════════════════════════════════════');
   console.log(`DOUBLONS PAR NOM (même nom normalisé sur plusieurs magasins) : ${dupGroups.length} groupe(s)`);
