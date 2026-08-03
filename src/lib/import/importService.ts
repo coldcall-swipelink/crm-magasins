@@ -52,13 +52,17 @@ async function createImportNote(dealId: string, mapped: MappedRow): Promise<bool
 }
 
 /**
- * Retrouve un magasin existant pour une ligne CSV, de façon tolérante :
+ * Retrouve un magasin existant pour une ligne CSV, de façon tolérante, en
+ * cascade du plus strict au plus permissif — chaque repli n'est retenu que s'il
+ * désigne un magasin UNIQUE (jamais de rattachement au hasard) :
  *   1) clé de déduplication exacte (enseigne + ville + magasin, ou SIRET / id) ;
- *   2) repli : enseigne + nom magasin en ignorant la ville — utile quand la
- *      ville varie d'un import à l'autre (vide, libellé différent, code
- *      postal…) alors que le deal a été créé avec, ou quand le fichier de
- *      notes ne contient pas la ville. On ne renvoie le repli que s'il est NON
- *      ambigu (un seul magasin).
+ *   2) enseigne (résolue) + nom magasin, ville ignorée — couvre les variations
+ *      de ville d'un import à l'autre (vide, libellé différent, code postal…) ;
+ *   3) nom magasin seul, enseigne ET ville ignorées — couvre les cas où
+ *      l'enseigne enregistrée diffère de celle du CSV. Typiquement la bannière
+ *      « U » : un magasin resté en enseigne « U » (ou « Hyper U ») alors que le
+ *      CSV dit « Super U », ou inversement, ne partage plus ni la clé exacte ni
+ *      le brandId — mais son nom « Super U Bordeaux » reste identique.
  * Utilisé par l'import principal (création/màj des affaires), l'import de notes
  * et la correspondance tolérante en général.
  * Renvoie null si aucun magasin (ou repli ambigu).
@@ -70,20 +74,29 @@ async function findStoreForRow(mapped: MappedRow) {
   const normName = normalizeStoreName(mapped);
   if (!normName) return null;
 
-  let brandId: string | undefined;
+  // Repli 2 : enseigne (résolue en Brand) + nom, ville ignorée.
   if (mapped.brand?.trim()) {
     const brand = await prisma.brand.findFirst({
       where: { name: { equals: mapped.brand.trim(), mode: 'insensitive' } },
     });
-    if (!brand) return null; // enseigne fournie mais inconnue → pas de repli
-    brandId = brand.id;
+    if (brand) {
+      const byBrand = await prisma.store.findMany({
+        where: { normalizedName: normName, brandId: brand.id },
+        take: 2,
+      });
+      if (byBrand.length === 1) return byBrand[0];
+      if (byBrand.length > 1) return null; // plusieurs magasins même enseigne+nom → ambigu
+    }
   }
 
-  const candidates = await prisma.store.findMany({
-    where: { normalizedName: normName, ...(brandId ? { brandId } : {}) },
+  // Repli 3 : nom seul (enseigne + ville ignorées). Ne rattache que si le nom
+  // normalisé désigne un magasin UNIQUE en base, pour ne jamais fusionner par
+  // erreur deux magasins distincts.
+  const byName = await prisma.store.findMany({
+    where: { normalizedName: normName },
     take: 2,
   });
-  return candidates.length === 1 ? candidates[0] : null;
+  return byName.length === 1 ? byName[0] : null;
 }
 
 export type ImportResult = {
