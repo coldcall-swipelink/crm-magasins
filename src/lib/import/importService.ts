@@ -51,21 +51,40 @@ async function createImportNote(dealId: string, mapped: MappedRow): Promise<bool
   return true;
 }
 
+/** Parmi plusieurs magasins « équivalents » (même enseigne + même nom, donc des
+ *  doublons entre eux), choisit de façon DÉTERMINISTE lequel mettre à jour :
+ *  priorité à la ville identique, puis à ceux qui portent déjà une affaire, puis
+ *  au plus ancien. But : quand la base contient déjà des doublons, un nouvel
+ *  import se rattache à l'un d'eux plutôt que d'en créer encore un. */
+function pickBestStore<T extends { city: string; createdAt: Date; deal: { id: string } | null }>(
+  stores: T[],
+  cityNorm: string,
+): T {
+  const score = (s: T) =>
+    (cityNorm && normalizeText(s.city || '') === cityNorm ? 2 : 0) + (s.deal ? 1 : 0);
+  return [...stores].sort(
+    (a, b) => score(b) - score(a) || a.createdAt.getTime() - b.createdAt.getTime(),
+  )[0];
+}
+
 /**
  * Retrouve un magasin existant pour une ligne CSV, de façon tolérante, en
- * cascade du plus strict au plus permissif — chaque repli n'est retenu que s'il
- * désigne un magasin UNIQUE (jamais de rattachement au hasard) :
+ * cascade du plus strict au plus permissif :
  *   1) clé de déduplication exacte (enseigne + ville + magasin, ou SIRET / id) ;
  *   2) enseigne (résolue) + nom magasin, ville ignorée — couvre les variations
- *      de ville d'un import à l'autre (vide, libellé différent, code postal…) ;
+ *      de ville d'un import à l'autre (vide, libellé différent, code postal…).
+ *      S'il existe déjà plusieurs doublons de même enseigne+nom, on se rattache
+ *      au meilleur (cf. pickBestStore) plutôt que d'en créer un nouveau ;
  *   3) nom magasin seul, enseigne ET ville ignorées — couvre les cas où
  *      l'enseigne enregistrée diffère de celle du CSV. Typiquement la bannière
  *      « U » : un magasin resté en enseigne « U » (ou « Hyper U ») alors que le
  *      CSV dit « Super U », ou inversement, ne partage plus ni la clé exacte ni
- *      le brandId — mais son nom « Super U Bordeaux » reste identique.
- * Utilisé par l'import principal (création/màj des affaires), l'import de notes
- * et la correspondance tolérante en général.
- * Renvoie null si aucun magasin (ou repli ambigu).
+ *      le brandId — mais son nom « Super U Bordeaux » reste identique. Ce repli
+ *      n'est retenu que si le nom désigne un magasin UNIQUE (pas de fusion
+ *      hasardeuse entre enseignes différentes).
+ * Utilisé par l'import principal (création/màj des affaires), l'import ciblé,
+ * l'import de notes et la correspondance tolérante en général.
+ * Renvoie null si aucun magasin trouvé.
  */
 async function findStoreForRow(mapped: MappedRow) {
   const exact = await prisma.store.findUnique({ where: { deduplicationKey: buildDeduplicationKey(mapped) } });
@@ -73,6 +92,8 @@ async function findStoreForRow(mapped: MappedRow) {
 
   const normName = normalizeStoreName(mapped);
   if (!normName) return null;
+
+  const cityNorm = normalizeText(mapped.city || '');
 
   // Repli 2 : enseigne (résolue en Brand) + nom, ville ignorée.
   if (mapped.brand?.trim()) {
@@ -82,16 +103,15 @@ async function findStoreForRow(mapped: MappedRow) {
     if (brand) {
       const byBrand = await prisma.store.findMany({
         where: { normalizedName: normName, brandId: brand.id },
-        take: 2,
+        include: { deal: { select: { id: true } } },
       });
-      if (byBrand.length === 1) return byBrand[0];
-      if (byBrand.length > 1) return null; // plusieurs magasins même enseigne+nom → ambigu
+      if (byBrand.length > 0) return pickBestStore(byBrand, cityNorm);
     }
   }
 
   // Repli 3 : nom seul (enseigne + ville ignorées). Ne rattache que si le nom
   // normalisé désigne un magasin UNIQUE en base, pour ne jamais fusionner par
-  // erreur deux magasins distincts.
+  // erreur deux magasins d'enseignes différentes.
   const byName = await prisma.store.findMany({
     where: { normalizedName: normName },
     take: 2,
@@ -451,24 +471,14 @@ export async function runTargetedCsvImport(
         }
       }
 
-      // Déduplication magasin.
+      // Déduplication magasin — rapprochement tolérant identique à l'import
+      // normal : clé exacte, puis enseigne + nom (ville ignorée), puis nom seul
+      // (enseigne + ville ignorées, si le nom désigne un magasin unique). Sans
+      // ce repli, un magasin passé manuellement de « U » à « Super U »/« Hyper U »
+      // n'a plus ni la même clé ni le même brandId que le CSV et un doublon est
+      // créé à chaque import ciblé.
       const dedupKey = buildDeduplicationKey(mapped);
-      let existing = await prisma.store.findUnique({ where: { deduplicationKey: dedupKey } });
-
-      // Repêchage du cas « enseigne oubliée » : un import précédent sans enseigne
-      // a produit une clé différente (k:|ville|nom). On retrouve le magasin par
-      // nom normalisé + ville, à condition qu'il n'ait PAS encore d'enseigne,
-      // pour pouvoir corriger l'enseigne manquante sans créer de doublon.
-      const normName = normalizeStoreName(mapped);
-      if (!existing && brand && normName) {
-        existing = await prisma.store.findFirst({
-          where: {
-            brandId: null,
-            normalizedName: normName,
-            city: { equals: mapped.city || '', mode: 'insensitive' },
-          },
-        });
-      }
+      let existing = await findStoreForRow(mapped);
 
       let store;
       let deal;
