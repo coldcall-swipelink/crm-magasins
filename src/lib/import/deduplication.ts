@@ -1,5 +1,5 @@
 // src/lib/import/deduplication.ts
-import { normalizeText } from '@/lib/utils';
+import { canonicalBrand, normalizeText } from '@/lib/utils';
 import type { MappedRow } from './csvParser';
 
 /** Sous-ensemble de champs suffisant pour calculer une clé de déduplication.
@@ -13,6 +13,12 @@ export type DeduplicationInput = Pick<
 /**
  * Génère une clé de déduplication unique par magasin.
  * Priorité : identifiant externe > SIRET > clé normalisée enseigne+ville+nom
+ *
+ * L'enseigne est CANONICALISÉE (cf. canonicalBrand) : toutes les variantes d'une
+ * même bannière produisent le même segment. Concrètement la bannière « U »
+ * (« U », « Super U », « Hyper U »…) donne toujours `k:u|…`, si bien qu'un
+ * magasin importé une fois en « U » puis réimporté en « Super U » garde la même
+ * clé et se met à jour au lieu d'être dupliqué.
  */
 export function buildDeduplicationKey(row: DeduplicationInput): string {
   if (row.externalId?.trim()) {
@@ -22,7 +28,7 @@ export function buildDeduplicationKey(row: DeduplicationInput): string {
     return `siret:${row.siret.trim()}`;
   }
 
-  const brand = normalizeText(row.brand || '');
+  const brand = canonicalBrand(row.brand || '');
   const city  = normalizeText(row.city  || '');
   const name  = normalizeText(row.storeName || row.brand || '');
 

@@ -28,6 +28,16 @@ function normalizeText(str: string): string {
     .trim();
 }
 
+/** Même canonicalBrand que src/lib/utils.ts (copiée ici pour rester autonome). */
+function canonicalBrand(name: string): string {
+  const n = normalizeText(name);
+  if (!n) return '';
+  if (/^(u|super u|hyper u|u express|marche u|magasin u|magasins u|systeme u|u drive)$/.test(n)) {
+    return 'u';
+  }
+  return n;
+}
+
 async function main() {
   const stores = await prisma.store.findMany({
     include: {
@@ -39,11 +49,13 @@ async function main() {
 
   console.log(`\n${stores.length} magasins en base.\n`);
 
-  // 1) Groupes de doublons : magasins partageant le MÊME nom normalisé recalculé
-  //    (indépendamment de la valeur stockée, qui peut être incohérente).
+  // 1) Groupes de doublons : magasins partageant la MÊME enseigne (famille
+  //    canonique) ET le même nom normalisé recalculé. On regroupe sur
+  //    enseigne+nom (jamais le nom seul) pour ne pas confondre deux enseignes
+  //    différentes d'une même commune.
   const groups = new Map<string, typeof stores>();
   for (const s of stores) {
-    const key = normalizeText(s.name);
+    const key = `${canonicalBrand(s.brand?.name ?? '')}|${normalizeText(s.name)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(s);
   }
@@ -51,7 +63,7 @@ async function main() {
   const dupGroups = Array.from(groups.entries()).filter(([, arr]) => arr.length > 1);
 
   console.log('══════════════════════════════════════════════════════════════');
-  console.log(`DOUBLONS PAR NOM (même nom normalisé sur plusieurs magasins) : ${dupGroups.length} groupe(s)`);
+  console.log(`DOUBLONS PAR ENSEIGNE+NOM (même bannière et même nom) : ${dupGroups.length} groupe(s)`);
   console.log('══════════════════════════════════════════════════════════════');
   for (const [key, arr] of dupGroups) {
     console.log(`\n▸ « ${key} »  (${arr.length} magasins)`);

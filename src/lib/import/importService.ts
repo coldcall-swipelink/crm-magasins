@@ -10,7 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { generateBrandColor, normalizeText } from '@/lib/utils';
+import { canonicalBrand, generateBrandColor, normalizeText } from '@/lib/utils';
 import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParser';
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
@@ -69,19 +69,22 @@ function pickBestStore<T extends { city: string; createdAt: Date; deal: { id: st
 
 /**
  * Retrouve un magasin existant pour une ligne CSV, de façon tolérante, en
- * cascade du plus strict au plus permissif :
- *   1) clé de déduplication exacte (enseigne + ville + magasin, ou SIRET / id) ;
- *   2) enseigne (résolue) + nom magasin, ville ignorée — couvre les variations
- *      de ville d'un import à l'autre (vide, libellé différent, code postal…).
- *      S'il existe déjà plusieurs doublons de même enseigne+nom, on se rattache
- *      au meilleur (cf. pickBestStore) plutôt que d'en créer un nouveau ;
- *   3) nom magasin seul, enseigne ET ville ignorées — couvre les cas où
- *      l'enseigne enregistrée diffère de celle du CSV. Typiquement la bannière
- *      « U » : un magasin resté en enseigne « U » (ou « Hyper U ») alors que le
- *      CSV dit « Super U », ou inversement, ne partage plus ni la clé exacte ni
- *      le brandId — mais son nom « Super U Bordeaux » reste identique. Ce repli
- *      n'est retenu que si le nom désigne un magasin UNIQUE (pas de fusion
- *      hasardeuse entre enseignes différentes).
+ * cascade du plus strict au plus permissif — TOUJOURS sur ENSEIGNE + NOM du
+ * magasin (jamais sur le nom seul, pour ne jamais fusionner deux enseignes
+ * différentes qui partagent une même ville/nom) :
+ *
+ *   1) clé de déduplication exacte (enseigne canonicalisée + ville + magasin,
+ *      ou SIRET / id externe) ;
+ *   2) FAMILLE d'enseigne (cf. canonicalBrand) + nom magasin, ville ignorée.
+ *      La « famille » regroupe toutes les variantes d'une même bannière : la
+ *      bannière « U » couvre « U », « Super U », « Hyper U », « U Express »…
+ *      Ainsi un magasin resté en enseigne « U » alors que le CSV dit « Super U »
+ *      (ou l'inverse) est bien reconnu comme le MÊME magasin, tout en gardant
+ *      Leclerc, Intermarché… strictement distincts. La ville est ignorée pour
+ *      absorber ses variations d'un import à l'autre (vide, libellé différent,
+ *      code postal…). S'il existe déjà plusieurs doublons de même famille+nom,
+ *      on se rattache au meilleur (cf. pickBestStore) plutôt que d'en créer un.
+ *
  * Utilisé par l'import principal (création/màj des affaires), l'import ciblé,
  * l'import de notes et la correspondance tolérante en général.
  * Renvoie null si aucun magasin trouvé.
@@ -91,32 +94,30 @@ async function findStoreForRow(mapped: MappedRow) {
   if (exact) return exact;
 
   const normName = normalizeStoreName(mapped);
-  if (!normName) return null;
+  if (!normName || !mapped.brand?.trim()) return null;
 
   const cityNorm = normalizeText(mapped.city || '');
 
-  // Repli 2 : enseigne (résolue en Brand) + nom, ville ignorée.
-  if (mapped.brand?.trim()) {
-    const brand = await prisma.brand.findFirst({
-      where: { name: { equals: mapped.brand.trim(), mode: 'insensitive' } },
-    });
-    if (brand) {
-      const byBrand = await prisma.store.findMany({
-        where: { normalizedName: normName, brandId: brand.id },
-        include: { deal: { select: { id: true } } },
-      });
-      if (byBrand.length > 0) return pickBestStore(byBrand, cityNorm);
-    }
-  }
+  // Repli : FAMILLE d'enseigne + nom, ville ignorée. On résout d'abord toutes
+  // les enseignes (Brand) appartenant à la même famille canonique que le CSV —
+  // p. ex. la famille « u » englobe les Brand « U », « Super U », « Hyper U »… —
+  // puis on cherche un magasin de même nom rattaché à l'une d'elles.
+  const canon = canonicalBrand(mapped.brand);
+  if (!canon) return null;
 
-  // Repli 3 : nom seul (enseigne + ville ignorées). Ne rattache que si le nom
-  // normalisé désigne un magasin UNIQUE en base, pour ne jamais fusionner par
-  // erreur deux magasins d'enseignes différentes.
-  const byName = await prisma.store.findMany({
-    where: { normalizedName: normName },
-    take: 2,
+  const allBrands = await prisma.brand.findMany({ select: { id: true, name: true } });
+  const familyBrandIds = allBrands
+    .filter((b) => canonicalBrand(b.name) === canon)
+    .map((b) => b.id);
+  if (familyBrandIds.length === 0) return null;
+
+  const byBrand = await prisma.store.findMany({
+    where: { normalizedName: normName, brandId: { in: familyBrandIds } },
+    include: { deal: { select: { id: true } } },
   });
-  return byName.length === 1 ? byName[0] : null;
+  if (byBrand.length > 0) return pickBestStore(byBrand, cityNorm);
+
+  return null;
 }
 
 export type ImportResult = {

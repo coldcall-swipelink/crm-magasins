@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { normalizeText } from '@/lib/utils';
+import { canonicalBrand, normalizeText } from '@/lib/utils';
 
 // Diagnostic LECTURE SEULE des doublons de magasins/affaires, accessible au
 // navigateur (protégé par token). Sert aussi de « canary » de déploiement : le
@@ -10,7 +10,7 @@ import { normalizeText } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 const TOKEN = 'diag-crm-2026';
-const MARKER = 'dedup-diagnose-v1';
+const MARKER = 'dedup-diagnose-v2-canonical-brand';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -38,11 +38,13 @@ export async function GET(req: NextRequest) {
     dedupKey: s.deduplicationKey,
   });
 
-  // Groupes de doublons : même nom normalisé recalculé sur plusieurs magasins.
+  // Groupes de doublons : même enseigne (famille canonique) + même nom normalisé
+  // sur plusieurs magasins. On regroupe sur enseigne+nom (jamais le nom seul).
   const groups = new Map<string, typeof stores>();
   for (const s of stores) {
-    const k = normalizeText(s.name);
-    if (!k) continue;
+    const nameKey = normalizeText(s.name);
+    if (!nameKey) continue;
+    const k = `${canonicalBrand(s.brand?.name ?? '')}|${nameKey}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(s);
   }

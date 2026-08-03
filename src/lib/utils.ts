@@ -12,6 +12,29 @@ export function normalizeText(str: string): string {
     .trim();
 }
 
+/**
+ * Canonicalise une enseigne pour la déduplication : ramène toutes les variantes
+ * d'une même bannière à un libellé unique, afin qu'un magasin ne soit pas
+ * dupliqué quand son enseigne est écrite différemment d'un import à l'autre.
+ *
+ * Bannière « U » (Système U) : « U », « Super U », « Hyper U », « U Express »,
+ * « Marché U », « Système U »… → tous ramenés à « u ». C'est le cas signalé :
+ * des magasins créés en enseigne « U » puis corrigés en « Super U »/« Hyper U »
+ * (ou l'inverse) doivent rester le MÊME magasin.
+ *
+ * Toute autre enseigne est simplement normalisée (Leclerc, Intermarché… restent
+ * distincts). Correspondance sur des libellés EXACTS connus, pour ne jamais
+ * regrouper deux enseignes différentes par erreur.
+ */
+export function canonicalBrand(name: string): string {
+  const n = normalizeText(name);
+  if (!n) return '';
+  if (/^(u|super u|hyper u|u express|marche u|magasin u|magasins u|systeme u|u drive)$/.test(n)) {
+    return 'u';
+  }
+  return n;
+}
+
 /** Hash djb2 simple pour générer des identifiants courts */
 export function simpleHash(str: string): string {
   let hash = 0;

@@ -33,6 +33,17 @@ function normalizeText(str: string): string {
     .trim();
 }
 
+// Doit rester synchronisé avec canonicalBrand() de src/lib/utils.ts : ramène
+// toutes les variantes d'une même bannière à un libellé unique.
+function canonicalBrand(name: string): string {
+  const n = normalizeText(name);
+  if (!n) return '';
+  if (/^(u|super u|hyper u|u express|marche u|magasin u|magasins u|systeme u|u drive)$/.test(n)) {
+    return 'u';
+  }
+  return n;
+}
+
 async function main() {
   const stores = await prisma.store.findMany({
     include: {
@@ -41,11 +52,15 @@ async function main() {
     },
   });
 
-  // Regroupe par nom normalisé recalculé (indépendant des valeurs stockées).
+  // Regroupe par ENSEIGNE (famille canonique) + nom normalisé. Deux magasins ne
+  // sont considérés comme doublons que s'ils ont la même bannière ET le même nom
+  // — jamais sur le nom seul, pour ne JAMAIS fusionner p. ex. un Leclerc et un
+  // Intermarché d'une même commune.
   const groups = new Map<string, typeof stores>();
   for (const s of stores) {
-    const key = normalizeText(s.name);
-    if (!key) continue;
+    const nameKey = normalizeText(s.name);
+    if (!nameKey) continue;
+    const key = `${canonicalBrand(s.brand?.name ?? '')}|${nameKey}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(s);
   }
