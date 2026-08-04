@@ -31,6 +31,34 @@ export function buildGeocodeQuery(input: GeoInput): string {
 }
 
 /**
+ * Géocode un magasin de façon robuste, avec repli progressif : on tente
+ * d'abord l'adresse complète (adresse + code postal + ville), puis, si elle
+ * échoue, code postal + ville, puis la ville seule. Ainsi un magasin dont
+ * l'adresse est bancale (nom d'enseigne, « C.C. », lieu-dit, code postal faux)
+ * mais dont la ville est correcte finit tout de même localisé.
+ *
+ * Renvoie les coordonnées et la requête qui a fonctionné, ou null si aucune
+ * variante n'aboutit.
+ */
+export async function geocodeStore(
+  input: GeoInput,
+): Promise<(GeoResult & { usedQuery: string }) | null> {
+  const candidates = [
+    buildGeocodeQuery(input),
+    buildGeocodeQuery({ postalCode: input.postalCode, city: input.city }),
+    buildGeocodeQuery({ city: input.city }),
+  ];
+  const seen = new Set<string>();
+  for (const query of candidates) {
+    if (!query || seen.has(query)) continue;
+    seen.add(query);
+    const result = await geocodeQuery(query);
+    if (result) return { ...result, usedQuery: query };
+  }
+  return null;
+}
+
+/**
  * Géocode une requête texte. Renvoie null si l'adresse est introuvable ou en
  * cas d'erreur réseau (la carte gère gracieusement les magasins non localisés).
  */

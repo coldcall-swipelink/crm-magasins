@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
@@ -290,6 +290,31 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   }, [dealId]);
 
   useEffect(() => { fetchDeal(); fetchEmailLogs(); fetchOfferNotifs(); }, [fetchDeal, fetchEmailLogs, fetchOfferNotifs]);
+
+  // Géocodage « à la demande » à l'ouverture du deal : si le magasin n'est pas
+  // localisé (coordonnées nulles), on déclenche le géocodage côté serveur puis
+  // on rafraîchit la fiche (ce qui alimente aussi l'onglet « Magasins proches »
+  // et la variable {{2mag}}). Vient en complément du géocodage par lots de la
+  // carte. Une seule tentative par magasin et par session (ref) pour ne pas
+  // re-solliciter la BAN à chaque re-rendu si l'adresse reste introuvable.
+  const geocodeAttempted = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const store = deal?.store;
+    if (!store) return;
+    if (store.latitude != null && store.longitude != null) return;
+    if (geocodeAttempted.current.has(store.id)) return;
+    geocodeAttempted.current.add(store.id);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/deals/${dealId}/geocode`, { method: 'POST' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.located && !data.alreadyLocated) fetchDeal();
+      } catch { /* silencieux : la carte retentera de son côté */ }
+    })();
+    return () => { cancelled = true; };
+  }, [dealId, deal?.store?.id, deal?.store?.latitude, deal?.store?.longitude, fetchDeal]);
   useEffect(() => { fetch('/api/users').then(r => r.json()).then(setUsers).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/brands').then(r => r.json()).then(setBrands).catch(() => {}); }, []);
   useEffect(() => { fetch('/api/columns').then(r => r.json()).then(setColumns).catch(() => {}); }, []);
