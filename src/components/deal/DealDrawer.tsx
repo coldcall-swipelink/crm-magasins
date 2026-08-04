@@ -238,8 +238,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [payError, setPayError] = useState('');
   const [payReference, setPayReference] = useState<{ referenceId: string; kind: 'group' | 'organization'; organizationName: string } | null>(null);
   // Variable {{2mag}} : les 2 magasins de la MÊME enseigne les plus proches
-  // présents dans le pipeline « Closing » (toutes étapes confondues). Calculé
-  // à partir de l'endpoint « Magasins proches » (distance Haversine, < 50 km).
+  // présents dans le pipeline « Closing » (toutes étapes confondues), sans
+  // contrainte de rayon. Calculé à partir de l'endpoint « Magasins proches »
+  // (distance Haversine), appelé avec ?all=1 pour lever le plafond de 50 km.
   const [twoMag, setTwoMag] = useState('');
   // Formulaire d'ajout manuel d'offre (null = masqué)
   const [offerForm, setOfferForm] = useState<{ jobTitle: string; contractType: string; salary: string; source: string; url: string } | null>(null);
@@ -302,17 +303,17 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
   // Calcule la variable {{2mag}} : les 2 magasins de la même enseigne que
   // l'affaire courante, présents dans le pipeline « Closing » (peu importe
-  // l'étape) et les plus proches géographiquement. Réutilise l'endpoint
-  // « Magasins proches » (déjà trié par distance croissante) puis filtre sur
-  // l'enseigne et le pipeline. Format : « Nom magasin et de Nom magasin » (nom
-  // du magasin seul, séparés par « et de »).
+  // l'étape) et les plus proches géographiquement, sans limite de distance.
+  // Réutilise l'endpoint « Magasins proches » avec ?all=1 (déjà trié par
+  // distance croissante) puis filtre sur l'enseigne et le pipeline. Format :
+  // « Nom magasin et de Nom magasin » (nom du magasin seul, séparés par « et de »).
   useEffect(() => {
     const myBrand = deal?.store?.brand?.name;
     if (!myBrand) { setTwoMag(''); return; }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/deals/${dealId}/nearby`);
+        const res = await fetch(`/api/deals/${dealId}/nearby?all=1`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         const nearest = (data.deals || [])

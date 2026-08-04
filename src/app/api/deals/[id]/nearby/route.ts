@@ -5,6 +5,10 @@ import { USE_MOCK_DATA, mockDeals, mockPipelines } from '@/lib/mockData';
 // Magasins du CRM proches (< 50 km) de l'affaire courante, avec leur étape de
 // pipeline. Calcul de distance Haversine côté serveur sur les coordonnées déjà
 // géocodées (les magasins non localisés sont ignorés). Jamais mis en cache.
+//
+// Paramètre ?all=1 : lève le plafond de distance et renvoie TOUS les magasins
+// localisés, triés par distance croissante (utilisé pour prendre les N plus
+// proches sans contrainte de rayon).
 export const dynamic = 'force-dynamic';
 
 const RADIUS_KM = 50;
@@ -33,7 +37,10 @@ interface NearbyDeal {
   distanceKm: number;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  // ?all=1 : ignore le rayon de 50 km (renvoie tous les magasins localisés).
+  const unbounded = req.nextUrl.searchParams.get('all') === '1';
+
   if (USE_MOCK_DATA) {
     const self = mockDeals.find((d) => d.id === params.id);
     if (!self) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
@@ -47,7 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       const st = d.store as any;
       if (st.latitude == null || st.longitude == null) continue;
       const distanceKm = haversineKm(s.latitude, s.longitude, st.latitude, st.longitude);
-      if (distanceKm > RADIUS_KM) continue;
+      if (!unbounded && distanceKm > RADIUS_KM) continue;
       out.push({
         dealId: d.id,
         storeName: st.name,
@@ -89,7 +96,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     for (const d of deals) {
       const st = d.store;
       const distanceKm = haversineKm(latitude, longitude, st.latitude as number, st.longitude as number);
-      if (distanceKm > RADIUS_KM) continue;
+      if (!unbounded && distanceKm > RADIUS_KM) continue;
       out.push({
         dealId: d.id,
         storeName: st.name,
