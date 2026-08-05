@@ -50,7 +50,10 @@ export default function AiChat() {
         body: JSON.stringify({ messages: next }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Erreur de l'assistant.");
+      if (!res.ok) {
+        const base = data?.error || "Erreur de l'assistant.";
+        throw new Error(data?.detail ? `${base}\n\nDétail : ${data.detail}` : base);
+      }
       setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de l'assistant.");
@@ -156,7 +159,7 @@ export default function AiChat() {
             )}
 
             {error && (
-              <div style={{ fontSize: 12, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '9px 12px' }}>
+              <div style={{ fontSize: 12, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '9px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {error}
               </div>
             )}
