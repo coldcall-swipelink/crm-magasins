@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import AiChat from '@/components/dashboard/AiChat';
 import { formatCurrency, formatDate, exportClosingsToCsv } from '@/lib/utils';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -485,6 +486,7 @@ export default function DashboardPage() {
           ) : <div style={emptyChart}>Aucun closing sur cette période</div>}
         </div>
       </div>
+      <AiChat />
     </AppLayout>
   );
 }
