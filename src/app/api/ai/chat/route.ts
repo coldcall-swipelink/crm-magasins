@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
       );
     }
     console.error('[POST /api/ai/chat]', err);
-    return NextResponse.json({ error: "Erreur de l'assistant IA. Réessayez." }, { status: 500 });
+    // On fait remonter le détail réel (tronqué) : c'est un outil interne et le
+    // message précis (ex. modèle introuvable, quota, timeout) aide à corriger.
+    const detail = err instanceof Error ? err.message.slice(0, 400) : String(err).slice(0, 400);
+    return NextResponse.json({ error: "Erreur de l'assistant IA. Réessayez.", detail }, { status: 500 });
   }
 }
