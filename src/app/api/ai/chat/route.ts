@@ -33,6 +33,12 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
+    if (err instanceof Error && err.message === 'GEMINI_QUOTA') {
+      return NextResponse.json(
+        { error: "Quota gratuit Gemini atteint (limite par minute ou par jour). Patientez ~1 min puis réessayez. Si cela persiste, la limite quotidienne est atteinte : réessayez demain ou activez la facturation Google (le palier gratuit reste applicable)." },
+        { status: 429 },
+      );
+    }
     console.error('[POST /api/ai/chat]', err);
     // On fait remonter le détail réel (tronqué) : c'est un outil interne et le
     // message précis (ex. modèle introuvable, quota, timeout) aide à corriger.
