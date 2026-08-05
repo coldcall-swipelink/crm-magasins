@@ -33,9 +33,9 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-    if (err instanceof Error && err.message === 'GEMINI_QUOTA') {
+    if (err instanceof Error && err.message === 'PROVIDER_QUOTA') {
       return NextResponse.json(
-        { error: "Quota gratuit Gemini atteint (limite par minute ou par jour). Patientez ~1 min puis réessayez. Si cela persiste, la limite quotidienne est atteinte : réessayez demain ou activez la facturation Google (le palier gratuit reste applicable)." },
+        { error: "Quota gratuit du moteur IA atteint. Patientez un instant puis réessayez." },
         { status: 429 },
       );
     }
