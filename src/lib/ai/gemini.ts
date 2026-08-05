@@ -83,7 +83,7 @@ export async function askGemini(history: ChatMessage[]): Promise<string> {
       const text = await res.text().catch(() => '');
       // Quota du palier gratuit dépassé (limite par minute ou par jour) : message
       // dédié plutôt que l'erreur brute, car ce n'est pas un bug applicatif.
-      if (res.status === 429) throw new Error('GEMINI_QUOTA');
+      if (res.status === 429) throw new Error('PROVIDER_QUOTA');
       throw new Error(`Gemini API ${res.status}: ${text.slice(0, 500)}`);
     }
 
