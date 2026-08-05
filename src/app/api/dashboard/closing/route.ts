@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const [subs, brands] = await Promise.all([
+  const [subs, brands, demoDeals] = await Promise.all([
     prisma.subscription.findMany({
       where: { closingDate: { not: null } },
       select: {
@@ -38,6 +38,16 @@ export async function GET() {
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     }),
+    // Deals ayant une date de démo (repère « arrivé dans DEMO PREVUE ») :
+    // dénominateur du taux de closing. Un deal = une date de démo.
+    prisma.deal.findMany({
+      where: { demoDate: { not: null } },
+      select: {
+        id: true,
+        demoDate: true,
+        store: { select: { brand: { select: { id: true } } } },
+      },
+    }),
   ]);
 
   return NextResponse.json({
@@ -54,6 +64,12 @@ export async function GET() {
       brandId: s.deal?.store?.brand?.id ?? null,
       brandName: s.deal?.store?.brand?.name ?? 'Sans enseigne',
       brandColor: s.deal?.store?.brand?.color ?? '#94a3b8',
+    })),
+    // Une ligne par deal ayant une date de démo (dénominateur du taux de closing).
+    demos: demoDeals.map(d => ({
+      dealId: d.id,
+      demoDate: d.demoDate!.toISOString(),
+      brandId: d.store?.brand?.id ?? null,
     })),
     brands,
     generatedAt: new Date().toISOString(),

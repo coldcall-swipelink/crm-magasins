@@ -27,8 +27,16 @@ interface Closing {
   brandName: string;
   brandColor: string;
 }
+// Un deal ayant une date de démo (repère « arrivé dans DEMO PREVUE ») : sert de
+// dénominateur au taux de closing.
+interface DemoEvent {
+  dealId: string;
+  demoDate: string;
+  brandId: string | null;
+}
 interface ClosingData {
   closings: Closing[];
+  demos: DemoEvent[];
   brands: { id: string; name: string; color: string }[];
   generatedAt: string;
 }
@@ -150,6 +158,25 @@ export default function DashboardPage() {
   const avgPrev = clientsPrev ? mrrPrev / clientsPrev : 0;
   const stripeCount = current.filter(d => d.paymentMode === 'stripe').length;
   const stripeShare = current.length ? (stripeCount / current.length) * 100 : 0;
+
+  // ----- Taux de closing = closings (SMARTLINKÉ) ÷ démos (DEMO PREVUE) --------
+  // Numérateur : deals distincts closés sur la période = `clients`.
+  // Dénominateur : deals ayant une date de démo dans la même période.
+  const demosByBrand = useMemo(
+    () => (data?.demos ?? []).filter(d => !brandId || d.brandId === brandId),
+    [data, brandId],
+  );
+  const demoCount = useMemo(
+    () => preset === 'all' ? demosByBrand.length : demosByBrand.filter(d => inRange(d.demoDate, range.start, range.end)).length,
+    [demosByBrand, range, preset],
+  );
+  const demoCountPrev = useMemo(
+    () => (range.prevStart && range.prevEnd ? demosByBrand.filter(d => inRange(d.demoDate, range.prevStart!, range.prevEnd!)).length : 0),
+    [demosByBrand, range],
+  );
+  // Taux (%) ; null si aucune démo sur la période (pas de base de calcul).
+  const closingRate = demoCount > 0 ? (clients / demoCount) * 100 : null;
+  const closingRatePrev = demoCountPrev > 0 ? (clientsPrev / demoCountPrev) * 100 : null;
 
   // ARR = MRR annualisé (la valeur saisie est mensuelle → × 12).
   const arr = mrr * 12;
@@ -322,8 +349,15 @@ export default function DashboardPage() {
         </div>
 
         {/* KPIs période (avec comparaison) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
+          <Kpi
+            label="Taux de closing"
+            value={closingRate === null ? '—' : `${closingRate.toFixed(0)} %`}
+            delta={closingRate !== null && closingRatePrev !== null ? pctDelta(closingRate, closingRatePrev) : undefined}
+            prev={range.prevLabel && closingRatePrev !== null ? `${closingRatePrev.toFixed(0)} %` : null}
+            sub={`${clients} closing${clients > 1 ? 's' : ''} / ${demoCount} démo${demoCount > 1 ? 's' : ''}`}
+          />
           <Kpi label="ARR (annualisé)" value={formatCurrency(arr) || '0 €'} delta={pctDelta(arr, arrPrev)} prev={range.prevLabel ? formatCurrency(arrPrev) || '0 €' : null} />
           <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
           <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
