@@ -2,7 +2,7 @@
 // Chat de l'assistant IA du Dashboard : reçoit l'historique de conversation et
 // renvoie la réponse de Claude, qui interroge les données CRM via les outils.
 import { NextRequest, NextResponse } from 'next/server';
-import { askCrmAssistant, type ChatMessage } from '@/lib/ai/anthropic';
+import { askCrmAssistant, type ChatMessage } from '@/lib/ai/assistant';
 
 // Lecture DB à chaque appel : jamais mis en cache statique.
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof Error && err.message === 'MISSING_API_KEY') {
       return NextResponse.json(
-        { error: "L'assistant IA n'est pas configuré : ajoutez la variable ANTHROPIC_API_KEY dans le fichier .env." },
+        { error: "L'assistant IA n'est pas configuré : ajoutez une clé GEMINI_API_KEY (gratuite) dans le fichier .env." },
         { status: 503 },
       );
     }
