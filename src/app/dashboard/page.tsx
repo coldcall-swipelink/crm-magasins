@@ -49,16 +49,23 @@ interface Range { start: Date; end: Date; prevStart: Date | null; prevEnd: Date 
 // Helpers dates
 // ---------------------------------------------------------------------------
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+// Fin de journée inclusive : garantit que les closings datés du jour de la borne
+// (dont l'heure, issue d'un timestamp ISO, peut dépasser l'instant courant) sont
+// bien comptabilisés — la période affichée « … → JJ/MM » inclut tout le JJ/MM.
+const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function buildRange(preset: PresetKey, customFrom: string, customTo: string, now: Date): Range {
   const y = now.getFullYear(), m = now.getMonth();
+  // Borne de fin des périodes « à date » : fin de la journée courante (incluse),
+  // et non l'instant présent, pour comptabiliser les closings datés d'aujourd'hui.
+  const today = endOfDay(now);
   switch (preset) {
     case 'thisMonth': {
       const start = new Date(y, m, 1);
-      return { start, end: now, prevStart: new Date(y, m - 1, 1), prevEnd: addMonths(now, -1), label: 'Ce mois-ci', prevLabel: 'Mois précédent (à date)' };
+      return { start, end: today, prevStart: new Date(y, m - 1, 1), prevEnd: addMonths(now, -1), label: 'Ce mois-ci', prevLabel: 'Mois précédent (à date)' };
     }
     case 'lastMonth': {
       const start = new Date(y, m - 1, 1);
@@ -68,15 +75,15 @@ function buildRange(preset: PresetKey, customFrom: string, customTo: string, now
     case 'thisQuarter': {
       const q = Math.floor(m / 3);
       const start = new Date(y, q * 3, 1);
-      return { start, end: now, prevStart: new Date(y, q * 3 - 3, 1), prevEnd: addMonths(now, -3), label: 'Ce trimestre', prevLabel: 'Trimestre précédent (à date)' };
+      return { start, end: today, prevStart: new Date(y, q * 3 - 3, 1), prevEnd: addMonths(now, -3), label: 'Ce trimestre', prevLabel: 'Trimestre précédent (à date)' };
     }
     case 'thisYear': {
       const start = new Date(y, 0, 1);
-      return { start, end: now, prevStart: new Date(y - 1, 0, 1), prevEnd: new Date(y - 1, m, now.getDate(), now.getHours(), now.getMinutes()), label: 'Cette année', prevLabel: 'Année précédente (à date)' };
+      return { start, end: today, prevStart: new Date(y - 1, 0, 1), prevEnd: new Date(y - 1, m, now.getDate(), now.getHours(), now.getMinutes()), label: 'Cette année', prevLabel: 'Année précédente (à date)' };
     }
     case 'last12': {
       const start = addMonths(now, -12);
-      return { start, end: now, prevStart: addMonths(now, -24), prevEnd: addMonths(now, -12), label: '12 derniers mois', prevLabel: '12 mois précédents' };
+      return { start, end: today, prevStart: addMonths(now, -24), prevEnd: addMonths(now, -12), label: '12 derniers mois', prevLabel: '12 mois précédents' };
     }
     case 'all':
       // Aucune borne : inclut aussi les closings datés dans le futur, pour
@@ -84,7 +91,7 @@ function buildRange(preset: PresetKey, customFrom: string, customTo: string, now
       return { start: new Date(2000, 0, 1), end: new Date(9999, 11, 31), prevStart: null, prevEnd: null, label: 'Tout le temps', prevLabel: '' };
     case 'custom': {
       const start = customFrom ? new Date(customFrom + 'T00:00:00') : new Date(2000, 0, 1);
-      const end = customTo ? new Date(customTo + 'T23:59:59') : now;
+      const end = customTo ? new Date(customTo + 'T23:59:59.999') : today;
       const durationMs = end.getTime() - start.getTime();
       const prevEnd = new Date(start.getTime());
       const prevStart = new Date(start.getTime() - durationMs);
@@ -92,7 +99,7 @@ function buildRange(preset: PresetKey, customFrom: string, customTo: string, now
     }
   }
   // Repli (inatteignable, tous les presets sont couverts) — sécurise le typage.
-  return { start: new Date(2000, 0, 1), end: now, prevStart: null, prevEnd: null, label: '', prevLabel: '' };
+  return { start: new Date(2000, 0, 1), end: today, prevStart: null, prevEnd: null, label: '', prevLabel: '' };
 }
 
 // ---------------------------------------------------------------------------
