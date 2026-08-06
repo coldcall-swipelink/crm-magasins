@@ -285,7 +285,21 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   };
 
   const sortedCols = pipelineColumns;
-  const dealsForCol = (colId: string) => deals.filter(d => d.columnId === colId).sort((a, b) => a.position - b.position);
+  // Tri des affaires d'une colonne par date de DÉMO :
+  //   - date la plus récente en haut, la plus ancienne en bas ;
+  //   - les affaires sans date de démo sont reléguées en fin de colonne
+  //     (départage stable par position pour éviter tout réordonnancement aléatoire).
+  const dealsForCol = (colId: string) =>
+    deals
+      .filter(d => d.columnId === colId)
+      .sort((a, b) => {
+        const ta = a.demoDate ? new Date(a.demoDate).getTime() : null;
+        const tb = b.demoDate ? new Date(b.demoDate).getTime() : null;
+        if (ta !== null && tb !== null) return tb - ta; // récent → ancien
+        if (ta !== null) return -1;                     // a a une date, b non → a avant
+        if (tb !== null) return 1;                      // b a une date, a non → b avant
+        return a.position - b.position;                 // aucune date : ordre stable
+      });
 
   const fieldStyle = (active: boolean): React.CSSProperties => ({
     height: 38, padding: '0 12px', borderRadius: 9, fontSize: 13, cursor: 'pointer', outline: 'none',
