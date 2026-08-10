@@ -121,7 +121,10 @@ async function queryClosings(input: Record<string, any>) {
   if (to) closingDate.lte = to;
 
   const where: Record<string, unknown> = {
+    // Abonnements résiliés (churn) exclus : cohérent avec le Dashboard, leur
+    // valeur ne compte plus dans le MRR ni les analyses de closing.
     closingDate: { not: null, ...closingDate },
+    churned: false,
   };
   if (brandName) {
     where.deal = { store: { brand: { name: { equals: brandName, mode: 'insensitive' } } } };

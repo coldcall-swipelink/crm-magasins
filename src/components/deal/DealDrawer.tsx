@@ -86,6 +86,8 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
   const [closing, setClosing] = useState(toDateInput(sub.closingDate));
   const [durYears, setDurYears] = useState(Math.floor((sub.subscriptionMonths ?? 12) / 12));
   const [durMonths, setDurMonths] = useState((sub.subscriptionMonths ?? 12) % 12);
+  // Churn : abonnement résilié → sa valeur est exclue du MRR et du Dashboard.
+  const churned = !!sub.churned;
 
   // Resynchronise les champs locaux quand on change d'abonnement (id différent).
   useEffect(() => {
@@ -107,14 +109,42 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
   };
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '.5px' }}>Abonnement {index + 1}</div>
-        <button type="button" onClick={() => onDelete(sub.id)} title="Supprimer cet abonnement"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12, fontWeight: 600 }}>
-          Supprimer
-        </button>
+    <div style={{
+      background: churned ? '#fef2f2' : '#fff',
+      border: `1px solid ${churned ? '#fca5a5' : '#e2e8f0'}`,
+      borderRadius: 12, padding: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: churned ? '#b91c1c' : '#4338ca', textTransform: 'uppercase', letterSpacing: '.5px' }}>Abonnement {index + 1}</span>
+          {churned && (
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#dc2626', padding: '2px 7px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '.5px' }}>Résilié</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <label
+            title="Abonnement résilié (churn) : sa valeur n'est plus comptée dans le MRR ni dans les données du Dashboard"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={churned}
+              onChange={e => onPatch(sub.id, { churned: e.target.checked })}
+              style={{ width: 15, height: 15, accentColor: '#dc2626', cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '.5px' }}>Churn</span>
+          </label>
+          <button type="button" onClick={() => onDelete(sub.id)} title="Supprimer cet abonnement"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12, fontWeight: 600 }}>
+            Supprimer
+          </button>
+        </div>
       </div>
+
+      {churned && (
+        <div style={{ fontSize: 11.5, color: '#b91c1c', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 8, padding: '7px 10px', marginBottom: 14 }}>
+          Abonnement résilié — sa valeur est exclue du MRR et de toutes les données du Dashboard.
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div>
