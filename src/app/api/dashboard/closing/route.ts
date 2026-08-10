@@ -11,7 +11,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const [subs, brands, demoDeals] = await Promise.all([
     prisma.subscription.findMany({
-      where: { closingDate: { not: null } },
+      // On exclut les abonnements résiliés (churn) : leur valeur ne doit plus
+      // compter dans le MRR ni dans aucune autre donnée du Dashboard.
+      where: { closingDate: { not: null }, churned: false },
       select: {
         id: true,
         value: true,

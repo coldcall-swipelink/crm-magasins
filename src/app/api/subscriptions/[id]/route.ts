@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('subscriptionType' in body) data.subscriptionType = String(body.subscriptionType);
   if ('paymentMode' in body) data.paymentMode = body.paymentMode === 'virement' ? 'virement' : 'stripe';
   if ('paymentTiming' in body) data.paymentTiming = body.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant';
+  if ('churned' in body) data.churned = Boolean(body.churned);
 
   const closingProvided = 'closingDate' in body;
   const monthsProvided = 'subscriptionMonths' in body;
