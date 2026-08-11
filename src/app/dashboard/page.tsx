@@ -398,9 +398,16 @@ export default function DashboardPage() {
           {range.prevLabel && <span style={{ color: '#94a3b8' }}> · comparé à : {range.prevLabel}</span>}
         </div>
 
-        {/* KPIs période (avec comparaison) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+        {/* Ligne 1 — KPIs principaux (période + total clients) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
+          <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
+          <Kpi label="Clients au total" value={String(clientsAllTime)} sub="depuis le début" />
+          <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
+        </div>
+
+        {/* Ligne 2 — Taux */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi
             label="Taux de closing"
             value={closingRate === null ? '—' : `${closingRate.toFixed(0)} %`}
@@ -416,18 +423,15 @@ export default function DashboardPage() {
             sub={`${churnCur.lost} perdu${churnCur.lost > 1 ? 's' : ''} / ${churnCur.total} client${churnCur.total > 1 ? 's' : ''}`}
             invertDelta
           />
-          <Kpi label="ARR (annualisé)" value={formatCurrency(arr) || '0 €'} delta={pctDelta(arr, arrPrev)} prev={range.prevLabel ? formatCurrency(arrPrev) || '0 €' : null} />
-          <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
-          <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
           <Kpi label="Part Stripe" value={`${stripeShare.toFixed(0)} %`} sub={`${stripeCount}/${clients || 0} en Stripe`} />
         </div>
 
-        {/* Cumul tout temps */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+        {/* Ligne 3 — Autres KPIs (ARR & cumuls tout temps) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 24 }}>
+          <Kpi label="ARR (annualisé)" value={formatCurrency(arr) || '0 €'} delta={pctDelta(arr, arrPrev)} prev={range.prevLabel ? formatCurrency(arrPrev) || '0 €' : null} small />
           <Kpi label="MRR total cumulé" value={formatCurrency(mrrAllTime) || '0 €'} sub={brandId ? data.brands.find(b => b.id === brandId)?.name : 'toutes enseignes'} small />
           <Kpi label="ARR cumulé" value={formatCurrency(arrAllTime) || '0 €'} sub="MRR cumulé × 12" small />
           <Kpi label="Lifetime Value" value={formatCurrency(ltvAllTime) || '0 €'} sub={`${formatCurrency(arpuAllTime) || '0 €'}/client × ${avgDurationAllTime.toFixed(0)} mois`} small />
-          <Kpi label="Clients au total" value={String(clientsAllTime)} sub="depuis le début" small />
           <Kpi label="Panier moyen global" value={formatCurrency(clientsAllTime ? mrrAllTime / clientsAllTime : 0) || '0 €'} sub="sur tout l'historique" small />
         </div>
 
