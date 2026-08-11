@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const [subs, brands, demoDeals] = await Promise.all([
+  const [subs, brands, demoDeals, churnedSubs] = await Promise.all([
     prisma.subscription.findMany({
       // On exclut les abonnements résiliés (churn) : leur valeur ne doit plus
       // compter dans le MRR ni dans aucune autre donnée du Dashboard.
@@ -50,6 +50,16 @@ export async function GET() {
         store: { select: { brand: { select: { id: true } } } },
       },
     }),
+    // Abonnements résiliés (churn) ayant une date de closing : servent UNIQUEMENT
+    // au calcul du « taux de churn » du dashboard (clients perdus / clients
+    // totaux sur la période). Leur valeur reste exclue du MRR et du reste.
+    prisma.subscription.findMany({
+      where: { closingDate: { not: null }, churned: true },
+      select: {
+        closingDate: true,
+        deal: { select: { id: true, store: { select: { brand: { select: { id: true } } } } } },
+      },
+    }),
   ]);
 
   return NextResponse.json({
@@ -72,6 +82,12 @@ export async function GET() {
       dealId: d.id,
       demoDate: d.demoDate!.toISOString(),
       brandId: d.store?.brand?.id ?? null,
+    })),
+    // Une ligne par abonnement résilié (churn), pour le taux de churn.
+    churned: churnedSubs.map(s => ({
+      dealId: s.deal?.id ?? '',
+      closingDate: s.closingDate!.toISOString(),
+      brandId: s.deal?.store?.brand?.id ?? null,
     })),
     brands,
     generatedAt: new Date().toISOString(),

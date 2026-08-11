@@ -34,9 +34,17 @@ interface DemoEvent {
   demoDate: string;
   brandId: string | null;
 }
+// Un abonnement résilié (churn) : sert au calcul du taux de churn. Rattaché à
+// la période via sa date de closing (on ne stocke pas de date de résiliation).
+interface ChurnEvent {
+  dealId: string;
+  closingDate: string;
+  brandId: string | null;
+}
 interface ClosingData {
   closings: Closing[];
   demos: DemoEvent[];
+  churned: ChurnEvent[];
   brands: { id: string; name: string; color: string }[];
   generatedAt: string;
 }
@@ -184,6 +192,32 @@ export default function DashboardPage() {
   // Taux (%) ; null si aucune démo sur la période (pas de base de calcul).
   const closingRate = demoCount > 0 ? (clients / demoCount) * 100 : null;
   const closingRatePrev = demoCountPrev > 0 ? (clientsPrev / demoCountPrev) * 100 : null;
+
+  // ----- Taux de churn = clients perdus ÷ clients totaux (sur la période) -----
+  // Un client « perdu » = un client (deal) ayant un abonnement résilié sur la
+  // période ET aucun abonnement actif sur cette même période. Le total = clients
+  // actifs + clients perdus (ensembles disjoints), soit tous les clients distincts
+  // ayant au moins un abonnement (actif ou résilié) closé sur la période.
+  const churnByBrand = useMemo(
+    () => (data?.churned ?? []).filter(d => !brandId || d.brandId === brandId),
+    [data, brandId],
+  );
+  const currentChurn = useMemo(
+    () => preset === 'all' ? churnByBrand : churnByBrand.filter(d => inRange(d.closingDate, range.start, range.end)),
+    [churnByBrand, range, preset],
+  );
+  const previousChurn = useMemo(
+    () => (range.prevStart && range.prevEnd ? churnByBrand.filter(d => inRange(d.closingDate, range.prevStart!, range.prevEnd!)) : []),
+    [churnByBrand, range],
+  );
+  const churnStats = (active: Closing[], churn: ChurnEvent[]) => {
+    const activeIds = new Set(active.map(l => l.dealId).filter(Boolean));
+    const lostIds = new Set(churn.map(c => c.dealId).filter(id => id && !activeIds.has(id)));
+    const total = activeIds.size + lostIds.size;
+    return { lost: lostIds.size, total, rate: total > 0 ? (lostIds.size / total) * 100 : null };
+  };
+  const churnCur = churnStats(current, currentChurn);
+  const churnPrev = churnStats(previous, previousChurn);
 
   // ARR = MRR annualisé (la valeur saisie est mensuelle → × 12).
   const arr = mrr * 12;
@@ -356,7 +390,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPIs période (avec comparaison) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
           <Kpi
             label="Taux de closing"
@@ -364,6 +398,14 @@ export default function DashboardPage() {
             delta={closingRate !== null && closingRatePrev !== null ? pctDelta(closingRate, closingRatePrev) : undefined}
             prev={range.prevLabel && closingRatePrev !== null ? `${closingRatePrev.toFixed(0)} %` : null}
             sub={`${clients} closing${clients > 1 ? 's' : ''} / ${demoCount} démo${demoCount > 1 ? 's' : ''}`}
+          />
+          <Kpi
+            label="Taux de churn"
+            value={churnCur.rate === null ? '—' : `${churnCur.rate.toFixed(0)} %`}
+            delta={churnCur.rate !== null && churnPrev.rate !== null ? pctDelta(churnCur.rate, churnPrev.rate) : undefined}
+            prev={range.prevLabel && churnPrev.rate !== null ? `${churnPrev.rate.toFixed(0)} %` : null}
+            sub={`${churnCur.lost} perdu${churnCur.lost > 1 ? 's' : ''} / ${churnCur.total} client${churnCur.total > 1 ? 's' : ''}`}
+            invertDelta
           />
           <Kpi label="ARR (annualisé)" value={formatCurrency(arr) || '0 €'} delta={pctDelta(arr, arrPrev)} prev={range.prevLabel ? formatCurrency(arrPrev) || '0 €' : null} />
           <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
@@ -535,18 +577,21 @@ export default function DashboardPage() {
 // ---------------------------------------------------------------------------
 // Sous-composants & styles
 // ---------------------------------------------------------------------------
-function Kpi({ label, value, delta, prev, sub, accent, small }: {
-  label: string; value: string; delta?: number | null; prev?: string | null; sub?: string; accent?: boolean; small?: boolean;
+function Kpi({ label, value, delta, prev, sub, accent, small, invertDelta }: {
+  label: string; value: string; delta?: number | null; prev?: string | null; sub?: string; accent?: boolean; small?: boolean; invertDelta?: boolean;
 }) {
-  const up = (delta ?? 0) >= 0;
+  // Sens réel de la variation (flèche) vs. bon/mauvais (couleur). Pour certains
+  // indicateurs (ex. taux de churn), une hausse est MAUVAISE → invertDelta.
+  const positive = (delta ?? 0) >= 0;
+  const good = invertDelta ? !positive : positive;
   return (
     <div style={{ background: accent ? '#eef2ff' : '#fff', border: `1px solid ${accent ? '#c7d2fe' : '#e2e8f0'}`, borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ fontSize: 11, color: '#64748b', marginBottom: 5 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: small ? 20 : 25, fontWeight: 800, color: accent ? '#4338ca' : '#0f172a', lineHeight: 1 }}>{value}</div>
         {delta !== undefined && delta !== null && (
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 999, color: up ? '#15803d' : '#dc2626', background: up ? '#dcfce7' : '#fee2e2' }}>
-            {up ? '▲' : '▼'} {Math.abs(delta).toFixed(0)} %
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 999, color: good ? '#15803d' : '#dc2626', background: good ? '#dcfce7' : '#fee2e2' }}>
+            {positive ? '▲' : '▼'} {Math.abs(delta).toFixed(0)} %
           </span>
         )}
         {delta === null && prev !== null && prev !== undefined && (
