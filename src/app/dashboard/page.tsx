@@ -399,7 +399,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPIs période (avec comparaison) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
           <Kpi
             label="Taux de closing"
@@ -423,7 +423,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Cumul tout temps */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
           <Kpi label="MRR total cumulé" value={formatCurrency(mrrAllTime) || '0 €'} sub={brandId ? data.brands.find(b => b.id === brandId)?.name : 'toutes enseignes'} small />
           <Kpi label="ARR cumulé" value={formatCurrency(arrAllTime) || '0 €'} sub="MRR cumulé × 12" small />
           <Kpi label="Lifetime Value" value={formatCurrency(ltvAllTime) || '0 €'} sub={`${formatCurrency(arpuAllTime) || '0 €'}/client × ${avgDurationAllTime.toFixed(0)} mois`} small />
