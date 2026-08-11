@@ -212,6 +212,9 @@ model Subscription {
   // exclue du MRR et de toutes les autres données du Dashboard (route de closing
   // et analyses de l'assistant IA).
   churned             Boolean  @default(false)
+  // Date de résiliation (churn), saisie via la pop-up au cochage de la case.
+  // Sert à rattacher le client perdu à la bonne période pour le taux de churn.
+  churnedAt           DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

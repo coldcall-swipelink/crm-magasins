@@ -189,7 +189,7 @@ export interface MockSubscription {
   id: string; dealId: string; position: number; value: number | null; subscriptionType: string;
   paymentTiming: 'mensuel' | 'comptant'; paymentMode: 'stripe' | 'virement';
   closingDate: string | null; subscriptionMonths: number; subscriptionEndDate: string | null;
-  churned: boolean;
+  churned: boolean; churnedAt: string | null;
 }
 
 // Types d'abonnement (Paramètres) proposés dans le menu déroulant de la fiche
@@ -229,7 +229,7 @@ for (const s of SUBSCRIBED) {
   mockSubscriptions.push({
     id: `sub-${deal.id}`, dealId: deal.id, position: 0, value: s.value, subscriptionType: s.type,
     paymentTiming: s.timing, paymentMode: s.mode, closingDate: closingIso, subscriptionMonths: 24,
-    subscriptionEndDate: addMonthsIso(closingIso, 24), churned: false,
+    subscriptionEndDate: addMonthsIso(closingIso, 24), churned: false, churnedAt: null,
   });
 }
 
@@ -267,7 +267,7 @@ export function mockCreateSubscription(dealId: string): { sub?: MockSubscription
   const sub: MockSubscription = {
     id: `sub-new-${++mockSubSeq}`, dealId, position: existing.length, value: null,
     subscriptionType: '', paymentTiming: 'comptant', paymentMode: 'stripe',
-    closingDate: null, subscriptionMonths: 12, subscriptionEndDate: null, churned: false,
+    closingDate: null, subscriptionMonths: 12, subscriptionEndDate: null, churned: false, churnedAt: null,
   };
   mockSubscriptions.push(sub);
   recomputeMockDeal(dealId);
@@ -282,7 +282,11 @@ export function mockUpdateSubscription(id: string, body: Record<string, unknown>
   if ('subscriptionType' in body) sub.subscriptionType = String(body.subscriptionType);
   if ('paymentMode' in body) sub.paymentMode = body.paymentMode === 'virement' ? 'virement' : 'stripe';
   if ('paymentTiming' in body) sub.paymentTiming = body.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant';
-  if ('churned' in body) sub.churned = Boolean(body.churned);
+  if ('churned' in body) {
+    sub.churned = Boolean(body.churned);
+    if (!sub.churned) sub.churnedAt = null;
+  }
+  if ('churnedAt' in body) sub.churnedAt = body.churnedAt ? new Date(body.churnedAt as string).toISOString() : null;
   if ('closingDate' in body) sub.closingDate = body.closingDate ? new Date(body.closingDate as string).toISOString() : null;
   if ('subscriptionMonths' in body) sub.subscriptionMonths = Number(body.subscriptionMonths);
   sub.subscriptionEndDate = addMonthsIso(sub.closingDate, sub.subscriptionMonths || 12);

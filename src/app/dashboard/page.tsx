@@ -35,10 +35,12 @@ interface DemoEvent {
   brandId: string | null;
 }
 // Un abonnement résilié (churn) : sert au calcul du taux de churn. Rattaché à
-// la période via sa date de closing (on ne stocke pas de date de résiliation).
+// la période via sa date de résiliation (churnedAt, avec repli sur la date de
+// closing), fournie par l'API sous la forme `churnDate`.
 interface ChurnEvent {
   dealId: string;
-  closingDate: string;
+  churnDate: string;
+  closingDate: string | null;
   brandId: string | null;
 }
 interface ClosingData {
@@ -193,31 +195,38 @@ export default function DashboardPage() {
   const closingRate = demoCount > 0 ? (clients / demoCount) * 100 : null;
   const closingRatePrev = demoCountPrev > 0 ? (clientsPrev / demoCountPrev) * 100 : null;
 
-  // ----- Taux de churn = clients perdus ÷ clients totaux (sur la période) -----
-  // Un client « perdu » = un client (deal) ayant un abonnement résilié sur la
-  // période ET aucun abonnement actif sur cette même période. Le total = clients
-  // actifs + clients perdus (ensembles disjoints), soit tous les clients distincts
-  // ayant au moins un abonnement (actif ou résilié) closé sur la période.
+  // ----- Taux de churn = clients perdus ÷ base clients (sur la période) -------
+  // Clients perdus = clients (deals) distincts ayant résilié PENDANT la période
+  // (rattachement via la date de churn). Base clients = clients distincts acquis
+  // (date de closing) jusqu'à la FIN de la période — actifs comme résiliés — de
+  // sorte que le taux reflète la part du parc qui a churné, et non un ratio par
+  // rapport aux seules ventes de la période.
   const churnByBrand = useMemo(
     () => (data?.churned ?? []).filter(d => !brandId || d.brandId === brandId),
     [data, brandId],
   );
   const currentChurn = useMemo(
-    () => preset === 'all' ? churnByBrand : churnByBrand.filter(d => inRange(d.closingDate, range.start, range.end)),
+    () => preset === 'all' ? churnByBrand : churnByBrand.filter(d => inRange(d.churnDate, range.start, range.end)),
     [churnByBrand, range, preset],
   );
   const previousChurn = useMemo(
-    () => (range.prevStart && range.prevEnd ? churnByBrand.filter(d => inRange(d.closingDate, range.prevStart!, range.prevEnd!)) : []),
+    () => (range.prevStart && range.prevEnd ? churnByBrand.filter(d => inRange(d.churnDate, range.prevStart!, range.prevEnd!)) : []),
     [churnByBrand, range],
   );
-  const churnStats = (active: Closing[], churn: ChurnEvent[]) => {
-    const activeIds = new Set(active.map(l => l.dealId).filter(Boolean));
-    const lostIds = new Set(churn.map(c => c.dealId).filter(id => id && !activeIds.has(id)));
-    const total = activeIds.size + lostIds.size;
-    return { lost: lostIds.size, total, rate: total > 0 ? (lostIds.size / total) * 100 : null };
+  const churnStats = (periodEnd: Date, churn: ChurnEvent[]) => {
+    const end = periodEnd.getTime();
+    // Base = clients distincts acquis (closing ≤ fin de période), actifs + résiliés.
+    const base = new Set<string>();
+    for (const c of byBrand) if (c.dealId && new Date(c.closingDate).getTime() <= end) base.add(c.dealId);
+    for (const c of churnByBrand) if (c.dealId && c.closingDate && new Date(c.closingDate).getTime() <= end) base.add(c.dealId);
+    // Clients perdus sur la période ; garantit lost ⊆ base (taux ≤ 100 %).
+    const lost = new Set(churn.map(c => c.dealId).filter(Boolean));
+    lost.forEach(id => base.add(id));
+    const total = base.size;
+    return { lost: lost.size, total, rate: total > 0 ? (lost.size / total) * 100 : null };
   };
-  const churnCur = churnStats(current, currentChurn);
-  const churnPrev = churnStats(previous, previousChurn);
+  const churnCur = churnStats(range.end, currentChurn);
+  const churnPrev = range.prevEnd ? churnStats(range.prevEnd, previousChurn) : { lost: 0, total: 0, rate: null as number | null };
 
   // ARR = MRR annualisé (la valeur saisie est mensuelle → × 12).
   const arr = mrr * 12;

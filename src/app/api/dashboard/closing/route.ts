@@ -54,9 +54,10 @@ export async function GET() {
     // au calcul du « taux de churn » du dashboard (clients perdus / clients
     // totaux sur la période). Leur valeur reste exclue du MRR et du reste.
     prisma.subscription.findMany({
-      where: { closingDate: { not: null }, churned: true },
+      where: { churned: true },
       select: {
         closingDate: true,
+        churnedAt: true,
         deal: { select: { id: true, store: { select: { brand: { select: { id: true } } } } } },
       },
     }),
@@ -83,12 +84,18 @@ export async function GET() {
       demoDate: d.demoDate!.toISOString(),
       brandId: d.store?.brand?.id ?? null,
     })),
-    // Une ligne par abonnement résilié (churn), pour le taux de churn.
-    churned: churnedSubs.map(s => ({
-      dealId: s.deal?.id ?? '',
-      closingDate: s.closingDate!.toISOString(),
-      brandId: s.deal?.store?.brand?.id ?? null,
-    })),
+    // Une ligne par abonnement résilié (churn), pour le taux de churn. Le client
+    // perdu est rattaché à la période via sa date de résiliation (churnedAt) ;
+    // repli sur la date de closing pour d'éventuelles lignes résiliées avant
+    // l'ajout de la date de churn. Les lignes sans aucune date sont ignorées.
+    churned: churnedSubs
+      .map(s => ({
+        dealId: s.deal?.id ?? '',
+        churnDate: (s.churnedAt ?? s.closingDate)?.toISOString() ?? null,
+        closingDate: s.closingDate?.toISOString() ?? null,
+        brandId: s.deal?.store?.brand?.id ?? null,
+      }))
+      .filter(c => c.churnDate),
     brands,
     generatedAt: new Date().toISOString(),
   });

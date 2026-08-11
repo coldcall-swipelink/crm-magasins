@@ -88,6 +88,9 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
   const [durMonths, setDurMonths] = useState((sub.subscriptionMonths ?? 12) % 12);
   // Churn : abonnement résilié → sa valeur est exclue du MRR et du Dashboard.
   const churned = !!sub.churned;
+  // Pop-up de saisie de la date de résiliation (churn), déclenchée au cochage.
+  const [churnModal, setChurnModal] = useState(false);
+  const [churnDate, setChurnDate] = useState('');
 
   // Resynchronise les champs locaux quand on change d'abonnement (id différent).
   useEffect(() => {
@@ -95,8 +98,25 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
     setClosing(toDateInput(sub.closingDate));
     setDurYears(Math.floor((sub.subscriptionMonths ?? 12) / 12));
     setDurMonths((sub.subscriptionMonths ?? 12) % 12);
+    setChurnModal(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sub.id]);
+
+  // Cochage de la case CHURN : on ouvre la pop-up pour saisir la date de churn.
+  // Décochage : on réactive l'abonnement et on efface la date.
+  const onToggleChurn = (checked: boolean) => {
+    if (checked) {
+      setChurnDate(toDateInput(sub.churnedAt) || new Date().toISOString().slice(0, 10));
+      setChurnModal(true);
+    } else {
+      onPatch(sub.id, { churned: false, churnedAt: null });
+    }
+  };
+  const confirmChurn = () => {
+    if (!churnDate) return;
+    onPatch(sub.id, { churned: true, churnedAt: fromDateInput(churnDate) });
+    setChurnModal(false);
+  };
 
   const totalMonths = durYears * 12 + durMonths;
   const endDate = closing ? addMonths(new Date(closing + 'T12:00:00Z'), totalMonths) : null;
@@ -128,7 +148,7 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
             <input
               type="checkbox"
               checked={churned}
-              onChange={e => onPatch(sub.id, { churned: e.target.checked })}
+              onChange={e => onToggleChurn(e.target.checked)}
               style={{ width: 15, height: 15, accentColor: '#dc2626', cursor: 'pointer' }}
             />
             <span style={{ fontSize: 12, fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '.5px' }}>Churn</span>
@@ -141,8 +161,16 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
       </div>
 
       {churned && (
-        <div style={{ fontSize: 11.5, color: '#b91c1c', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 8, padding: '7px 10px', marginBottom: 14 }}>
-          Abonnement résilié — sa valeur est exclue du MRR et de toutes les données du Dashboard.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 11.5, color: '#b91c1c', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 8, padding: '7px 10px', marginBottom: 14 }}>
+          <span style={{ flex: 1, minWidth: 200 }}>
+            Résilié{sub.churnedAt ? ` le ${formatDate(sub.churnedAt)}` : ''} — sa valeur est exclue du MRR et de toutes les données du Dashboard.
+          </span>
+          <button
+            type="button"
+            onClick={() => { setChurnDate(toDateInput(sub.churnedAt) || new Date().toISOString().slice(0, 10)); setChurnModal(true); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', fontSize: 11.5, fontWeight: 700, textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+            Modifier la date
+          </button>
         </div>
       )}
 
@@ -216,6 +244,32 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
           🗓 {endDate ? formatDate(endDate) : '—'}
         </div>
       </div>
+
+      {churnModal && (
+        <div
+          onClick={() => setChurnModal(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 20, width: 360, maxWidth: '100%', boxShadow: '0 12px 40px rgba(15,23,42,.28)' }}>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: '#b91c1c', marginBottom: 4 }}>Résiliation de l&apos;abonnement</div>
+            <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 16, lineHeight: 1.45 }}>
+              Indique la date à laquelle le client a résilié. Elle sert à comptabiliser le churn sur la bonne période dans le Dashboard.
+            </div>
+            <label style={labelStyle}>Date de churn</label>
+            <input type="date" autoFocus value={churnDate} onChange={e => setChurnDate(e.target.value)} style={inp}
+              onKeyDown={e => { if (e.key === 'Enter') confirmChurn(); }} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button type="button" onClick={() => setChurnModal(false)}
+                style={{ height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button type="button" onClick={confirmChurn} disabled={!churnDate}
+                style={{ height: 34, padding: '0 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 700, opacity: churnDate ? 1 : .5, cursor: churnDate ? 'pointer' : 'not-allowed' }}>
+                Confirmer la résiliation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
