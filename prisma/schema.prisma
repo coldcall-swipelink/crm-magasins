@@ -210,8 +210,9 @@ model Subscription {
   subscriptionEndDate DateTime?
   // CHURN : abonnement résilié. Quand true, la valeur de l'abonnement est
   // exclue du MRR et de toutes les autres données du Dashboard (route de closing
-  // et analyses de l'assistant IA).
-  churned             Boolean  @default(false)
+  // et analyses de l'assistant IA). Mappé sur la colonne existante « CHURN »
+  // (créée manuellement en base) : @map évite de créer une colonne « churned ».
+  churned             Boolean  @default(false) @map("CHURN")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
