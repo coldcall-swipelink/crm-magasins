@@ -10,6 +10,7 @@ import ClosingDateModal from './ClosingDateModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
+import { useCurrentUser } from '@/lib/currentUser';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
@@ -23,6 +24,8 @@ function isSmartlinkColumn(title?: string | null): boolean {
 }
 
 export default function PipelineBoard({ initialDeals, columns }: Props) {
+  // Auteur des déplacements : transmis à /move pour alimenter l'historique.
+  const { user: currentUser } = useCurrentUser();
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -188,7 +191,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
 
     // Autres colonnes : persistance immédiate du déplacement.
     try {
-      const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId }) });
+      const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId, userId: currentUser?.id || null, userName: currentUser?.name || '' }) });
       if (!res.ok) throw new Error();
     } catch { toast('Erreur déplacement', 'error'); fetchDeals(); }
   };
@@ -213,7 +216,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
 
     const moveRes = await fetch(`/api/deals/${pv.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: closingDemoCol.id, pvChoice: choice }),
+      body: JSON.stringify({ columnId: closingDemoCol.id, pvChoice: choice, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
     });
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
     const moveData = await moveRes.json().catch(() => ({}));
@@ -267,7 +270,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     const closingDate = date ? new Date(date + 'T12:00:00Z').toISOString() : null;
     const res = await fetch(`/api/deals/${closing.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: closing.targetColId, closingDate }),
+      body: JSON.stringify({ columnId: closing.targetColId, closingDate, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
     });
     if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
     toast(date ? 'Affaire déplacée — date de closing enregistrée' : 'Affaire déplacée dans SMARTLINKÉ');

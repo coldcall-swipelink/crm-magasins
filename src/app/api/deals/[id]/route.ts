@@ -5,6 +5,7 @@ import { provisionDemoOrganization } from '@/lib/supabaseProvisioning';
 import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
+import { recordDealMove } from '@/lib/dealMoves';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -33,6 +34,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         jobOffers: { orderBy: { firstSeenAt: 'desc' } },
         actions: { orderBy: { dueDate: 'asc' }, include: { assignedUser: true } },
         notes: { orderBy: { createdAt: 'desc' } },
+        // Historique des changements d'étape, pour le flux d'activité de la
+        // fiche. Borné : au-delà, l'historique complet se lit en base.
+        moves: { orderBy: { movedAt: 'desc' }, take: 100 },
         // Regroupement d'affaires : le deal parent (s'il est lui-même absorbé)
         // et les sous-deals qu'il absorbe (autres magasins du groupe).
         parentDeal: { include: { store: { include: { brand: true } } } },
@@ -89,6 +93,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
+
+    // Changement d'étape par PATCH (hors drag & drop, qui passe par /move) :
+    // on relève l'étape quittée AVANT la mise à jour pour la journaliser.
+    const columnBefore = 'columnId' in body
+      ? (await prisma.deal.findUnique({ where: { id: params.id }, select: { columnId: true } }))?.columnId ?? null
+      : null;
 
     // Date de fin d'abonnement : recalculée dès que la date de closing ou la
     // durée change. Source unique de vérité côté serveur (= closingDate + mois).
@@ -203,6 +213,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         notes: { orderBy: { createdAt: 'desc' } },
       },
     });
+
+    // Journal des déplacements (cf. /api/deals/[id]/move pour le drag & drop).
+    if (body.columnId) {
+      await recordDealMove({
+        dealId: params.id,
+        fromColumnId: columnBefore,
+        toColumnId: body.columnId,
+        userId: body.userId ?? null,
+        userName: body.userName ?? '',
+        source: 'fiche',
+      });
+    }
 
     // Vérifier la colonne et envoyer les webhooks appropriés
     if (body.columnId) {

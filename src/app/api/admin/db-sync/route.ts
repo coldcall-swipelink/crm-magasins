@@ -226,7 +226,26 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"calledAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "CREATE INDEX IF NOT EXISTS \"CallLog_calledAt_idx\" ON \"CallLog\"(\"calledAt\");",
   "CREATE INDEX IF NOT EXISTS \"CallLog_userId_calledAt_idx\" ON \"CallLog\"(\"userId\",\"calledAt\");",
-  "CREATE INDEX IF NOT EXISTS \"CallLog_dealId_idx\" ON \"CallLog\"(\"dealId\");"
+  "CREATE INDEX IF NOT EXISTS \"CallLog_dealId_idx\" ON \"CallLog\"(\"dealId\");",
+  // Journal des déplacements d'affaires (changement d'étape et/ou de pipeline).
+  "CREATE TABLE IF NOT EXISTS \"DealMove\" (\"id\" TEXT NOT NULL, CONSTRAINT \"DealMove_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"fromColumnId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"fromColumnTitle\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"fromPipelineId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"fromPipelineName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"toColumnId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"toColumnTitle\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"toPipelineId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"toPipelineName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"userId\" TEXT;",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"userName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"source\" TEXT NOT NULL DEFAULT 'pipeline';",
+  "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"movedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"DealMove_dealId_movedAt_idx\" ON \"DealMove\"(\"dealId\",\"movedAt\");",
+  "CREATE INDEX IF NOT EXISTS \"DealMove_movedAt_idx\" ON \"DealMove\"(\"movedAt\");",
+  "CREATE INDEX IF NOT EXISTS \"DealMove_userId_movedAt_idx\" ON \"DealMove\"(\"userId\",\"movedAt\");"
 ];
 
 export async function GET(req: NextRequest) {
