@@ -16,10 +16,10 @@ export interface EmailSender {
 }
 
 export const EMAIL_SENDERS: EmailSender[] = [
-  { email: 'hugo@swipelink.fr', label: 'Hugo', from: 'Hugo <hugo@swipelink.fr>' },
-  { email: 'bilal@swipelink.fr', label: 'Bilal', from: 'Bilal <bilal@swipelink.fr>' },
-  { email: 'mark@swipelink.fr', label: 'Mark', from: 'Mark <mark@swipelink.fr>' },
-  { email: 'luca@swipelink.fr', label: 'Luca', from: 'Luca <luca@swipelink.fr>' },
+  { email: 'hugo@swipelink.fr', label: 'Hugo', from: 'Hugo - Swipelink <hugo@swipelink.fr>' },
+  { email: 'bilal@swipelink.fr', label: 'Bilal', from: 'Bilal Yacouti - Swipelink <bilal@swipelink.fr>' },
+  { email: 'mark@swipelink.fr', label: 'Mark', from: 'Mark - Swipelink <mark@swipelink.fr>' },
+  { email: 'luca@swipelink.fr', label: 'Luca', from: 'Luca - Swipelink <luca@swipelink.fr>' },
 ];
 
 /** Expéditeur par défaut : hugo@swipelink.fr (celui déjà en place). */
