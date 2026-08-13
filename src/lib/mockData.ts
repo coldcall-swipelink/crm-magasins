@@ -95,7 +95,7 @@ function makeDeal(spec: DealSpec) {
     previousColumnId: null, priority: spec.priority ?? 'normale', position: dealSeq,
     isNewFromLastImport: false, hasNewOfferFromLastImport: false, isPresentInLastImport: true,
     movedToCallAt: null, lastImportAt: null, directeur: '', contactCalling: spec.contact,
-    dealEmail: '', contactCivilite: 'Monsieur', contactLastName: '',
+    dealEmail: '', contactPhone: spec.contact, contactCivilite: 'Monsieur', contactLastName: '',
     dealValue: spec.dealValue ?? null, demoDate: null, candidateCallDate: null,
     assignedUserId: spec.user?.id ?? null, assignedUser: spec.user ?? null, collaborator: null,
     // Regroupement d'affaires : parentDealId pointe vers le deal qui absorbe

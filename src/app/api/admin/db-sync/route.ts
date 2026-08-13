@@ -213,7 +213,20 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"isRead\" BOOLEAN NOT NULL DEFAULT false;",
   "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "CREATE UNIQUE INDEX IF NOT EXISTS \"OfferNotification_dealId_offerId_key\" ON \"OfferNotification\"(\"dealId\",\"offerId\");",
-  "CREATE INDEX IF NOT EXISTS \"OfferNotification_dealId_idx\" ON \"OfferNotification\"(\"dealId\");"
+  "CREATE INDEX IF NOT EXISTS \"OfferNotification_dealId_idx\" ON \"OfferNotification\"(\"dealId\");",
+  // Téléphone du contact (saisi sur la fiche affaire) + journal des appels
+  // alimenté par les clics sur « Afficher le numéro ».
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"contactPhone\" TEXT NOT NULL DEFAULT '';",
+  "CREATE TABLE IF NOT EXISTS \"CallLog\" (\"id\" TEXT NOT NULL, CONSTRAINT \"CallLog_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"userId\" TEXT;",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"userName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"phone\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"calledAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"CallLog_calledAt_idx\" ON \"CallLog\"(\"calledAt\");",
+  "CREATE INDEX IF NOT EXISTS \"CallLog_userId_calledAt_idx\" ON \"CallLog\"(\"userId\",\"calledAt\");",
+  "CREATE INDEX IF NOT EXISTS \"CallLog_dealId_idx\" ON \"CallLog\"(\"dealId\");"
 ];
 
 export async function GET(req: NextRequest) {

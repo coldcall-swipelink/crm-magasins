@@ -82,6 +82,7 @@ model User {
   assignedDeals   Deal[]
   assignedActions Action[]
   authoredNotes   Note[]
+  callLogs        CallLog[]
 }
 
 model Pipeline {
@@ -144,6 +145,10 @@ model Deal {
   dealEmail                 String   @default("")
   contactCivilite           String   @default("Monsieur")
   contactLastName           String   @default("")
+  // Numéro de téléphone du contact, saisi manuellement sur la fiche affaire.
+  // Masqué par défaut : il faut cliquer sur « Afficher le numéro » pour le
+  // dévoiler, et ce clic est comptabilisé comme un appel (cf. CallLog).
+  contactPhone              String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
   candidateCallDate         DateTime?
@@ -184,6 +189,7 @@ model Deal {
   importRows                ImportRow[]
   emailLogs                 EmailLog[]
   candidateCalls            CandidateCall[]
+  callLogs                  CallLog[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
@@ -343,6 +349,27 @@ model CandidateCall {
   updatedAt   DateTime @updatedAt
 
   @@unique([dealId, candidateId])
+}
+
+// Compteur d'appels : une ligne est créée à CHAQUE clic sur « Afficher le
+// numéro » dans la fiche affaire. Sert à mesurer le nombre d'appels passés par
+// utilisateur sur une période (semaine, quinzaine, mois…). Le nom de
+// l'utilisateur est figé à l'enregistrement pour que la statistique reste
+// lisible même si le compte est renommé ou supprimé.
+model CallLog {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String   @default("")
+  // Numéro affiché au moment du clic (trace de ce qui a été composé).
+  phone     String   @default("")
+  calledAt  DateTime @default(now())
+
+  @@index([calledAt])
+  @@index([userId, calledAt])
+  @@index([dealId])
 }
 
 // Organisations produit (Supabase) rattachées à un deal. Permet d'en lier
