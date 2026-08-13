@@ -138,6 +138,9 @@ export interface Deal {
   directeur?:               string;
   contactCalling?:          string;
   dealEmail?:               string;
+  // Numéro du contact : masqué dans la fiche affaire tant que l'utilisateur n'a
+  // pas cliqué sur « Afficher le numéro » (clic comptabilisé comme un appel).
+  contactPhone?:            string;
   contactCivilite?:         string;
   contactLastName?:         string;
   dealValue?:               number | null;

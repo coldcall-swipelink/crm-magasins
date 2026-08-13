@@ -286,6 +286,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // Volet de composition actif : note / action / email / lien de paiement
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email' | 'payment'>(null);
 
+  // Téléphone du contact : masqué tant que l'utilisateur n'a pas cliqué sur
+  // « Afficher le numéro ». Le numéro dévoilé vient de la réponse du serveur,
+  // qui comptabilise le clic comme un appel. `phoneRevealing` évite un double
+  // comptage sur un double-clic.
+  const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
+  const [phoneRevealing, setPhoneRevealing] = useState(false);
+
   // Données annexes
   const [users, setUsers] = useState<User[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
@@ -349,6 +356,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         directeur: d.directeur || '',
         contactCalling: d.contactCalling || '',
         dealEmail: d.dealEmail || '',
+        contactPhone: d.contactPhone || '',
         contactCivilite: d.contactCivilite || 'Monsieur',
         contactLastName: d.contactLastName || '',
         dealValue: d.dealValue != null ? String(d.dealValue) : '',
@@ -377,6 +385,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   }, [dealId]);
 
   useEffect(() => { fetchDeal(); fetchEmailLogs(); fetchOfferNotifs(); }, [fetchDeal, fetchEmailLogs, fetchOfferNotifs]);
+
+  // Le numéro se remasque dès qu'on change d'affaire : chaque affaire consultée
+  // demande donc un nouveau clic (et compte un nouvel appel).
+  useEffect(() => { setRevealedPhone(null); setPhoneRevealing(false); }, [dealId]);
 
   // Géocodage « à la demande » à l'ouverture du deal : si le magasin n'est pas
   // localisé (coordonnées nulles), on déclenche le géocodage côté serveur puis
@@ -473,6 +485,30 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const patchDeal = async (data: Record<string, unknown>, msg?: string) => {
     await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     fetchDeal(); onUpdated(); if (msg) toast(msg);
+  };
+
+  // ---- Téléphone (dévoilement = +1 appel pour l'utilisateur) ---------------
+  // Le numéro n'est affiché qu'à partir de la réponse du serveur, qui enregistre
+  // l'appel au passage. Le garde `phoneRevealing` empêche un double comptage.
+  const revealPhone = async () => {
+    if (phoneRevealing) return;
+    setPhoneRevealing(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/reveal-phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser?.id || null, userName: currentUser?.name || '' }),
+      });
+      if (!res.ok) { toast('Impossible d\'afficher le numéro', 'error'); return; }
+      const data = await res.json();
+      setRevealedPhone(data.phone || '');
+      setFields(f => ({ ...f, contactPhone: data.phone || '' }));
+      if (data.logged) toast('Appel comptabilisé');
+    } catch {
+      toast('Impossible d\'afficher le numéro', 'error');
+    } finally {
+      setPhoneRevealing(false);
+    }
   };
 
   // ---- Abonnements ---------------------------------------------------------
@@ -1033,6 +1069,46 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   />
                 </div>
               ))}
+
+              {/* N° de téléphone : saisi manuellement, puis masqué. Le clic sur
+                  « Afficher le numéro » le dévoile ET compte +1 dans le compteur
+                  d'appels de l'utilisateur connecté (stats du Dashboard). */}
+              <div style={{ marginBottom: 9 }}>
+                <label style={labelStyle}>N° de Téléphone</label>
+                {(deal.contactPhone || '').trim() && revealedPhone === null ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ ...inp, flex: 1, color: '#94a3b8', letterSpacing: 3, userSelect: 'none' }}>•• •• •• •• ••</div>
+                    <button
+                      type="button"
+                      onClick={revealPhone}
+                      disabled={phoneRevealing}
+                      style={{
+                        flexShrink: 0, padding: '7px 12px', borderRadius: 7, border: '1px solid #c7d2fe',
+                        background: phoneRevealing ? '#eef2ff' : '#4f46e5', color: phoneRevealing ? '#4338ca' : '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: phoneRevealing ? 'default' : 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {phoneRevealing ? 'Affichage…' : '👁 Afficher le numéro'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      style={inp} placeholder="06 12 34 56 78" value={fields.contactPhone ?? ''}
+                      onChange={e => setFields(f => ({ ...f, contactPhone: e.target.value }))}
+                      onBlur={() => { if ((fields.contactPhone ?? '') !== (deal.contactPhone ?? '')) patchDeal({ contactPhone: fields.contactPhone ?? '' }); }}
+                    />
+                    {revealedPhone && revealedPhone.trim() && (
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <a href={`tel:${revealedPhone.replace(/[^\d+]/g, '')}`} style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>
+                          📞 Appeler {revealedPhone}
+                        </a>
+                        <span>· appel comptabilisé</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             <div style={sectionTitle}>Affaire</div>
