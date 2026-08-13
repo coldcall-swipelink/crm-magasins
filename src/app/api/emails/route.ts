@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
-import { EMAIL_SIGNATURE_KEY } from '@/lib/appSettings';
+import { EMAIL_SIGNATURE_KEY, signatureKeyForSender } from '@/lib/appSettings';
 import { resolveSender } from '@/lib/emailSenders';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
 
-/** Signature globale (HTML), ou '' si non configurée / table absente. */
-async function getEmailSignature(): Promise<string> {
+/**
+ * Signature (HTML) à ajouter à l'email. On privilégie la signature propre à
+ * l'expéditeur (`senderEmail`) ; à défaut, on retombe sur la signature globale.
+ * Retourne '' si aucune n'est configurée / table absente.
+ */
+async function getEmailSignature(senderEmail?: string | null): Promise<string> {
   try {
-    const s = await prisma.appSetting.findUnique({ where: { key: EMAIL_SIGNATURE_KEY } });
-    return s?.value?.trim() ? s.value : '';
+    // Ordre de priorité : signature de l'expéditeur puis signature globale.
+    const keys: string[] = [];
+    if (senderEmail) keys.push(signatureKeyForSender(senderEmail));
+    keys.push(EMAIL_SIGNATURE_KEY);
+
+    const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
+    const map = new Map(settings.map(s => [s.key, s.value]));
+    for (const key of keys) {
+      const v = map.get(key);
+      if (v?.trim()) return v;
+    }
+    return '';
   } catch {
     return '';
   }
@@ -42,8 +56,9 @@ export async function POST(req: NextRequest) {
       fromAddress = resolved;
     }
 
-    // Signature ajoutée automatiquement à la fin de chaque email du CRM.
-    const signature = await getEmailSignature();
+    // Signature ajoutée automatiquement à la fin de chaque email du CRM :
+    // celle de l'expéditeur choisi, sinon la signature globale (repli).
+    const signature = await getEmailSignature(from);
     const finalBody = signature ? `${toHtml(body)}<br><br>${toHtml(signature)}` : toHtml(body);
 
     // Instanciation paresseuse : évite de planter au chargement du module quand
