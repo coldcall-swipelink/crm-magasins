@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import { EMAIL_SIGNATURE_KEY } from '@/lib/appSettings';
+import { resolveSender } from '@/lib/emailSenders';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -23,9 +24,22 @@ function toHtml(s: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { dealId, templateId, to, subject, body, attachments } = await req.json();
+    const { dealId, templateId, to, subject, body, attachments, from } = await req.json();
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
+    }
+
+    // Adresse d'expéditeur : par défaut SMTP_FROM (env). Si le client précise un
+    // `from`, il doit correspondre à une adresse @swipelink.fr autorisée
+    // (EMAIL_SENDERS) — sinon on refuse pour ne jamais envoyer depuis une adresse
+    // arbitraire.
+    let fromAddress = process.env.SMTP_FROM as string;
+    if (from) {
+      const resolved = resolveSender(from);
+      if (!resolved) {
+        return NextResponse.json({ error: "Adresse d'expéditeur non autorisée" }, { status: 400 });
+      }
+      fromAddress = resolved;
     }
 
     // Signature ajoutée automatiquement à la fin de chaque email du CRM.
@@ -36,7 +50,7 @@ export async function POST(req: NextRequest) {
     // la clé API est absente (build sans variables d'environnement).
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
-      from: process.env.SMTP_FROM as string,
+      from: fromAddress,
       to,
       subject,
       html: finalBody,
