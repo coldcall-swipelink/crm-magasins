@@ -4,6 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import type { Brand, PipelineColumn } from '@/types';
 import { toast } from '@/components/ui/Toast';
 import RichTextEditor from '@/components/ui/RichTextEditor';
+import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 };
@@ -78,7 +79,12 @@ export default function SettingsPage() {
   const [editTemplate, setEditTemplate] = useState<EmailTemplate | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [showNewTemplate, setShowNewTemplate] = useState(false);
-  const [signature, setSignature] = useState('');
+  // Signature par expéditeur (une par adresse @swipelink.fr). La signature
+  // « globale » héritée sert de valeur par défaut si un expéditeur n'en a pas.
+  const [signatures, setSignatures] = useState<Record<string, string>>({});
+  const [sigSender, setSigSender] = useState(DEFAULT_EMAIL_SENDER.email);
+  // Mode d'édition de la signature : éditeur visuel (WYSIWYG) ou code HTML brut.
+  const [sigMode, setSigMode] = useState<'visual' | 'html'>('visual');
   const [savingSig, setSavingSig] = useState(false);
   const [savingCols, setSavingCols] = useState(false);
   // Backfill : rattachement des affaires existantes à leur Organization Supabase.
@@ -104,13 +110,25 @@ export default function SettingsPage() {
     if (stRes.ok) setSubTypes(await stRes.json());
   }, []);
 
-  // Chargement de la signature email globale.
+  // Chargement des signatures email. Chaque expéditeur sans signature dédiée
+  // est pré-rempli avec la signature globale héritée (repli), pour ne pas
+  // « perdre » la signature déjà en place.
   useEffect(() => {
     fetch('/api/email-signature')
       .then(r => r.json())
-      .then(d => setSignature(d.value || ''))
+      .then(d => {
+        const glob: string = d.value || '';
+        const sigs: Record<string, string> = d.signatures || {};
+        const filled: Record<string, string> = {};
+        for (const s of EMAIL_SENDERS) filled[s.email] = sigs[s.email] || glob;
+        setSignatures(filled);
+      })
       .catch(() => {});
   }, []);
+
+  // Valeur de la signature de l'expéditeur en cours d'édition.
+  const currentSig = signatures[sigSender] ?? '';
+  const setCurrentSig = (val: string) => setSignatures(prev => ({ ...prev, [sigSender]: val }));
 
   const saveSignature = async () => {
     setSavingSig(true);
@@ -118,7 +136,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/email-signature', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: signature }),
+        body: JSON.stringify({ sender: sigSender, value: currentSig }),
       });
       if (!res.ok) throw new Error();
       toast('✓ Signature enregistrée');
@@ -419,21 +437,77 @@ export default function SettingsPage() {
           {!templates.length && !showNewTemplate && <div style={{ fontSize: 13, color: '#94a3b8' }}>Aucun template. Créez-en un !</div>}
         </div>
 
-        {/* Signature email */}
+        {/* Signature email (par expéditeur) */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Signature email</div>
           <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>
-            Ajoutée automatiquement à la fin de tous les emails envoyés depuis le CRM.
+            Ajoutée automatiquement à la fin des emails, selon l&apos;expéditeur choisi à l&apos;envoi.
+            Chaque expéditeur peut avoir sa propre signature.
           </div>
-          <RichTextEditor
-            value={signature}
-            onChange={setSignature}
-            placeholder={"Cordialement,\nPrénom Nom\nSwipelink"}
-            minHeight={140}
-          />
+
+          {/* Sélecteur d'expéditeur + bascule Visuel / Code HTML */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ minWidth: 220 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Expéditeur</label>
+              <select style={{ ...inp, cursor: 'pointer' }} value={sigSender} onChange={e => setSigSender(e.target.value)}>
+                {EMAIL_SENDERS.map(s => <option key={s.email} value={s.email}>{s.label} — {s.email}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 3 }}>
+              {(['visual', 'html'] as const).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSigMode(m)}
+                  style={{
+                    border: 'none', cursor: 'pointer', padding: '6px 14px', borderRadius: 6,
+                    fontSize: 12, fontWeight: 600,
+                    background: sigMode === m ? '#fff' : 'transparent',
+                    color: sigMode === m ? '#4338ca' : '#64748b',
+                    boxShadow: sigMode === m ? '0 1px 2px rgba(15,23,42,.12)' : 'none',
+                  }}
+                >
+                  {m === 'visual' ? 'Éditeur visuel' : 'Code HTML'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {sigMode === 'visual' ? (
+            <RichTextEditor
+              value={currentSig}
+              onChange={setCurrentSig}
+              placeholder={"Cordialement,\nPrénom Nom\nSwipelink"}
+              minHeight={140}
+            />
+          ) : (
+            <>
+              <textarea
+                value={currentSig}
+                onChange={e => setCurrentSig(e.target.value)}
+                spellCheck={false}
+                placeholder={'<table><tr><td>…</td></tr></table>\nCollez ici votre signature HTML.'}
+                style={{
+                  ...inp, minHeight: 160, fontFamily: 'Courier New, monospace', fontSize: 12.5,
+                  lineHeight: 1.5, resize: 'vertical', whiteSpace: 'pre', overflowX: 'auto',
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 8px' }}>
+                Collez du HTML brut (balises, styles en ligne, images en URL absolue…). Il sera envoyé tel quel dans l&apos;email.
+              </div>
+              {/* Aperçu du rendu HTML */}
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>Aperçu</div>
+              <div style={{ border: '1px dashed #e2e8f0', borderRadius: 8, padding: 12, background: '#fff', minHeight: 40 }}>
+                {currentSig.trim()
+                  ? <div dangerouslySetInnerHTML={{ __html: currentSig }} />
+                  : <span style={{ fontSize: 12, color: '#cbd5e1' }}>L&apos;aperçu s&apos;affichera ici.</span>}
+              </div>
+            </>
+          )}
+
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button style={{ ...btnPri, opacity: savingSig ? 0.7 : 1, cursor: savingSig ? 'not-allowed' : 'pointer' }} onClick={saveSignature} disabled={savingSig}>
-              {savingSig ? '⟳ Enregistrement…' : 'Enregistrer la signature'}
+              {savingSig ? '⟳ Enregistrement…' : `Enregistrer la signature de ${EMAIL_SENDERS.find(s => s.email === sigSender)?.label ?? sigSender}`}
             </button>
           </div>
         </div>
