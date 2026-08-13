@@ -245,7 +245,9 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"DealMove\" ADD COLUMN IF NOT EXISTS \"movedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "CREATE INDEX IF NOT EXISTS \"DealMove_dealId_movedAt_idx\" ON \"DealMove\"(\"dealId\",\"movedAt\");",
   "CREATE INDEX IF NOT EXISTS \"DealMove_movedAt_idx\" ON \"DealMove\"(\"movedAt\");",
-  "CREATE INDEX IF NOT EXISTS \"DealMove_userId_movedAt_idx\" ON \"DealMove\"(\"userId\",\"movedAt\");"
+  "CREATE INDEX IF NOT EXISTS \"DealMove_userId_movedAt_idx\" ON \"DealMove\"(\"userId\",\"movedAt\");",
+  // Booking de démo : date d'entrée dans « DEMO PREVUE » (pipeline Closing).
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"demoBookedAt\" TIMESTAMP(3);"
 ];
 
 export async function GET(req: NextRequest) {
