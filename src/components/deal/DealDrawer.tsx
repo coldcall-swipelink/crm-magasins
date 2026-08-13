@@ -873,13 +873,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     | { kind: 'action'; date: number; data: any }
     | { kind: 'email'; date: number; data: EmailLog }
     | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
-    | { kind: 'move'; date: number; data: DealMove };
+    | { kind: 'move'; date: number; data: DealMove }
+    | { kind: 'demo'; date: number; data: { bookedAt: string; demoDate: string | null } };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
     ...emailLogs.map(l => ({ kind: 'email' as const, date: new Date(l.sentAt).getTime(), data: l })),
     ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
     ...((deal.moves ?? []) as DealMove[]).map(m => ({ kind: 'move' as const, date: new Date(m.movedAt).getTime(), data: m })),
+    // Booking de démo : dérivé de l'affaire elle-même (et non d'un événement
+    // stocké), si bien qu'un nouveau booking remplace naturellement l'ancien et
+    // que la ligne suit toujours la date de démo courante.
+    ...(deal.demoBookedAt
+      ? [{ kind: 'demo' as const, date: new Date(deal.demoBookedAt).getTime(), data: { bookedAt: deal.demoBookedAt, demoDate: deal.demoDate ?? null } }]
+      : []),
   ].sort((a, b) => b.date - a.date);
 
   const currentAssignedUser = deal.assignedUser as User | null;
@@ -1486,20 +1493,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
 
                     <div style={item.kind === 'offer' || item.kind === 'move'
                       ? { flex: 1, minWidth: 0, padding: '4px 2px', alignSelf: 'center' }
+                      : item.kind === 'demo'
+                      // Ligne festive : encadré ambré, volontairement plus visible
+                      // que les autres entrées du flux.
+                      ? { flex: 1, minWidth: 0, background: 'linear-gradient(90deg, #fffbeb, #fff)', border: '1px solid #fcd34d', borderRadius: 9, padding: '11px 13px' }
                       : { flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
+                      {item.kind === 'demo' && <DemoBookedItem booking={item.data as { bookedAt: string; demoDate: string | null }} />}
                     </div>
                   </div>
                 ))}
@@ -1650,6 +1662,27 @@ function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: str
       <p style={{ fontSize: 12, margin: 0, color: '#94a3b8' }}>
         Nouvelle offre créée : <span style={{ fontWeight: 600, color: '#64748b' }}>{offer.offerTitle || 'Offre'}</span>
         <span style={{ color: '#cbd5e1' }}> · {formatDate(offer.offerCreatedAt)}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Ligne festive du booking de démo : date d'entrée dans « DEMO PREVUE »
+ *  (Closing) et date de la démo elle-même. La date de démo affichée est celle
+ *  actuellement renseignée sur l'affaire : si elle est décalée, la ligne suit. */
+function DemoBookedItem({ booking }: { booking: { bookedAt: string; demoDate: string | null } }) {
+  const demo = booking.demoDate ? new Date(booking.demoDate) : null;
+  const demoValid = demo && !isNaN(demo.getTime());
+  const heure = demoValid
+    ? demo.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return (
+    <div>
+      <p style={{ fontSize: 13.5, margin: 0, fontWeight: 700, color: '#92400e' }}>
+        🎉 Démo bookée le {formatDate(booking.bookedAt)}
+        {demoValid
+          ? <> pour le <span style={{ color: '#b45309' }}>{formatDate(booking.demoDate)}{heure && heure !== '00:00' ? ` à ${heure}` : ''}</span></>
+          : <span style={{ fontWeight: 500, color: '#a16207' }}> — date de démo à renseigner</span>}
       </p>
     </div>
   );

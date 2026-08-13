@@ -96,7 +96,7 @@ function makeDeal(spec: DealSpec) {
     isNewFromLastImport: false, hasNewOfferFromLastImport: false, isPresentInLastImport: true,
     movedToCallAt: null, lastImportAt: null, directeur: '', contactCalling: spec.contact,
     dealEmail: '', contactPhone: spec.contact, contactCivilite: 'Monsieur', contactLastName: '',
-    dealValue: spec.dealValue ?? null, demoDate: null, candidateCallDate: null,
+    dealValue: spec.dealValue ?? null, demoDate: null, demoBookedAt: null, candidateCallDate: null,
     assignedUserId: spec.user?.id ?? null, assignedUser: spec.user ?? null, collaborator: null,
     // Regroupement d'affaires : parentDealId pointe vers le deal qui absorbe
     // celui-ci ; childDeals liste les sous-deals absorbés (rempli plus bas).
