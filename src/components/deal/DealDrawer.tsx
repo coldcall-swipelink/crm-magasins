@@ -5,6 +5,7 @@ import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } 
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
+import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
@@ -308,6 +309,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [actionForm, setAF] = useState<Partial<Action> | null>(null);
   // Formulaire email
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  // Adresse d'expéditeur choisie (parmi EMAIL_SENDERS, toutes @swipelink.fr).
+  const [emailFrom, setEmailFrom] = useState(DEFAULT_EMAIL_SENDER.email);
   const [emailTo, setEmailTo] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
@@ -579,7 +582,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     try {
       const res = await fetch('/api/emails', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, to: emailTo, subject: emailSubject, body: emailBody, attachments }),
+        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo, subject: emailSubject, body: emailBody, attachments }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       toast('✓ Email envoyé !');
@@ -651,6 +654,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             <option>Madame</option>
           </select>
         </div>
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Expéditeur</label>
+        <select style={inp} value={emailFrom} onChange={e => setEmailFrom(e.target.value)}>
+          {EMAIL_SENDERS.map(s => <option key={s.email} value={s.email}>{s.label} — {s.email}</option>)}
+        </select>
       </div>
       <div style={{ marginBottom: 10 }}>
         <label style={labelStyle}>Destinataire *</label>
