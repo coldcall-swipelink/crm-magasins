@@ -14,6 +14,7 @@ import { canonicalBrand, generateBrandColor, normalizeText } from '@/lib/utils';
 import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParser';
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
+import { recordDealMove } from '@/lib/dealMoves';
 
 /**
  * Crée la note d'une ligne CSV sur une affaire, avec déduplication.
@@ -376,6 +377,14 @@ export async function runCsvImport(
           movedToCallAt: new Date(),
         },
       });
+      // Retour automatique en « À appeler » : journalisé comme les
+      // déplacements manuels, sans auteur (mouvement machine).
+      await recordDealMove({
+        dealId,
+        fromColumnId: deal.columnId,
+        toColumnId: defaultColumn.id,
+        source: 'import',
+      });
       movedToCall++;
     }
   }
@@ -512,6 +521,13 @@ export async function runTargetedCsvImport(
               columnId:         column.id,
               position:         position++,
             },
+          });
+          // Déplacement demandé par l'import (onExisting = 'move').
+          await recordDealMove({
+            dealId: deal.id,
+            fromColumnId: deal.columnId,
+            toColumnId: column.id,
+            source: 'import',
           });
           movedDeals++;
         } else if (!brandCorrected) {

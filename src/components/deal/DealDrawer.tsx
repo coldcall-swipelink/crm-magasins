@@ -54,6 +54,13 @@ interface Collaborator { id: string; name: string; color: string; email: string;
 interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
 interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
+/** Un changement d'étape journalisé (table DealMove). */
+interface DealMove {
+  id: string;
+  fromColumnTitle: string; fromPipelineName: string;
+  toColumnTitle: string;   toPipelineName: string;
+  userName: string; source: string; movedAt: string;
+}
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; onNavigate?: (dealId: string) => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
@@ -534,7 +541,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     // Mise à jour optimiste : la frise (et le pipeline) reflètent le changement immédiatement.
     setDeal((d: any) => ({ ...d, columnId, pipelineId: targetCol?.pipelineId ?? d.pipelineId, column: targetCol || d.column }));
     try {
-      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId }) });
+      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId, userId: currentUser?.id || null, userName: currentUser?.name || '', source: 'fiche' }) });
       if (!res.ok) throw new Error();
       const data = await res.json().catch(() => null);
       // Persistance réelle : on recharge depuis le serveur. En mode démo (data.demo),
@@ -865,12 +872,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     | { kind: 'note'; date: number; data: Note }
     | { kind: 'action'; date: number; data: any }
     | { kind: 'email'; date: number; data: EmailLog }
-    | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } };
+    | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
+    | { kind: 'move'; date: number; data: DealMove };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
     ...emailLogs.map(l => ({ kind: 'email' as const, date: new Date(l.sentAt).getTime(), data: l })),
     ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
+    ...((deal.moves ?? []) as DealMove[]).map(m => ({ kind: 'move' as const, date: new Date(m.movedAt).getTime(), data: m })),
   ].sort((a, b) => b.date - a.date);
 
   const currentAssignedUser = deal.assignedUser as User | null;
@@ -1477,19 +1486,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
 
-                    <div style={item.kind === 'offer'
+                    <div style={item.kind === 'offer' || item.kind === 'move'
                       ? { flex: 1, minWidth: 0, padding: '4px 2px', alignSelf: 'center' }
                       : { flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
+                      {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
                     </div>
                   </div>
                 ))}
@@ -1640,6 +1650,28 @@ function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: str
       <p style={{ fontSize: 12, margin: 0, color: '#94a3b8' }}>
         Nouvelle offre créée : <span style={{ fontWeight: 600, color: '#64748b' }}>{offer.offerTitle || 'Offre'}</span>
         <span style={{ color: '#cbd5e1' }}> · {formatDate(offer.offerCreatedAt)}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Un changement d'étape dans le flux d'activité. Le pipeline n'est précisé que
+ *  s'il a lui aussi changé (sinon la ligne devient illisible pour un simple
+ *  passage d'étape au sein du même pipeline). */
+function MoveItem({ move }: { move: DealMove }) {
+  const crossPipeline = !!move.fromPipelineName && !!move.toPipelineName
+    && move.fromPipelineName !== move.toPipelineName;
+  const label = (col: string, pipe: string) =>
+    crossPipeline && pipe ? `${pipe} › ${col || '—'}` : (col || '—');
+  const author = move.source === 'import'
+    ? 'import automatique'
+    : (move.userName || 'utilisateur inconnu');
+  return (
+    <div>
+      <p style={{ fontSize: 12, margin: 0, color: '#94a3b8' }}>
+        Déplacée de <span style={{ fontWeight: 600, color: '#64748b' }}>{label(move.fromColumnTitle, move.fromPipelineName)}</span>
+        {' '}vers <span style={{ fontWeight: 600, color: '#64748b' }}>{label(move.toColumnTitle, move.toPipelineName)}</span>
+        <span style={{ color: '#cbd5e1' }}> · {author} · {formatDate(move.movedAt)}</span>
       </p>
     </div>
   );

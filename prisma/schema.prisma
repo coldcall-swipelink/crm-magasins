@@ -83,6 +83,7 @@ model User {
   assignedActions Action[]
   authoredNotes   Note[]
   callLogs        CallLog[]
+  dealMoves       DealMove[]
 }
 
 model Pipeline {
@@ -190,6 +191,7 @@ model Deal {
   emailLogs                 EmailLog[]
   candidateCalls            CandidateCall[]
   callLogs                  CallLog[]
+  moves                     DealMove[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
@@ -349,6 +351,42 @@ model CandidateCall {
   updatedAt   DateTime @updatedAt
 
   @@unique([dealId, candidateId])
+}
+
+// Journal des déplacements d'affaires : une ligne à CHAQUE changement d'étape,
+// qu'il vienne du drag & drop du pipeline, du sélecteur d'étape de la fiche ou
+// d'un import automatique. Conserve le couple pipeline + colonne au départ ET à
+// l'arrivée (un changement de pipeline est un déplacement comme un autre), plus
+// l'auteur du mouvement.
+//
+// Les colonnes et pipelines sont référencés par id BRUT, sans clé étrangère, et
+// doublés de leur nom figé au moment du déplacement : une étape renommée ou
+// supprimée ne doit pas réécrire ni effacer l'historique.
+model DealMove {
+  id               String   @id @default(cuid())
+  dealId           String
+  deal             Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  fromColumnId     String?
+  fromColumnTitle  String   @default("")
+  fromPipelineId   String?
+  fromPipelineName String   @default("")
+  toColumnId       String?
+  toColumnTitle    String   @default("")
+  toPipelineId     String?
+  toPipelineName   String   @default("")
+  // Auteur du déplacement. Null pour les mouvements automatiques (import).
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName         String   @default("")
+  // Origine : "pipeline" (drag & drop), "fiche" (sélecteur d'étape de la fiche
+  // affaire) ou "import" (retour automatique en « À appeler », déplacement
+  // demandé lors d'un import CSV).
+  source           String   @default("pipeline")
+  movedAt          DateTime @default(now())
+
+  @@index([dealId, movedAt])
+  @@index([movedAt])
+  @@index([userId, movedAt])
 }
 
 // Compteur d'appels : une ligne est créée à CHAQUE clic sur « Afficher le

@@ -7,6 +7,7 @@ import {
   provisionSmartlinkeSupportRecruiter,
 } from '@/lib/supabaseProvisioning';
 import { setPrimaryClosingDate } from '@/lib/subscriptions';
+import { recordDealMove } from '@/lib/dealMoves';
 
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
@@ -21,10 +22,16 @@ function isSmartlinkColumn(title?: string | null): boolean {
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position, pvChoice, closingDate } = await req.json();
+    const { columnId, position, pvChoice, closingDate, userId, userName, source } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
+
+    // Étape quittée : relevée AVANT la mise à jour, sinon elle est perdue.
+    const before = await prisma.deal.findUnique({
+      where: { id: params.id },
+      select: { columnId: true },
+    });
 
     const deal = await prisma.deal.update({
       where: { id: params.id },
@@ -45,6 +52,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         collaborator: true,
         jobOffers: true,
       },
+    });
+
+    // Journal des déplacements (pipeline + colonne de départ et d'arrivée,
+    // auteur). Best-effort : n'interrompt jamais le déplacement.
+    await recordDealMove({
+      dealId: params.id,
+      fromColumnId: before?.columnId ?? null,
+      toColumnId: columnId,
+      userId: userId ?? null,
+      userName: userName ?? '',
+      source: source === 'fiche' ? 'fiche' : 'pipeline',
     });
 
     // Date de closing demandée au passage en « SMARTLINKÉ » : on la pose sur

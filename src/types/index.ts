@@ -117,6 +117,25 @@ export interface Subscription {
   subscriptionEndDate: string | null;
 }
 
+// Un changement d'étape journalisé (table DealMove). Colonnes ET pipelines de
+// départ / arrivée, avec leurs noms figés au moment du déplacement.
+export interface DealMove {
+  id:               string;
+  dealId:           string;
+  fromColumnId:     string | null;
+  fromColumnTitle:  string;
+  fromPipelineId:   string | null;
+  fromPipelineName: string;
+  toColumnId:       string | null;
+  toColumnTitle:    string;
+  toPipelineId:     string | null;
+  toPipelineName:   string;
+  userId:           string | null;
+  userName:         string;
+  source:           'pipeline' | 'fiche' | 'import';
+  movedAt:          string;
+}
+
 export interface Deal {
   id:                       string;
   storeId:                  string;
@@ -159,6 +178,7 @@ export interface Deal {
   jobOffers:                JobOffer[];
   actions:                  Action[];
   notes:                    Note[];
+  moves?:                   DealMove[];
   _count?: {
     jobOffers: number;
     actions:   number;
