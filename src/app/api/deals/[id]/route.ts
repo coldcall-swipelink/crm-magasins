@@ -6,6 +6,7 @@ import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
 import { recordDealMove } from '@/lib/dealMoves';
+import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -213,6 +214,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         notes: { orderBy: { createdAt: 'desc' } },
       },
     });
+
+    // Entrée dans « DEMO PREVUE » (Closing) → horodatage du booking de démo.
+    if (body.columnId) {
+      await markDemoBookedIfNeeded(params.id, body.columnId);
+    }
 
     // Journal des déplacements (cf. /api/deals/[id]/move pour le drag & drop).
     if (body.columnId) {

@@ -8,6 +8,7 @@ import {
 } from '@/lib/supabaseProvisioning';
 import { setPrimaryClosingDate } from '@/lib/subscriptions';
 import { recordDealMove } from '@/lib/dealMoves';
+import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
@@ -64,6 +65,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       userName: userName ?? '',
       source: source === 'fiche' ? 'fiche' : 'pipeline',
     });
+
+    // Entrée dans « DEMO PREVUE » (Closing) → horodatage du booking de démo.
+    // Une nouvelle entrée écrase le booking précédent.
+    await markDemoBookedIfNeeded(params.id, columnId);
 
     // Date de closing demandée au passage en « SMARTLINKÉ » : on la pose sur
     // l'abonnement principal (créé si besoin) puis on dénormalise sur le deal.

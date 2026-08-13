@@ -164,6 +164,9 @@ export interface Deal {
   contactLastName?:         string;
   dealValue?:               number | null;
   demoDate?:                string | null;
+  // Date d'entrée dans « DEMO PREVUE » (Closing) = date de booking de la démo.
+  // Écrasée à chaque nouvelle entrée dans cette colonne.
+  demoBookedAt?:            string | null;
   candidateCallDate?:       string | null;
   closingDate?:             string | null;
   subscriptionType?:        string;

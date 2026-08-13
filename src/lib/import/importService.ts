@@ -15,6 +15,7 @@ import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParse
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
 import { recordDealMove } from '@/lib/dealMoves';
+import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
 /**
  * Crée la note d'une ligne CSV sur une affaire, avec déduplication.
@@ -529,6 +530,9 @@ export async function runTargetedCsvImport(
             toColumnId: column.id,
             source: 'import',
           });
+          // Même règle que pour un déplacement manuel : une arrivée dans
+          // « DEMO PREVUE » (Closing) horodate le booking de démo.
+          await markDemoBookedIfNeeded(deal.id, column.id);
           movedDeals++;
         } else if (!brandCorrected) {
           skippedExisting++;

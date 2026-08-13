@@ -152,6 +152,11 @@ model Deal {
   contactPhone              String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
+  // Date à laquelle la démo a été « bookée » = date d'entrée de l'affaire dans
+  // la colonne « DEMO PREVUE » du pipeline Closing. Ne pas confondre avec
+  // demoDate, qui est la date de la démo elle-même. Une nouvelle entrée dans
+  // cette colonne écrase la précédente (le dernier booking fait foi).
+  demoBookedAt              DateTime?
   candidateCallDate         DateTime?
   // Date de closing : renseignée à l'entrée dans l'étape « SMARTLINKÉ »
   // (demandée au drag & drop) et modifiable depuis l'onglet « Abonnement ».
