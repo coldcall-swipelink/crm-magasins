@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import AiChat from '@/components/dashboard/AiChat';
-import CallStats from '@/components/dashboard/CallStats';
 import { formatCurrency, formatDate, exportClosingsToCsv } from '@/lib/utils';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -434,13 +433,6 @@ export default function DashboardPage() {
           <Kpi label="ARR cumulé" value={formatCurrency(arrAllTime) || '0 €'} sub="MRR cumulé × 12" small />
           <Kpi label="Lifetime Value" value={formatCurrency(ltvAllTime) || '0 €'} sub={`${formatCurrency(arpuAllTime) || '0 €'}/client × ${avgDurationAllTime.toFixed(0)} mois`} small />
           <Kpi label="Panier moyen global" value={formatCurrency(clientsAllTime ? mrrAllTime / clientsAllTime : 0) || '0 €'} sub="sur tout l'historique" small />
-        </div>
-
-        {/* Appels passés (clics sur « Afficher le numéro »). Période propre au
-            bloc : le suivi des appels se raisonne en semaines glissantes, pas
-            sur les périodes calendaires du closing ci-dessus. */}
-        <div style={{ marginBottom: 16 }}>
-          <CallStats />
         </div>
 
         {/* Graphique principal : évolution MRR + clients */}
