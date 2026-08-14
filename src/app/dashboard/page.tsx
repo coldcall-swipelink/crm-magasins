@@ -125,6 +125,70 @@ function pctDelta(cur: number, prev: number): number | null {
   return ((cur - prev) / prev) * 100;
 }
 
+/** Médiane d'une série (moyenne des deux valeurs centrales si effectif pair).
+ *  Null si la série est vide. Préférée à la moyenne pour le cycle de vente :
+ *  un deal traîné pendant un an ne doit pas tirer l'indicateur à lui seul. */
+function median(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+/**
+ * Durées « démo → closing » en jours, une par CLIENT (deal) closé sur la
+ * période. Un client ayant plusieurs abonnements ne compte qu'une fois, via son
+ * premier closing : un 2e abonnement vendu des mois plus tard n'est pas un
+ * cycle de vente plus long, c'est une vente additionnelle.
+ *
+ * Sont écartés : les deals sans date de démo (pas de point de départ) et les
+ * closings antérieurs à leur démo (saisie incohérente).
+ */
+function salesCycleDurations(lines: Closing[], demoAtByDeal: Map<string, number>): number[] {
+  const firstClosingAt = new Map<string, number>();
+  for (const l of lines) {
+    if (!l.dealId) continue;
+    const t = new Date(l.closingDate).getTime();
+    if (isNaN(t)) continue;
+    const known = firstClosingAt.get(l.dealId);
+    if (known === undefined || t < known) firstClosingAt.set(l.dealId, t);
+  }
+  const durations: number[] = [];
+  firstClosingAt.forEach((closedAt, dealId) => {
+    const demoAt = demoAtByDeal.get(dealId);
+    if (demoAt === undefined) return;
+    const days = (closedAt - demoAt) / 86400000;
+    if (days >= 0) durations.push(days);
+  });
+  return durations;
+}
+
+/**
+ * Met une durée en jours à l'échelle la plus lisible :
+ *   < 7 j    → jours              (« 5 j »)
+ *   7 → 31 j → semaines + jours   (« 2 sem 3 j »)
+ *   > 31 j   → mois + sem + jours (« 1 mois 2 sem 3 j »)
+ * Un mois vaut 30 jours (repère commercial, pas un calcul calendaire). Les
+ * composantes nulles sont omises (« 2 sem » plutôt que « 2 sem 0 j »).
+ */
+function formatDuration(days: number): string {
+  const total = Math.max(0, Math.round(days));
+  if (total < 7) return `${total} j`;
+  if (total <= 31) {
+    const weeks = Math.floor(total / 7);
+    const rest = total % 7;
+    return rest ? `${weeks} sem ${rest} j` : `${weeks} sem`;
+  }
+  const months = Math.floor(total / 30);
+  const afterMonths = total - months * 30;
+  const weeks = Math.floor(afterMonths / 7);
+  const rest = afterMonths % 7;
+  const parts = [`${months} mois`];
+  if (weeks) parts.push(`${weeks} sem`);
+  if (rest) parts.push(`${rest} j`);
+  return parts.join(' ');
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -194,6 +258,22 @@ export default function DashboardPage() {
   // Taux (%) ; null si aucune démo sur la période (pas de base de calcul).
   const closingRate = demoCount > 0 ? (clients / demoCount) * 100 : null;
   const closingRatePrev = demoCountPrev > 0 ? (clientsPrev / demoCountPrev) * 100 : null;
+
+  // ----- Cycle de vente médian = nb de jours entre la démo et le closing ------
+  // La date de démo vient du deal (une par affaire), la date de closing de
+  // l'abonnement. On mesure sur les clients closés pendant la période, donc le
+  // KPI suit le même filtre période + enseigne que les autres.
+  const demoAtByDeal = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of data?.demos ?? []) {
+      const t = new Date(d.demoDate).getTime();
+      if (!isNaN(t)) m.set(d.dealId, t);
+    }
+    return m;
+  }, [data]);
+  const cycleDurations = salesCycleDurations(current, demoAtByDeal);
+  const cycleDays = median(cycleDurations);
+  const cycleDaysPrev = median(salesCycleDurations(previous, demoAtByDeal));
 
   // ----- Taux de churn = clients perdus ÷ base clients (sur la période) -------
   // Clients perdus = clients (deals) distincts ayant résilié PENDANT la période
@@ -406,8 +486,8 @@ export default function DashboardPage() {
           <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
         </div>
 
-        {/* Ligne 2 — Taux */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+        {/* Ligne 2 — Taux & cycle de vente */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi
             label="Taux de closing"
             value={closingRate === null ? '—' : `${closingRate.toFixed(0)} %`}
@@ -424,6 +504,17 @@ export default function DashboardPage() {
             invertDelta
           />
           <Kpi label="Part Stripe" value={`${stripeShare.toFixed(0)} %`} sub={`${stripeCount}/${clients || 0} en Stripe`} />
+          <Kpi
+            label="Cycle de vente médian"
+            value={cycleDays === null ? '—' : formatDuration(cycleDays)}
+            delta={cycleDays !== null && cycleDaysPrev !== null ? pctDelta(cycleDays, cycleDaysPrev) : undefined}
+            prev={range.prevLabel && cycleDaysPrev !== null ? formatDuration(cycleDaysPrev) : null}
+            sub={cycleDays === null
+              ? 'aucune démo datée sur la période'
+              : `démo → closing · ${cycleDurations.length} client${cycleDurations.length > 1 ? 's' : ''}`}
+            // Un cycle qui raccourcit est une bonne nouvelle.
+            invertDelta
+          />
         </div>
 
         {/* Ligne 3 — Autres KPIs (ARR & cumuls tout temps) */}
