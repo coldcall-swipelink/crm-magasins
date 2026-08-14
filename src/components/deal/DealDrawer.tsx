@@ -61,6 +61,15 @@ interface DealMove {
   toColumnTitle: string;   toPipelineName: string;
   userName: string; source: string; movedAt: string;
 }
+/** Une démo bookée (table DemoBooking) : une ligne par passage dans « DEMO
+ *  PREVUE » (Closing). Un rebooking en ajoute une, sans écraser la précédente. */
+interface DemoBooking {
+  id: string;
+  userName: string;
+  bookedAt: string;
+  demoDate: string | null;
+  noShow: boolean;
+}
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; onNavigate?: (dealId: string) => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
@@ -517,6 +526,28 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     }
   };
 
+  // ---- Démos bookées (case NO SHOW) ----------------------------------------
+  // Mise à jour optimiste : la case bascule tout de suite, on repart de l'état
+  // précédent si le serveur refuse.
+  const toggleNoShow = async (bookingId: string, noShow: boolean) => {
+    const apply = (v: boolean) => setDeal((d: any) => d && ({
+      ...d,
+      demoBookings: (d.demoBookings ?? []).map((b: DemoBooking) => b.id === bookingId ? { ...b, noShow: v } : b),
+    }));
+    apply(noShow);
+    try {
+      const res = await fetch(`/api/demo-bookings/${bookingId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noShow }),
+      });
+      if (!res.ok) throw new Error();
+      toast(noShow ? 'Démo marquée NO SHOW' : 'NO SHOW retiré');
+    } catch {
+      apply(!noShow);
+      toast('Impossible de mettre à jour le NO SHOW', 'error');
+    }
+  };
+
   // ---- Abonnements ---------------------------------------------------------
   const patchSub = async (id: string, data: Record<string, unknown>) => {
     const res = await fetch(`/api/subscriptions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -874,19 +905,16 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     | { kind: 'email'; date: number; data: EmailLog }
     | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
     | { kind: 'move'; date: number; data: DealMove }
-    | { kind: 'demo'; date: number; data: { bookedAt: string; demoDate: string | null } };
+    | { kind: 'demo'; date: number; data: DemoBooking };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
     ...emailLogs.map(l => ({ kind: 'email' as const, date: new Date(l.sentAt).getTime(), data: l })),
     ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
     ...((deal.moves ?? []) as DealMove[]).map(m => ({ kind: 'move' as const, date: new Date(m.movedAt).getTime(), data: m })),
-    // Booking de démo : dérivé de l'affaire elle-même (et non d'un événement
-    // stocké), si bien qu'un nouveau booking remplace naturellement l'ancien et
-    // que la ligne suit toujours la date de démo courante.
-    ...(deal.demoBookedAt
-      ? [{ kind: 'demo' as const, date: new Date(deal.demoBookedAt).getTime(), data: { bookedAt: deal.demoBookedAt, demoDate: deal.demoDate ?? null } }]
-      : []),
+    // Démos bookées : une entrée par ligne DemoBooking, donc un rebooking
+    // s'ajoute au flux au lieu de remplacer le booking précédent.
+    ...((deal.demoBookings ?? []) as DemoBooking[]).map(b => ({ kind: 'demo' as const, date: new Date(b.bookedAt).getTime(), data: b })),
   ].sort((a, b) => b.date - a.date);
 
   const currentAssignedUser = deal.assignedUser as User | null;
@@ -1511,7 +1539,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
-                      {item.kind === 'demo' && <DemoBookedItem booking={item.data as { bookedAt: string; demoDate: string | null }} />}
+                      {item.kind === 'demo' && <DemoBookedItem booking={item.data as DemoBooking} onToggleNoShow={toggleNoShow} />}
                     </div>
                   </div>
                 ))}
@@ -1667,23 +1695,51 @@ function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: str
   );
 }
 
-/** Ligne festive du booking de démo : date d'entrée dans « DEMO PREVUE »
- *  (Closing) et date de la démo elle-même. La date de démo affichée est celle
- *  actuellement renseignée sur l'affaire : si elle est décalée, la ligne suit. */
-function DemoBookedItem({ booking }: { booking: { bookedAt: string; demoDate: string | null } }) {
+/** Ligne festive d'une démo bookée (une ligne DemoBooking) : qui a booké, quand,
+ *  pour quelle date de démo, et la case NO SHOW si le contact n'est pas venu.
+ *  Chaque rebooking a sa propre ligne : le no-show se coche démo par démo. */
+function DemoBookedItem({ booking, onToggleNoShow }: {
+  booking: DemoBooking;
+  onToggleNoShow: (bookingId: string, noShow: boolean) => void;
+}) {
   const demo = booking.demoDate ? new Date(booking.demoDate) : null;
   const demoValid = demo && !isNaN(demo.getTime());
   const heure = demoValid
     ? demo.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
     : '';
   return (
-    <div>
-      <p style={{ fontSize: 13.5, margin: 0, fontWeight: 700, color: '#92400e' }}>
-        🎉 Démo bookée le {formatDate(booking.bookedAt)}
-        {demoValid
-          ? <> pour le <span style={{ color: '#b45309' }}>{formatDate(booking.demoDate)}{heure && heure !== '00:00' ? ` à ${heure}` : ''}</span></>
-          : <span style={{ fontWeight: 500, color: '#a16207' }}> — date de démo à renseigner</span>}
-      </p>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13.5, margin: 0, fontWeight: 700, color: booking.noShow ? '#9f1239' : '#92400e' }}>
+          {booking.noShow ? '🚫' : '🎉'} Démo bookée le {formatDate(booking.bookedAt)}
+          {demoValid
+            ? <> pour le <span style={{ color: booking.noShow ? '#be123c' : '#b45309' }}>{formatDate(booking.demoDate)}{heure && heure !== '00:00' ? ` à ${heure}` : ''}</span></>
+            : <span style={{ fontWeight: 500, color: '#a16207' }}> — date de démo à renseigner</span>}
+        </p>
+        <p style={{ fontSize: 11.5, margin: '4px 0 0', color: '#a16207' }}>
+          Bookée par <span style={{ fontWeight: 600 }}>{booking.userName || 'utilisateur inconnu'}</span>
+          {booking.noShow && <span style={{ color: '#be123c', fontWeight: 700 }}> · NO SHOW</span>}
+        </p>
+      </div>
+      <label
+        title="Le contact n'est pas venu à cette démo"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, cursor: 'pointer', userSelect: 'none',
+          fontSize: 10.5, fontWeight: 800, letterSpacing: '.4px',
+          color: booking.noShow ? '#be123c' : '#a16207',
+          background: booking.noShow ? '#ffe4e6' : '#fff',
+          border: `1px solid ${booking.noShow ? '#fda4af' : '#fcd34d'}`,
+          borderRadius: 7, padding: '5px 9px',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={booking.noShow}
+          onChange={e => onToggleNoShow(booking.id, e.target.checked)}
+          style={{ width: 14, height: 14, accentColor: '#e11d48', cursor: 'pointer', margin: 0 }}
+        />
+        NO SHOW
+      </label>
     </div>
   );
 }

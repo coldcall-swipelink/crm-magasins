@@ -66,9 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: source === 'fiche' ? 'fiche' : 'pipeline',
     });
 
-    // Entrée dans « DEMO PREVUE » (Closing) → horodatage du booking de démo.
-    // Une nouvelle entrée écrase le booking précédent.
-    await markDemoBookedIfNeeded(params.id, columnId);
+    // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus
+    // (un rebooking s'ajoute à l'historique, il n'écrase rien).
+    await markDemoBookedIfNeeded(params.id, columnId, { userId, userName });
 
     // Date de closing demandée au passage en « SMARTLINKÉ » : on la pose sur
     // l'abonnement principal (créé si besoin) puis on dénormalise sur le deal.
