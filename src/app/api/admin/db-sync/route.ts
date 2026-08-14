@@ -246,8 +246,23 @@ const STATEMENTS: string[] = [
   "CREATE INDEX IF NOT EXISTS \"DealMove_dealId_movedAt_idx\" ON \"DealMove\"(\"dealId\",\"movedAt\");",
   "CREATE INDEX IF NOT EXISTS \"DealMove_movedAt_idx\" ON \"DealMove\"(\"movedAt\");",
   "CREATE INDEX IF NOT EXISTS \"DealMove_userId_movedAt_idx\" ON \"DealMove\"(\"userId\",\"movedAt\");",
-  // Booking de démo : date d'entrée dans « DEMO PREVUE » (pipeline Closing).
-  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"demoBookedAt\" TIMESTAMP(3);"
+  // Booking de démo : miroir de la date du dernier booking sur l'affaire…
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"demoBookedAt\" TIMESTAMP(3);",
+  // …et historique complet (une ligne par passage dans « DEMO PREVUE » du
+  // pipeline Closing, rebookings compris) avec sa case NO SHOW.
+  "CREATE TABLE IF NOT EXISTS \"DemoBooking\" (\"id\" TEXT NOT NULL, CONSTRAINT \"DemoBooking_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"userId\" TEXT;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"userName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"bookedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"demoDate\" TIMESTAMP(3);",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"noShow\" BOOLEAN NOT NULL DEFAULT false;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"DemoBooking_dealId_bookedAt_idx\" ON \"DemoBooking\"(\"dealId\",\"bookedAt\");",
+  "CREATE INDEX IF NOT EXISTS \"DemoBooking_bookedAt_idx\" ON \"DemoBooking\"(\"bookedAt\");",
+  "CREATE INDEX IF NOT EXISTS \"DemoBooking_userId_bookedAt_idx\" ON \"DemoBooking\"(\"userId\",\"bookedAt\");"
 ];
 
 export async function GET(req: NextRequest) {

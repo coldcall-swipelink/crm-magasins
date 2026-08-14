@@ -6,7 +6,7 @@ import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
 import { recordDealMove } from '@/lib/dealMoves';
-import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
+import { markDemoBookedIfNeeded, syncLatestDemoBookingDate } from '@/lib/demoBooking';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -38,6 +38,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         // Historique des changements d'étape, pour le flux d'activité de la
         // fiche. Borné : au-delà, l'historique complet se lit en base.
         moves: { orderBy: { movedAt: 'desc' }, take: 100 },
+        // Démos bookées : une ligne par passage dans « DEMO PREVUE » (Closing),
+        // rebookings compris. Alimente le flux d'activité et sa case NO SHOW.
+        demoBookings: { orderBy: { bookedAt: 'desc' }, take: 100 },
         // Regroupement d'affaires : le deal parent (s'il est lui-même absorbé)
         // et les sous-deals qu'il absorbe (autres magasins du groupe).
         parentDeal: { include: { store: { include: { brand: true } } } },
@@ -215,9 +218,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
 
-    // Entrée dans « DEMO PREVUE » (Closing) → horodatage du booking de démo.
+    // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus.
     if (body.columnId) {
-      await markDemoBookedIfNeeded(params.id, body.columnId);
+      await markDemoBookedIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName });
+    }
+
+    // Date de démo saisie / modifiée sur la fiche → on la reporte sur le
+    // booking le plus récent (elle est presque toujours renseignée après le
+    // déplacement dans « DEMO PREVUE »).
+    if ('demoDate' in body) {
+      await syncLatestDemoBookingDate(params.id, body.demoDate ? new Date(body.demoDate) : null);
     }
 
     // Journal des déplacements (cf. /api/deals/[id]/move pour le drag & drop).

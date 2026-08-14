@@ -136,6 +136,18 @@ export interface DealMove {
   movedAt:          string;
 }
 
+// Une démo bookée (table DemoBooking) : une ligne par passage de l'affaire dans
+// « DEMO PREVUE » (pipeline Closing). Un rebooking ajoute une ligne.
+export interface DemoBooking {
+  id:       string;
+  dealId:   string;
+  userId:   string | null;
+  userName: string;
+  bookedAt: string;
+  demoDate: string | null;
+  noShow:   boolean;
+}
+
 export interface Deal {
   id:                       string;
   storeId:                  string;
@@ -164,8 +176,8 @@ export interface Deal {
   contactLastName?:         string;
   dealValue?:               number | null;
   demoDate?:                string | null;
-  // Date d'entrée dans « DEMO PREVUE » (Closing) = date de booking de la démo.
-  // Écrasée à chaque nouvelle entrée dans cette colonne.
+  // Date du dernier booking de démo (miroir de la ligne DemoBooking la plus
+  // récente). L'historique complet est dans demoBookings.
   demoBookedAt?:            string | null;
   candidateCallDate?:       string | null;
   closingDate?:             string | null;
@@ -182,6 +194,7 @@ export interface Deal {
   actions:                  Action[];
   notes:                    Note[];
   moves?:                   DealMove[];
+  demoBookings?:            DemoBooking[];
   _count?: {
     jobOffers: number;
     actions:   number;

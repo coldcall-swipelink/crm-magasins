@@ -84,6 +84,7 @@ model User {
   authoredNotes   Note[]
   callLogs        CallLog[]
   dealMoves       DealMove[]
+  demoBookings    DemoBooking[]
 }
 
 model Pipeline {
@@ -152,10 +153,10 @@ model Deal {
   contactPhone              String   @default("")
   dealValue                 Float?
   demoDate                  DateTime?
-  // Date à laquelle la démo a été « bookée » = date d'entrée de l'affaire dans
-  // la colonne « DEMO PREVUE » du pipeline Closing. Ne pas confondre avec
-  // demoDate, qui est la date de la démo elle-même. Une nouvelle entrée dans
-  // cette colonne écrase la précédente (le dernier booking fait foi).
+  // Date du DERNIER booking de démo (dernière entrée dans « DEMO PREVUE » du
+  // pipeline Closing). Simple miroir dénormalisé de la ligne DemoBooking la
+  // plus récente, conservé pour les lectures rapides ; l'historique complet
+  // (un rebooking = une ligne de plus) vit dans DemoBooking.
   demoBookedAt              DateTime?
   candidateCallDate         DateTime?
   // Date de closing : renseignée à l'entrée dans l'étape « SMARTLINKÉ »
@@ -197,6 +198,7 @@ model Deal {
   candidateCalls            CandidateCall[]
   callLogs                  CallLog[]
   moves                     DealMove[]
+  demoBookings              DemoBooking[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
@@ -392,6 +394,39 @@ model DealMove {
   @@index([dealId, movedAt])
   @@index([movedAt])
   @@index([userId, movedAt])
+}
+
+// Historique des démos bookées : une ligne est créée à CHAQUE passage d'une
+// affaire dans la colonne « DEMO PREVUE » du pipeline Closing. Même principe
+// que le compteur d'appels (CallLog) : on ajoute, on n'écrase jamais — un
+// rebooking crée une NOUVELLE ligne à côté de la précédente, ce qui permet de
+// compter les démos bookées par utilisateur sur une période et de garder la
+// trace des démos qui ont fini en no-show.
+model DemoBooking {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  // Auteur du booking = utilisateur qui a déplacé l'affaire dans la colonne.
+  // Null pour un déplacement automatique ou un compte supprimé depuis.
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Nom figé à l'enregistrement : la statistique reste lisible même si le
+  // compte est renommé ou supprimé.
+  userName  String   @default("")
+  // Date à laquelle la démo a été bookée (= entrée dans la colonne).
+  bookedAt  DateTime @default(now())
+  // Date de la démo elle-même. Photographiée à la création puis maintenue à
+  // jour tant que la ligne est le booking le plus récent de l'affaire (la date
+  // est souvent renseignée sur la fiche juste après le déplacement).
+  demoDate  DateTime?
+  // Case « NO SHOW » de la fiche affaire : le contact n'est pas venu.
+  noShow    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealId, bookedAt])
+  @@index([bookedAt])
+  @@index([userId, bookedAt])
 }
 
 // Compteur d'appels : une ligne est créée à CHAQUE clic sur « Afficher le
