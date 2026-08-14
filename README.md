@@ -172,6 +172,63 @@ Le séparateur est auto-détecté (virgule ou point-virgule).
 - **Filtres** : nouvelles affaires, nouvelles offres, recherche texte
 - **Badges** : ✦ Nouvelle · ⟳ Rappelée · ⚠ Absente
 
+### Numéros de téléphone des magasins (recherche automatique)
+
+Le champ **N° de Téléphone** d'une affaire peut être rempli automatiquement,
+sans aller chercher le numéro à la main sur Google ou sur le site de l'enseigne.
+
+**Comment ça marche** — une cascade, du gratuit vers le payant :
+
+| Étape | Source | Coût | Couverture |
+|---|---|---|---|
+| 1 | Numéro déjà connu (import, saisie) | — | — |
+| 2 | **OpenStreetMap** (API Overpass) | gratuit, sans clé | les grandes enseignes y sont largement cartographiées |
+| 3 | **Google Places** (fiche de l'établissement) | payant, facultatif | le reliquat, c'est-à-dire les magasins non résolus à l'étape 2 |
+
+L'étape 2 traite les magasins **par enseigne et par département** : une seule
+requête OpenStreetMap sert des dizaines de magasins. L'étape 3, la seule qui
+coûte de l'argent, n'est déclenchée que sur ce que l'étape 2 n'a pas résolu.
+
+**Le bon numéro, pas juste un numéro** — chaque candidat est noté sur des
+indices vérifiables (enseigne présente dans le nom, code postal identique,
+ville identique, distance au magasin géocodé, adresse concordante). Selon la
+note :
+
+- **note élevée** → le numéro est enregistré tout seul ;
+- **note moyenne** → il part dans une file de vérification où un clic suffit à
+  valider ou écarter (avec le lien vers la fiche d'origine pour trancher d'un
+  coup d'œil) ;
+- **aucun candidat** → le magasin est marqué non résolu et peut être relancé
+  plus tard (par exemple après avoir activé Google).
+
+Un numéro déjà saisi à la main n'est **jamais** écrasé.
+
+**Où piloter**
+
+- **Paramètres → « Numéros de téléphone des magasins »** : lancer la campagne
+  sur toute la base, suivre l'avancement en direct, traiter la file de
+  vérification.
+- **Fiche affaire → bouton « 🔍 Trouver le numéro »** : recherche à l'unité,
+  quasi instantanée, quand un magasin isolé n'a pas de numéro.
+- **Ligne de commande** (recommandé pour le tout premier passage sur une grosse
+  base, car sans limite de temps d'exécution) :
+
+```bash
+npm run phones:lookup                          # état des lieux, sans rien modifier
+npm run phones:lookup -- --run                 # lance la campagne
+npm run phones:lookup -- --run --no-google     # sources gratuites uniquement
+npm run phones:lookup -- --run --scope echecs  # relance les magasins non résolus
+```
+
+La campagne est **reprenable** : chaque magasin traité est marqué en base, une
+interruption ne fait donc rien perdre.
+
+**Activer Google (facultatif)** — Google Cloud Console → activer l'API
+« Places API (New) » → créer une clé d'API → la renseigner dans
+`GOOGLE_PLACES_API_KEY` (cf. `.env.example`). Sans clé, tout fonctionne : seule
+la couverture est plus faible. Cette API étant facturée à l'appel, pensez à
+plafonner le quota côté Google Cloud avant un gros passage.
+
 ---
 
 ## Scripts disponibles
@@ -180,6 +237,9 @@ Le séparateur est auto-détecté (virgule ou point-virgule).
 npm run dev          # Serveur de développement (http://localhost:3000)
 npm run build        # Build de production
 npm run start        # Serveur de production (après build)
+
+npm run phones:lookup   # Recherche automatique des numéros de magasins
+                        # (ajouter -- --run pour exécuter réellement)
 
 npm run db:migrate   # Créer/mettre à jour les tables en base
 npm run db:push      # Push du schéma sans migration (développement)

@@ -262,7 +262,15 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"DemoBooking\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "CREATE INDEX IF NOT EXISTS \"DemoBooking_dealId_bookedAt_idx\" ON \"DemoBooking\"(\"dealId\",\"bookedAt\");",
   "CREATE INDEX IF NOT EXISTS \"DemoBooking_bookedAt_idx\" ON \"DemoBooking\"(\"bookedAt\");",
-  "CREATE INDEX IF NOT EXISTS \"DemoBooking_userId_bookedAt_idx\" ON \"DemoBooking\"(\"userId\",\"bookedAt\");"
+  "CREATE INDEX IF NOT EXISTS \"DemoBooking_userId_bookedAt_idx\" ON \"DemoBooking\"(\"userId\",\"bookedAt\");",
+  // Recherche automatique des numéros de téléphone des magasins : trace de la
+  // dernière recherche (source, statut, date) et candidats en attente de
+  // validation. Le numéro lui-même vit dans la colonne "phone" déjà existante.
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneSource\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneLookupStatus\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneLookupAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneCandidates\" JSONB;",
+  "CREATE INDEX IF NOT EXISTS \"Store_phoneLookupStatus_idx\" ON \"Store\"(\"phoneLookupStatus\");"
 ];
 
 export async function GET(req: NextRequest) {

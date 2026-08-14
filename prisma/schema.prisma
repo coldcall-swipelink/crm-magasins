@@ -37,11 +37,27 @@ model Store {
   longitude        Float?
   geocodedAt       DateTime?
   geocodeQuery     String   @default("")
+  // ── Recherche automatique du numéro de téléphone (cf. src/lib/phone) ──
+  // Le numéro du magasin est retrouvé sur OpenStreetMap puis, à défaut, sur la
+  // fiche Google de l'établissement. Ces colonnes gardent la trace de la
+  // recherche pour ne jamais la refaire inutilement et pour pouvoir arbitrer
+  // les cas douteux depuis l'interface.
+  //   phoneSource       : "osm" | "google" | "manuel" | "import"
+  //   phoneLookupStatus : "" (jamais cherché) | "trouve" | "a_verifier"
+  //                       | "introuvable" | "erreur"
+  //   phoneCandidates   : numéros proposés + indices de correspondance, servant
+  //                       à la file de revue (statut "a_verifier").
+  phoneSource       String   @default("")
+  phoneLookupStatus String   @default("")
+  phoneLookupAt     DateTime?
+  phoneCandidates   Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   deal             Deal?
   jobOffers        JobOffer[]
   importRows       ImportRow[]
+
+  @@index([phoneLookupStatus])
 }
 
 model Collaborator {

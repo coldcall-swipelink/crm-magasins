@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "user:set-password": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/set-user-password.ts",
+    "phones:lookup": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/phone-lookup.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset"
@@ -39,6 +40,7 @@
     "eslint-config-next": "14.1.0",
     "prisma": "^5.9.1",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
   }
 }

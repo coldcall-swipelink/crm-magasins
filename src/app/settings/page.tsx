@@ -4,6 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import type { Brand, PipelineColumn } from '@/types';
 import { toast } from '@/components/ui/Toast';
 import RichTextEditor from '@/components/ui/RichTextEditor';
+import PhoneLookupPanel from '@/components/settings/PhoneLookupPanel';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
@@ -657,6 +658,9 @@ export default function SettingsPage() {
             <button style={btnPri} onClick={addColumn}>+ Ajouter</button>
           </div>
         </div>
+
+        {/* Recherche automatique des numéros de téléphone des magasins */}
+        <PhoneLookupPanel />
 
         {/* Organisations produit (Supabase) — backfill */}
         <div style={{ marginBottom: 28, border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}>

@@ -70,6 +70,10 @@ interface DemoBooking {
   demoDate: string | null;
   noShow: boolean;
 }
+// Numéro proposé par la recherche automatique quand elle n'a pas pu trancher
+// seule (cf. POST /api/deals/[id]/find-phone).
+interface PhoneSuggestion { phone: string; name: string; address: string; source: string; url: string; }
+
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; onNavigate?: (dealId: string) => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
@@ -308,6 +312,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // comptage sur un double-clic.
   const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
   const [phoneRevealing, setPhoneRevealing] = useState(false);
+  // Recherche automatique du numéro du magasin (OpenStreetMap puis fiche
+  // Google). `phoneSuggestions` n'est renseigné que lorsque la recherche
+  // trouve des numéros plausibles sans pouvoir trancher : à l'utilisateur de
+  // choisir. Null = aucune recherche lancée pour l'instant.
+  const [phoneSearching, setPhoneSearching] = useState(false);
+  const [phoneSuggestions, setPhoneSuggestions] = useState<PhoneSuggestion[] | null>(null);
 
   // Données annexes
   const [users, setUsers] = useState<User[]>([]);
@@ -524,6 +534,46 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     } finally {
       setPhoneRevealing(false);
     }
+  };
+
+  // ---- Recherche automatique du numéro du magasin --------------------------
+  // Reprend la cascade de la campagne de masse (cf. src/lib/phone/lookup.ts)
+  // mais sur ce seul magasin : un numéro certain est renseigné directement,
+  // sinon les propositions sont affichées pour un choix en un clic.
+  const findPhone = async () => {
+    if (phoneSearching) return;
+    setPhoneSearching(true);
+    setPhoneSuggestions(null);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/find-phone`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || 'Recherche impossible', 'error'); return; }
+
+      if (data.status === 'trouve' && data.phone) {
+        setFields(f => ({ ...f, contactPhone: data.phone }));
+        setRevealedPhone(data.phone);
+        await patchDeal({ contactPhone: data.phone }, `✓ Numéro trouvé : ${data.phone}`);
+        return;
+      }
+      if (data.status === 'a_verifier' && (data.candidates?.length ?? 0) > 0) {
+        setPhoneSuggestions(data.candidates);
+        toast('Plusieurs numéros possibles : choisissez le bon');
+        return;
+      }
+      setPhoneSuggestions([]);
+      toast('Aucun numéro trouvé pour ce magasin');
+    } catch {
+      toast('Recherche impossible', 'error');
+    } finally {
+      setPhoneSearching(false);
+    }
+  };
+
+  const useSuggestedPhone = async (phone: string) => {
+    setPhoneSuggestions(null);
+    setFields(f => ({ ...f, contactPhone: phone }));
+    setRevealedPhone(phone);
+    await patchDeal({ contactPhone: phone }, `✓ ${phone} enregistré`);
   };
 
   // ---- Démos bookées (case NO SHOW) ----------------------------------------
@@ -1147,6 +1197,47 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       >
                         📞 Appeler {revealedPhone}
                       </a>
+                    )}
+
+                    {/* Champ vide : proposition de retrouver le numéro du magasin
+                        automatiquement plutôt que d'aller le chercher à la main
+                        sur Google. */}
+                    {!(fields.contactPhone ?? '').trim() && (
+                      <button
+                        type="button"
+                        onClick={findPhone}
+                        disabled={phoneSearching}
+                        style={{
+                          marginTop: 6, padding: '5px 10px', borderRadius: 6,
+                          border: '1px solid #e2e8f0', background: '#f8fafc', color: '#4f46e5',
+                          fontSize: 11.5, fontWeight: 600, cursor: phoneSearching ? 'default' : 'pointer',
+                        }}
+                      >
+                        {phoneSearching ? '⟳ Recherche…' : '🔍 Trouver le numéro'}
+                      </button>
+                    )}
+
+                    {phoneSuggestions !== null && phoneSuggestions.length > 0 && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {phoneSuggestions.map(s => (
+                          <div key={s.phone} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px' }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{s.phone}</span>
+                            <span style={{ fontSize: 10.5, color: '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {s.name}{s.address ? ` · ${s.address}` : ''}
+                            </span>
+                            {s.url && (
+                              <a href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: '#4f46e5', textDecoration: 'none', fontWeight: 600 }}>fiche ↗</a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => useSuggestedPhone(s.phone)}
+                              style={{ padding: '2px 8px', borderRadius: 5, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 10.5, fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Utiliser
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </>
                 )}
