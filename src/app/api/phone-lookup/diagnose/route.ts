@@ -13,10 +13,14 @@
 //   /api/phone-lookup/diagnose?dealId=…        → une affaire précise
 //   /api/phone-lookup/diagnose?storeId=…       → un magasin précis
 //   …&radius=8000                              → élargit le rayon de recherche
+//   …&endpoint=https://overpass.kumi.systems/api/interpreter
+//                                              → compare un autre miroir Overpass
+//                                                SANS redéployer (liste blanche)
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { lookupStorePhone, type StoreForLookup } from '@/lib/phone/lookup';
 import { GooglePlacesError } from '@/lib/phone/google';
+import { isAllowedEndpoint } from '@/lib/phone/osm';
 import { USE_MOCK_DATA } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +41,13 @@ export async function GET(req: NextRequest) {
     const dealId = params.get('dealId');
     const storeId = params.get('storeId');
     const radius = Number(params.get('radius') || 0);
+    const endpoint = (params.get('endpoint') || '').trim();
+    if (endpoint && !isAllowedEndpoint(endpoint)) {
+      return NextResponse.json(
+        { error: 'Instance Overpass non autorisée. Utilisez une instance publique connue (overpass-api.de, overpass.kumi.systems…) en https.' },
+        { status: 400 },
+      );
+    }
 
     let store: StoreForLookup | null = null;
     if (storeId) {
@@ -63,6 +74,7 @@ export async function GET(req: NextRequest) {
     const result = await lookupStorePhone(store, {
       withDiagnostics: true,
       radiusMeters: radius > 0 ? radius : undefined,
+      overpassEndpoint: endpoint || undefined,
     });
 
     return NextResponse.json({
@@ -80,6 +92,11 @@ export async function GET(req: NextRequest) {
       decision: result.status,
       numeroRetenu: result.phone || null,
       erreur: result.error || null,
+      // Rappelé en tête de réponse : c'est la première chose à vérifier quand
+      // la campagne est lente, et la valeur configurée n'est pas forcément
+      // celle qui a servi (une instance non reconnue est ignorée).
+      instanceOverpassUtilisee: result.diagnostics?.osm.endpoint || null,
+      instanceConfiguree: process.env.OVERPASS_ENDPOINT?.trim() || '(aucune — instance par défaut)',
       diagnostics: result.diagnostics,
       // Rappel : cette route n'écrit RIEN, elle ne modifie donc pas l'état de
       // la campagne pour ce magasin.

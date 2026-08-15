@@ -72,6 +72,8 @@ export interface OsmFetchResult {
   status: number;
   error: string;
   elapsedMs: number;
+  /** Instance Overpass réellement interrogée (diagnostic). */
+  endpoint: string;
   /** Requête Overpass QL envoyée (diagnostic). */
   query: string;
   /** Nombre d'objets renvoyés, avant filtrage sur la présence d'un numéro. */
@@ -87,8 +89,35 @@ interface OverpassElement {
   tags?: Record<string, string>;
 }
 
-function endpoint(): string {
-  return process.env.OVERPASS_ENDPOINT?.trim() || DEFAULT_ENDPOINT;
+/**
+ * Instances Overpass publiques autorisées. La liste blanche existe parce que
+ * l'instance est surchargeable depuis l'écran de diagnostic (paramètre d'URL) :
+ * sans elle, n'importe qui pourrait faire émettre au serveur une requête vers
+ * l'hôte de son choix.
+ */
+const ALLOWED_HOSTS = [
+  'overpass-api.de',
+  'overpass.kumi.systems',
+  'overpass.osm.ch',
+  'overpass.private.coffee',
+  'overpass.osm.jp',
+];
+
+/** L'URL désigne-t-elle une instance Overpass publique connue ? */
+export function isAllowedEndpoint(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && ALLOWED_HOSTS.includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function endpoint(override?: string): string {
+  if (override && isAllowedEndpoint(override)) return override;
+  const configured = process.env.OVERPASS_ENDPOINT?.trim();
+  if (configured && isAllowedEndpoint(configured)) return configured;
+  return DEFAULT_ENDPOINT;
 }
 
 // ─── Sérialisation des appels ────────────────────────────────────────────────
@@ -114,12 +143,13 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /** Exécute une requête Overpass QL en rapportant précisément son issue. */
-async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResult> {
+async function overpass(query: string, timeoutMs: number, override?: string): Promise<OsmFetchResult> {
+  const url = endpoint(override);
   return enqueue(async () => {
     const startedAt = Date.now();
     const fail = (status: number, error: string): OsmFetchResult => ({
       pois: [], ok: false, status, error,
-      elapsedMs: Date.now() - startedAt, query, elementCount: 0,
+      elapsedMs: Date.now() - startedAt, endpoint: url, query, elementCount: 0,
     });
 
     let lastStatus = 0;
@@ -127,7 +157,7 @@ async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResul
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const res = await fetch(endpoint(), {
+        const res = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -159,7 +189,8 @@ async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResul
         const pois = elements.map(toPoi).filter((p): p is OsmPoi => p !== null);
         return {
           pois, ok: true, status: res.status, error: '',
-          elapsedMs: Date.now() - startedAt, query, elementCount: elements.length,
+          elapsedMs: Date.now() - startedAt, endpoint: url, query,
+          elementCount: elements.length,
         };
       } catch (err) {
         lastError = err instanceof Error ? `${err.name}: ${err.message}` : 'Erreur réseau';
@@ -205,6 +236,7 @@ export async function fetchPoisAround(
   latitude: number,
   longitude: number,
   radiusMeters = 3000,
+  endpointOverride?: string,
 ): Promise<OsmFetchResult> {
   const around = `(around:${Math.round(radiusMeters)},${latitude},${longitude})`;
   const query = `[out:json][timeout:40];
@@ -214,7 +246,7 @@ export async function fetchPoisAround(
 );
 out tags center;`;
 
-  return overpass(query, 45_000);
+  return overpass(query, 45_000, endpointOverride);
 }
 
 // ─── Repli par département ───────────────────────────────────────────────────
@@ -231,7 +263,7 @@ const deptCache = new Map<string, CacheEntry>();
 
 export async function fetchPoisInDepartment(department: string): Promise<OsmFetchResult> {
   if (!department) {
-    return { pois: [], ok: false, status: 0, error: 'Département inconnu', elapsedMs: 0, query: '', elementCount: 0 };
+    return { pois: [], ok: false, status: 0, error: 'Département inconnu', elapsedMs: 0, endpoint: '', query: '', elementCount: 0 };
   }
 
   const cached = deptCache.get(department);
