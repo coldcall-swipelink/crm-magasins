@@ -21,7 +21,7 @@ const btnXs: React.CSSProperties = { padding: '3px 9px', borderRadius: 6, border
 
 interface Stats {
   total: number; withPhone: number; pending: number; toReview: number; notFound: number;
-  googleConfigured: boolean;
+  errors: number; googleConfigured: boolean;
 }
 interface Candidate {
   phone: string; source: string; name: string; address: string;
@@ -45,8 +45,12 @@ export default function PhoneLookupPanel() {
   const [scope, setScope] = useState<Scope>('nouveaux');
   const [useGoogle, setUseGoogle] = useState(true);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState({ processed: 0, found: 0, toReview: 0, notFound: 0, remaining: 0 });
+  const [progress, setProgress] = useState({ processed: 0, found: 0, toReview: 0, notFound: 0, errors: 0, remaining: 0 });
   const [lastLines, setLastLines] = useState<string[]>([]);
+  // Message de la première erreur rencontrée (source injoignable, adresse
+  // inexploitable…). Sans lui, une panne de source ressemblerait exactement à
+  // « aucun numéro n'existe » — c'est précisément le piège à éviter.
+  const [failure, setFailure] = useState<string | null>(null);
   // Drapeau lu à chaque tour de boucle : permet d'arrêter proprement entre deux
   // lots sans interrompre un lot en cours (qui serait alors à moitié écrit).
   const stopRef = useRef(false);
@@ -72,8 +76,9 @@ export default function PhoneLookupPanel() {
     if (running) return;
     stopRef.current = false;
     setRunning(true);
-    setProgress({ processed: 0, found: 0, toReview: 0, notFound: 0, remaining: 0 });
+    setProgress({ processed: 0, found: 0, toReview: 0, notFound: 0, errors: 0, remaining: 0 });
     setLastLines([]);
+    setFailure(null);
 
     try {
       for (;;) {
@@ -82,11 +87,13 @@ export default function PhoneLookupPanel() {
         const res = await fetch('/api/phone-lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 25, scope, useGoogle }),
+          body: JSON.stringify({ scope, useGoogle }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          toast(data.error || 'Erreur pendant la recherche', 'error');
+          const message = data.error || `La recherche a échoué (HTTP ${res.status})`;
+          setFailure(message);
+          toast(message, 'error');
           break;
         }
         const report = await res.json();
@@ -96,15 +103,26 @@ export default function PhoneLookupPanel() {
           found: p.found + report.found,
           toReview: p.toReview + report.toReview,
           notFound: p.notFound + report.notFound,
+          errors: p.errors + report.errors,
           remaining: report.remaining,
         }));
+
+        type ResultLine = { status: string; label: string; phone: string; candidates: unknown[]; error?: string };
+        const results: ResultLine[] = report.results || [];
         setLastLines(
-          (report.results || []).slice(-12).map((r: { status: string; label: string; phone: string; candidates: unknown[] }) => {
+          results.slice(-12).map(r => {
             const icon = r.status === 'trouve' ? '✅' : r.status === 'a_verifier' ? '🟠' : r.status === 'erreur' ? '❌' : '⚪';
-            const detail = r.phone || (r.status === 'a_verifier' ? `${r.candidates.length} proposition(s)` : '—');
+            const detail = r.phone
+              || (r.status === 'a_verifier' ? `${r.candidates.length} proposition(s)` : r.error || '—');
             return `${icon} ${r.label} → ${detail}`;
           }),
         );
+
+        // Une erreur remontée par la source elle-même est signalée en clair :
+        // c'est la différence entre « ces magasins n'ont pas de numéro » et
+        // « la recherche n'a pas pu aboutir ».
+        const firstError = results.find(r => r.status === 'erreur' && r.error);
+        if (firstError?.error) setFailure(firstError.error);
 
         if (report.stopped) { toast(report.stopped, 'error'); break; }
         // Plus rien à traiter dans le périmètre : la campagne est terminée.
@@ -164,6 +182,7 @@ export default function PhoneLookupPanel() {
             ['À chercher', stats.pending, '#4f46e5'],
             ['À vérifier', stats.toReview, '#d97706'],
             ['Non résolus', stats.notFound, '#94a3b8'],
+            ['En erreur', stats.errors, stats.errors > 0 ? '#b91c1c' : '#94a3b8'],
           ] as const).map(([label, value, color]) => (
             <div key={label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px' }}>
               <div style={{ fontSize: 10.5, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
@@ -201,6 +220,17 @@ export default function PhoneLookupPanel() {
         ) : (
           <button style={btnPri} onClick={run}>▶ Lancer la recherche</button>
         )}
+
+        {/* Diagnostic : détaille, sur un magasin et sans rien modifier, ce que la
+            source a répondu et pourquoi les candidats ont été retenus ou écartés. */}
+        <a
+          href="/api/phone-lookup/diagnose"
+          target="_blank"
+          rel="noreferrer"
+          style={{ fontSize: 11.5, color: '#64748b', textDecoration: 'underline' }}
+        >
+          Diagnostic sur un magasin ↗
+        </a>
       </div>
 
       {/* Avancement en direct */}
@@ -212,7 +242,18 @@ export default function PhoneLookupPanel() {
           </div>
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
             ✅ {progress.found} enregistrés · 🟠 {progress.toReview} à vérifier · ⚪ {progress.notFound} non résolus
+            {progress.errors > 0 && ` · ❌ ${progress.errors} en erreur`}
           </div>
+
+          {failure && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '8px 10px', marginBottom: 8, fontSize: 12, color: '#b91c1c' }}>
+              <strong>La recherche n&apos;a pas abouti :</strong> {failure}
+              <div style={{ marginTop: 4, color: '#7f1d1d' }}>
+                Les magasins concernés sont marqués « en erreur », pas « non résolus » : relancez-les avec le
+                périmètre « Relancer les magasins non résolus » une fois la cause levée.
+              </div>
+            </div>
+          )}
           {lastLines.length > 0 && (
             <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5, color: '#475569', maxHeight: 160, overflowY: 'auto', lineHeight: 1.7 }}>
               {lastLines.map((line, i) => <div key={i}>{line}</div>)}
