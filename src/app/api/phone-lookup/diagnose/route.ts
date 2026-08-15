@@ -16,6 +16,11 @@
 //   …&endpoint=https://overpass.kumi.systems/api/interpreter
 //                                              → compare un autre miroir Overpass
 //                                                SANS redéployer (liste blanche)
+//   …&web=google                               → force l'interrogation DIRECTE de
+//                                                google.com, pour constater sur
+//                                                pièces ce que Google renvoie à
+//                                                un serveur (page anti-robot)
+//   …&web=serper                               → force le passage par serper.dev
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { lookupStorePhone, type StoreForLookup } from '@/lib/phone/lookup';
@@ -71,10 +76,15 @@ export async function GET(req: NextRequest) {
 
     if (!store) return NextResponse.json({ error: 'Magasin introuvable' }, { status: 404 });
 
+    const webParam = params.get('web');
+    const forceWebProvider =
+      webParam === 'google' || webParam === 'serper' ? webParam : undefined;
+
     const result = await lookupStorePhone(store, {
       withDiagnostics: true,
       radiusMeters: radius > 0 ? radius : undefined,
       overpassEndpoint: endpoint || undefined,
+      forceWebProvider,
     });
 
     return NextResponse.json({
