@@ -561,7 +561,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         return;
       }
       setPhoneSuggestions([]);
-      toast('Aucun numéro trouvé pour ce magasin');
+      // Deux échecs bien distincts, longtemps affichés à l'identique : « la
+      // source n'a pas répondu » (à retenter tel quel) et « ce magasin n'y est
+      // pas référencé » (inutile d'insister). Les confondre laissait croire à
+      // une absence de données là où il n'y avait qu'une attente trop longue.
+      if (data.status === 'erreur') {
+        toast('OpenStreetMap n\'a pas répondu à temps — réessayez dans un instant', 'error');
+      } else {
+        toast('Ce magasin n\'est pas référencé dans OpenStreetMap');
+      }
     } catch {
       toast('Recherche impossible', 'error');
     } finally {
