@@ -21,7 +21,7 @@ const btnXs: React.CSSProperties = { padding: '3px 9px', borderRadius: 6, border
 
 interface Stats {
   total: number; withPhone: number; pending: number; toReview: number; notFound: number;
-  errors: number; googleConfigured: boolean;
+  errors: number; googleConfigured: boolean; webProvider: 'serper' | 'google' | 'aucun';
 }
 interface Candidate {
   phone: string; source: string; name: string; address: string;
@@ -213,12 +213,27 @@ export default function PhoneLookupPanel() {
   return (
     <div style={{ marginBottom: 28, border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Numéros de téléphone des magasins</div>
-      <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
+      <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
         Retrouve automatiquement le numéro de chaque magasin : d&apos;abord sur OpenStreetMap (gratuit), puis, pour le
-        reliquat, sur la fiche Google de l&apos;établissement. Un numéro n&apos;est enregistré d&apos;office que si
-        l&apos;enseigne, le code postal, la ville et la position concordent ; les cas douteux atterrissent dans la file
-        de vérification ci-dessous. Un numéro déjà saisi à la main n&apos;est jamais écrasé.
+        reliquat, par une recherche « numéro de téléphone <em>enseigne magasin</em> » sur Google. Un numéro n&apos;est
+        enregistré d&apos;office que si l&apos;enseigne et la localité concordent ; les cas douteux atterrissent dans la
+        file de vérification ci-dessous. Un numéro déjà saisi à la main n&apos;est jamais écrasé.
       </p>
+
+      {/* Sources réellement actives : sans cette ligne, on ne peut pas savoir
+          si une campagne décevante vient des données ou d'une clé manquante. */}
+      {stats && (
+        <div style={{ fontSize: 11.5, color: '#475569', marginBottom: 12, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <span>✅ OpenStreetMap</span>
+          <span>
+            {stats.webProvider === 'serper' ? '✅' : stats.webProvider === 'google' ? '⚠️' : '⛔'} Recherche Google
+            {stats.webProvider === 'serper' && ' (via serper.dev)'}
+            {stats.webProvider === 'google' && ' (accès direct — souvent bloqué depuis un hébergeur)'}
+            {stats.webProvider === 'aucun' && ' — inactive, renseignez SERPER_API_KEY'}
+          </span>
+          <span>{stats.googleConfigured ? '✅' : '⛔'} Google Places{!stats.googleConfigured && ' — inactif (payant)'}</span>
+        </div>
+      )}
 
       {/* Compteurs */}
       {stats && (
