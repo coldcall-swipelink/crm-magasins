@@ -20,7 +20,7 @@ export const maxDuration = 60;
 
 export async function GET() {
   if (USE_MOCK_DATA) {
-    return NextResponse.json({ total: 0, withPhone: 0, pending: 0, toReview: 0, notFound: 0, errors: 0, googleConfigured: false });
+    return NextResponse.json({ total: 0, withPhone: 0, pending: 0, toReview: 0, notFound: 0, errors: 0, googleConfigured: false, webProvider: 'aucun' });
   }
   try {
     return NextResponse.json(await phoneLookupStats(prisma));

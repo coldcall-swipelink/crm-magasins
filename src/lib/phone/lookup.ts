@@ -34,6 +34,10 @@ import { distanceKm, departmentCode } from './geo';
 import { normalizePhone, isProspectablePhone } from './normalize';
 import { fetchPoisAround, fetchPoisInDepartment, type OsmFetchResult, type OsmPoi } from './osm';
 import { isGoogleConfigured, searchPlaces, GooglePlacesError, type GooglePlace } from './google';
+import {
+  buildWebQuery, isWebSearchConfigured, searchPhoneOnWeb, webProvider,
+  type WebResult, type WebSearchOutcome,
+} from './web';
 
 // ─── Seuils de décision ──────────────────────────────────────────────────────
 /** Au-dessus : le numéro est enregistré sans intervention humaine. */
@@ -63,7 +67,7 @@ const RADIUS_STEPS_M = [1500, 4000];
 const UNIQUE_BONUS_MAX_KM = 5;
 
 export type PhoneLookupStatus = 'trouve' | 'a_verifier' | 'introuvable' | 'erreur';
-export type PhoneSource = 'osm' | 'google' | 'manuel' | 'import';
+export type PhoneSource = 'osm' | 'google' | 'web' | 'manuel' | 'import';
 
 /** Un numéro proposé pour un magasin, avec de quoi juger sur pièces. */
 export interface PhoneCandidate {
@@ -71,7 +75,7 @@ export interface PhoneCandidate {
   phone: string;
   /** Forme canonique, pour dédoublonner les candidats. */
   e164: string;
-  source: 'osm' | 'google';
+  source: 'osm' | 'google' | 'web';
   /** Nom de l'établissement chez la source (à comparer au magasin). */
   name: string;
   address: string;
@@ -124,6 +128,16 @@ export interface LookupDiagnostics {
     /** Objets dont le nom évoque l'enseigne du magasin. */
     brandMatchCount: number;
     query: string;
+  };
+  /** Recherche web (« numéro de téléphone <enseigne> <magasin> »). */
+  web: {
+    used: boolean;
+    provider: string;
+    ok: boolean;
+    error: string;
+    elapsedMs: number;
+    query: string;
+    resultCount: number;
   };
   google: {
     used: boolean;
@@ -392,6 +406,59 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
 }
 
 /**
+ * Convertit un résultat de recherche web en candidat noté.
+ *
+ * Deux cas très différents selon ce que le fournisseur sait dire :
+ *
+ *   • la FICHE de l'établissement (Serper) porte un titre et une adresse : on
+ *     peut vérifier l'enseigne et la localité comme pour les autres sources, et
+ *     un tel candidat peut être validé automatiquement ;
+ *
+ *   • un numéro EXTRAIT BRUT du HTML de Google n'a ni titre ni adresse : rien
+ *     ne permet d'affirmer qu'il appartient au bon établissement. Il est donc
+ *     traité comme une correspondance partielle, ce qui le plafonne sous le
+ *     seuil de validation automatique et l'envoie systématiquement en
+ *     vérification humaine. Proposer un numéro à confirmer d'un clic reste très
+ *     utile ; l'enregistrer sans contrôle ne le serait pas.
+ *
+ * Le premier numéro de la page est privilégié : c'est celui de la fiche de
+ * l'établissement, avant les numéros du service client ou des pages voisines.
+ */
+function webToCandidate(store: StoreForLookup, result: WebResult, index: number): PhoneCandidate | null {
+  const phone = normalizePhone(result.phone);
+  if (!phone || !isProspectablePhone(phone)) return null;
+
+  const hasIdentity = result.title.trim().length > 0;
+  const match = hasIdentity ? brandMatch(store, result.title) : 'partiel';
+  if (match === 'aucun') return null;
+
+  const text = `${result.title} ${result.snippet}`;
+  const cityStore = normalizeText(store.city);
+  const base = {
+    phone: phone.display,
+    e164: phone.e164,
+    source: 'web' as const,
+    name: result.title || '(numéro relevé dans les résultats)',
+    address: result.snippet,
+    // La ville n'est retenue que si le résultat la mentionne réellement.
+    city: cityStore && normalizeText(text).includes(cityStore) ? store.city : '',
+    postalCode: text.match(/\b(\d{5})\b/)?.[1] ?? '',
+    distanceKm: null,
+    brandMatch: match,
+    url: result.url,
+  };
+
+  const scored = scoreCandidate(store, base, match);
+  if (index === 0) {
+    scored.score += 2;
+    scored.reasons.push('premier numéro de la fiche Google');
+  }
+  if (!hasIdentity) scored.reasons.push('origine non vérifiable — à confirmer');
+
+  return { ...base, ...scored };
+}
+
+/**
  * Bonus d'UNICITÉ : quand un seul établissement porte pleinement l'enseigne
  * dans le rayon, la correspondance est bien plus sûre que la somme des indices
  * ne le laisse croire.
@@ -404,8 +471,11 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
  * décision revient à un humain.
  */
 function applyUniquenessBonus(candidates: PhoneCandidate[]): PhoneCandidate[] {
+  // Le bonus suppose une position mesurée : « seul dans le rayon » n'a de sens
+  // que pour une source géographique. Un résultat de recherche web, qui n'a pas
+  // de coordonnées, en est donc exclu — le motif affiché serait mensonger.
   const fullMatches = candidates.filter(
-    (c) => c.brandMatch === 'complet' && (c.distanceKm === null || c.distanceKm <= UNIQUE_BONUS_MAX_KM),
+    (c) => c.brandMatch === 'complet' && c.distanceKm !== null && c.distanceKm <= UNIQUE_BONUS_MAX_KM,
   );
   if (fullMatches.length !== 1) return candidates;
 
@@ -516,14 +586,34 @@ export async function lookupStorePhone(
   }
 
   let ranked = rank(candidates);
+  const settled = () => ranked.length > 0 && ranked[0].score >= AUTO_THRESHOLD;
 
-  // ── Étape 2 : Google Places (payant), seulement si OSM n'a pas tranché ─────
-  const osmSettled = ranked.length > 0 && ranked[0].score >= AUTO_THRESHOLD;
+  // ── Étape 2 : recherche web, seulement si OSM n'a pas tranché ─────────────
+  // Reproduit la recherche faite à la main : « numéro de téléphone <enseigne>
+  // <magasin> ». C'est la source qui couvre le mieux les enseignes françaises,
+  // OpenStreetMap ne cartographiant qu'une partie des commerces.
+  const webQuery = buildWebQuery(brand, located.name, located.city, located.postalCode);
+  let web: WebSearchOutcome | null = null;
+
+  if (isWebSearchConfigured() && !settled()) {
+    // Comme pour l'élargissement de rayon : on n'entame pas une interrogation
+    // qu'on n'aurait pas le temps de terminer.
+    if (!options.deadline || Date.now() < options.deadline) {
+      web = await searchPhoneOnWeb(webQuery);
+      web.results.forEach((result, index) => {
+        const candidate = webToCandidate(located, result, index);
+        if (candidate) candidates.push(candidate);
+      });
+      ranked = rank(candidates);
+    }
+  }
+
+  // ── Étape 3 : Google Places (payant), en dernier recours ──────────────────
   const googleQuery = buildSearchQuery(located);
   let googleUsed = false;
   let googleResultCount = 0;
 
-  if (useGoogle && !osmSettled) {
+  if (useGoogle && !settled()) {
     googleUsed = true;
     const bias =
       located.latitude != null && located.longitude != null
@@ -549,6 +639,15 @@ export async function lookupStorePhone(
           elapsedMs: osm.elapsedMs, endpoint: osm.endpoint, elementCount: osm.elementCount,
           poiCount: osm.pois.length, brandMatchCount, query: osm.query,
         },
+        web: {
+          used: web !== null,
+          provider: webProvider(),
+          ok: web?.ok ?? false,
+          error: web?.error ?? '',
+          elapsedMs: web?.elapsedMs ?? 0,
+          query: webQuery,
+          resultCount: web?.results.length ?? 0,
+        },
         google: { used: googleUsed, configured: isGoogleConfigured(), query: googleQuery, resultCount: googleResultCount },
         scored: ranked.slice(0, 10),
       }
@@ -568,12 +667,17 @@ export async function lookupStorePhone(
   }
 
   // Rien trouvé — mais était-ce faute de données, ou faute de réponse ? Un
-  // magasin que la source n'a jamais pu examiner reste « en erreur », donc
-  // à retenter, plutôt que d'être classé « introuvable » à tort.
-  if (!osm.ok) {
+  // magasin qu'AUCUNE source n'a pu examiner reste « en erreur », donc à
+  // retenter, plutôt que d'être classé « introuvable » à tort. Dès qu'une
+  // source a répondu correctement, « introuvable » redevient honnête.
+  if (!osm.ok && !web?.ok) {
+    const reasons = [
+      !osm.ok && osm.error ? `OpenStreetMap injoignable : ${osm.error}` : '',
+      web && !web.ok && web.error ? `Recherche web (${web.provider}) : ${web.error}` : '',
+    ].filter(Boolean);
     return {
       storeId: store.id, label, status: 'erreur', phone: '', source: '', candidates: [],
-      error: `OpenStreetMap injoignable : ${osm.error}`, diagnostics,
+      error: reasons.join(' — ') || 'Aucune source n\'a répondu', diagnostics,
     };
   }
   if (strategy === 'aucune') {
@@ -791,5 +895,12 @@ export async function phoneLookupStats(prisma: PrismaClient, dealsOnly = true) {
     prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: 'introuvable' } }),
     prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: 'erreur' } }),
   ]);
-  return { total, withPhone, pending, toReview, notFound, errors, googleConfigured: isGoogleConfigured() };
+  return {
+    total, withPhone, pending, toReview, notFound, errors,
+    googleConfigured: isGoogleConfigured(),
+    // Quelle recherche web est active : « serper », « google » (direct) ou
+    // « aucun ». Affiché dans l'écran de campagne pour que l'utilisateur sache
+    // sur quelles sources il s'appuie réellement.
+    webProvider: webProvider(),
+  };
 }
