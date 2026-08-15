@@ -169,6 +169,12 @@ export interface LookupOptions {
   overpassEndpoint?: string;
   /** Conserver la trace d'exécution complète (écran de diagnostic). */
   withDiagnostics?: boolean;
+  /**
+   * Instant (horodatage absolu) au-delà duquel il ne faut plus entamer de
+   * nouvelle interrogation. Sert à ne pas lancer un élargissement de rayon
+   * qu'on n'aurait pas le temps de terminer avant que l'hébergeur ne coupe.
+   */
+  deadline?: number;
 }
 
 // ─── Libellés ────────────────────────────────────────────────────────────────
@@ -489,8 +495,13 @@ export async function lookupStorePhone(
     // Rayon imposé (diagnostic) : une seule tentative, sans élargissement.
     const steps = options.radiusMeters ? [options.radiusMeters] : RADIUS_STEPS_M;
 
-    for (const radius of steps) {
-      osm = await fetchPoisAround(located.latitude, located.longitude, radius, options.overpassEndpoint);
+    for (let i = 0; i < steps.length; i++) {
+      // Élargir demande une seconde interrogation, aussi longue que la première.
+      // Si le temps imparti ne le permet pas, on s'en tient à ce qu'on a plutôt
+      // que de se faire couper au milieu et de tout perdre.
+      if (i > 0 && options.deadline && Date.now() > options.deadline) break;
+
+      osm = await fetchPoisAround(located.latitude, located.longitude, steps[i], options.overpassEndpoint);
       collect(osm);
       // On n'élargit que si la requête a abouti sans rien trouver de l'enseigne.
       // Sur un échec, élargir ne ferait que rendre la requête suivante encore
@@ -639,26 +650,29 @@ export interface BatchReport {
 }
 
 /**
- * Plafond de magasins par lot. C'est une borne haute, pas un objectif : le
- * budget de temps ci-dessous s'atteint presque toujours en premier.
+ * Plafond de magasins par lot.
+ *
+ * UN SEUL, et c'est délibéré. L'interrogation d'OpenStreetMap est lente non
+ * parce qu'elle calcule longtemps, mais parce que l'instance publique fait
+ * PATIENTER EN FILE quand son quota est atteint : 40 à 50 s d'attente pour
+ * quelques centaines d'objets. Cette attente est incompressible.
+ *
+ * Face à une limite d'exécution de 60 s imposée par l'hébergeur, grouper
+ * plusieurs magasins dans un même appel revient à garantir la coupure. Un seul
+ * magasin par appel lui laisse au contraire la fenêtre entière — c'est le
+ * découpage qui maximise les chances que chaque magasin aboutisse.
+ *
+ * La campagne enchaîne donc les appels, un par magasin, aussi longtemps qu'il
+ * le faut. La durée totale n'est pas un problème : elle est reprenable à tout
+ * moment et chaque magasin traité est acquis définitivement.
  */
-const DEFAULT_BATCH = 25;
+const DEFAULT_BATCH = 1;
 
 /**
- * Budget de temps d'un lot. C'est LE garde-fou de la campagne.
- *
- * Une interrogation d'OpenStreetMap ne coûte presque rien en données, mais
- * s'exécute sur une instance publique partagée : mesurée à ~37 s en conditions
- * réelles, contre 2 à 3 s quand l'instance est disponible. Dimensionner un lot
- * en NOMBRE de magasins revient donc à parier sur cette latence, et un mauvais
- * pari dépasse le temps d'exécution maximal de la fonction — la requête est
- * tuée et l'utilisateur voit une erreur.
- *
- * On raisonne donc en temps : le lot traite autant de magasins qu'il peut en
- * 40 secondes, puis rend la main quel qu'en soit le nombre. La campagne avance
- * au rythme réel de la source, sans jamais heurter la limite de la plateforme.
+ * Budget de temps d'un lot, seconde barrière de sécurité : même avec un seul
+ * magasin par appel, on n'entame jamais un magasin supplémentaire au-delà.
  */
-const DEFAULT_BATCH_MILLIS = 40_000;
+const DEFAULT_BATCH_MILLIS = 50_000;
 
 const STORE_SELECT = {
   id: true, name: true, city: true, postalCode: true, department: true,
@@ -731,7 +745,12 @@ export async function runPhoneLookupBatch(
     const storeStartedAt = Date.now();
     let result: StoreLookupResult;
     try {
-      result = await lookupStorePhone(store, { useGoogle });
+      result = await lookupStorePhone(store, {
+        useGoogle,
+        // Un élargissement de rayon ne sera tenté que s'il reste de quoi le
+        // mener à bien dans le budget du lot.
+        deadline: startedAt + budgetMs,
+      });
     } catch (err) {
       if (err instanceof GooglePlacesError) {
         // Clé refusée / quota épuisé : inutile de continuer, on rend la main
