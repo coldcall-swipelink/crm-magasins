@@ -1,6 +1,6 @@
 // src/app/api/calls/[id]/route.ts
 // Réponse à la question « Est-ce que le décisionnaire a pu être contacté ? »
-// posée 10 s après le dévoilement d'un numéro. Met à jour la ligne CallLog
+// posée 20 s après le dévoilement d'un numéro. Met à jour la ligne CallLog
 // créée par /api/deals/[id]/reveal-phone.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';

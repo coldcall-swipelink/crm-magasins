@@ -17,7 +17,7 @@ const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 /** Délai entre le dévoilement du numéro (= début de l'appel) et la question
  *  « Est-ce que le décisionnaire a pu être contacté ? ». Laisse le temps de
  *  passer l'accueil du magasin avant de demander le résultat. */
-const DECISION_MAKER_PROMPT_DELAY_MS = 10_000;
+const DECISION_MAKER_PROMPT_DELAY_MS = 20_000;
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
@@ -318,7 +318,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
   const [phoneRevealing, setPhoneRevealing] = useState(false);
   // Suivi du résultat de l'appel : on passe toujours par l'accueil du magasin,
-  // donc 10 s après le dévoilement du numéro on demande si le décisionnaire a
+  // donc 20 s après le dévoilement du numéro on demande si le décisionnaire a
   // pu être joint (réponse stockée dans CallLog.connected).
   // `pendingCall` = appel dont la question est programmée (timer en cours),
   // `callQuestion` = appel dont la question est actuellement affichée. On garde
@@ -1768,7 +1768,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       </div>
     </div>
 
-    {/* Suivi de l'appel : posée 10 s après le dévoilement du numéro (ou tout de
+    {/* Suivi de l'appel : posée 20 s après le dévoilement du numéro (ou tout de
         suite si le volet est fermé avant), la question renseigne
         CallLog.connected. Volontairement sans échappatoire (pas de fermeture au
         clic sur le fond) : la réponse est le seul moyen de savoir si l'accueil
