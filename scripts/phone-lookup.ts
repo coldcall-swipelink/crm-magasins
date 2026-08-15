@@ -52,6 +52,7 @@ async function main() {
   console.log(`  • jamais cherchés       : ${stats.pending}`);
   console.log(`  • en attente de revue   : ${stats.toReview}`);
   console.log(`  • non résolus           : ${stats.notFound}`);
+  console.log(`  • en erreur (à relancer): ${stats.errors}`);
   console.log(`Google Places             : ${stats.googleConfigured ? (useGoogle ? 'activé' : 'configuré mais désactivé (--no-google)') : 'non configuré (sources gratuites seules)'}`);
   console.log('─'.repeat(60));
 

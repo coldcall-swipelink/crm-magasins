@@ -3,28 +3,41 @@
 // Les magasins des grandes enseignes françaises y sont largement cartographiés
 // et beaucoup portent une étiquette `phone` / `contact:phone`.
 //
-// Deux modes d'interrogation, pour ne pas maltraiter une API publique gratuite :
+// STRATÉGIE — on ne demande PAS à Overpass de filtrer par enseigne.
 //
-//   • PAR DÉPARTEMENT (traitement de masse) : UNE requête ramène tous les points
-//     d'intérêt d'une enseigne dans un département. Un lot de 300 magasins
-//     Carrefour du Nord ne coûte donc qu'UNE requête Overpass au lieu de 300.
-//     Le résultat est mémorisé le temps du lot (cf. `pois-cache`).
+// Une première version envoyait le nom de l'enseigne dans la requête, sous
+// forme d'expression régulière. C'était une fausse bonne idée : le terme
+// cherché était normalisé (sans accents ni ponctuation) alors qu'Overpass le
+// comparait au nom BRUT d'OpenStreetMap. « Intermarché » cherché en
+// « intermarche » ne trouvait rien, « E.Leclerc » cherché en « e leclerc » non
+// plus — seules les enseignes sans accent ni ponctuation fonctionnaient.
 //
-//   • AUTOUR D'UN POINT (recherche à l'unité, depuis la fiche affaire) : requête
-//     resserrée sur un rayon de quelques kilomètres, quasi instantanée.
+// On demande donc simplement TOUS les points d'intérêt nommés qui portent un
+// numéro de téléphone autour du magasin, et le rapprochement enseigne par
+// enseigne se fait ensuite en JavaScript, où les deux côtés passent par la même
+// normalisation (cf. lookup.ts). C'est à la fois plus robuste et plus léger :
+// le filtre « a un téléphone » élimine l'essentiel du volume côté serveur.
+//
+// Deux modes d'interrogation :
+//
+//   • AUTOUR DU MAGASIN (mode normal) : rayon de quelques kilomètres, réponse
+//     petite et rapide. C'est le mode par défaut, y compris en traitement de
+//     masse : il tient dans les temps d'exécution d'une fonction serverless.
+//
+//   • PAR DÉPARTEMENT (repli) : uniquement pour les magasins qu'on n'a pas pu
+//     géocoder, donc sans point de référence. Requête lourde, mise en cache et
+//     partagée par toutes les enseignes du département.
 //
 // Aucune clé d'API n'est requise. Overpass demande en revanche un usage
 // raisonnable : les requêtes sont sérialisées avec une pause entre chacune et
 // une nouvelle tentative en cas de saturation (429 / 504).
-
-import { normalizeText } from '@/lib/utils';
 
 const DEFAULT_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 /** Pause minimale entre deux requêtes Overpass (usage courtois de l'API). */
 const MIN_DELAY_MS = 1100;
 const MAX_ATTEMPTS = 3;
 
-/** Point d'intérêt OSM retenu comme candidat pour un magasin. */
+/** Point d'intérêt OSM porteur d'un numéro de téléphone. */
 export interface OsmPoi {
   osmId: string;
   name: string;
@@ -35,6 +48,25 @@ export interface OsmPoi {
   city: string;
   postalCode: string;
   street: string;
+}
+
+/**
+ * Résultat d'une interrogation Overpass. L'issue est TOUJOURS explicite : une
+ * panne ne doit jamais ressembler à « aucun magasin trouvé », sous peine de
+ * marquer définitivement « introuvables » des milliers de magasins que la
+ * source n'a en réalité jamais eu l'occasion d'examiner.
+ */
+export interface OsmFetchResult {
+  pois: OsmPoi[];
+  ok: boolean;
+  /** Code HTTP de la dernière tentative. 0 = pas de réponse (réseau, délai). */
+  status: number;
+  error: string;
+  elapsedMs: number;
+  /** Requête Overpass QL envoyée (diagnostic). */
+  query: string;
+  /** Nombre d'objets renvoyés, avant filtrage sur la présence d'un numéro. */
+  elementCount: number;
 }
 
 interface OverpassElement {
@@ -72,13 +104,18 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/**
- * Exécute une requête Overpass QL. Renvoie un tableau vide (jamais d'exception)
- * si l'API est indisponible : une source gratuite qui tombe ne doit pas faire
- * échouer toute la campagne de recherche.
- */
-async function overpass(query: string, timeoutMs: number): Promise<OverpassElement[]> {
+/** Exécute une requête Overpass QL en rapportant précisément son issue. */
+async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResult> {
   return enqueue(async () => {
+    const startedAt = Date.now();
+    const fail = (status: number, error: string): OsmFetchResult => ({
+      pois: [], ok: false, status, error,
+      elapsedMs: Date.now() - startedAt, query, elementCount: 0,
+    });
+
+    let lastStatus = 0;
+    let lastError = 'Aucune tentative aboutie';
+
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const res = await fetch(endpoint(), {
@@ -91,40 +128,35 @@ async function overpass(query: string, timeoutMs: number): Promise<OverpassEleme
           body: new URLSearchParams({ data: query }).toString(),
           signal: AbortSignal.timeout(timeoutMs),
         });
+        lastStatus = res.status;
 
         // 429 (trop de requêtes) et 504 (serveur saturé) sont les refus normaux
         // d'Overpass : on patiente puis on retente.
         if (res.status === 429 || res.status === 504) {
+          lastError = `Overpass saturé (HTTP ${res.status})`;
           if (attempt < MAX_ATTEMPTS) { await sleep(2000 * attempt); continue; }
-          return [];
+          return fail(lastStatus, lastError);
         }
-        if (!res.ok) return [];
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          return fail(res.status, `HTTP ${res.status} ${body.slice(0, 200)}`.trim());
+        }
 
         const data = (await res.json()) as { elements?: OverpassElement[] };
-        return data.elements ?? [];
-      } catch {
+        const elements = data.elements ?? [];
+        const pois = elements.map(toPoi).filter((p): p is OsmPoi => p !== null);
+        return {
+          pois, ok: true, status: res.status, error: '',
+          elapsedMs: Date.now() - startedAt, query, elementCount: elements.length,
+        };
+      } catch (err) {
+        lastError = err instanceof Error ? `${err.name}: ${err.message}` : 'Erreur réseau';
         if (attempt < MAX_ATTEMPTS) { await sleep(1500 * attempt); continue; }
-        return [];
+        return fail(lastStatus, lastError);
       }
     }
-    return [];
+    return fail(lastStatus, lastError);
   });
-}
-
-/** Échappe une enseigne pour l'insérer dans une regex Overpass (POSIX ERE). */
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Motif de recherche d'une enseigne dans les noms OSM. Encadré par des
- * non-lettres pour éviter les faux positifs sur les enseignes courtes : sans
- * cela, l'enseigne « U » remonterait tous les commerces contenant un « u ».
- */
-function brandPattern(brand: string): string {
-  const cleaned = normalizeText(brand).trim();
-  if (!cleaned) return '';
-  return `(^|[^a-zA-Z0-9])${escapeRegex(cleaned)}($|[^a-zA-Z0-9])`;
 }
 
 function toPoi(el: OverpassElement): OsmPoi | null {
@@ -132,86 +164,83 @@ function toPoi(el: OverpassElement): OsmPoi | null {
   const phone = tags.phone || tags['contact:phone'] || tags['contact:mobile'] || '';
   if (!phone) return null;
 
-  const lat = el.lat ?? el.center?.lat ?? null;
-  const lon = el.lon ?? el.center?.lon ?? null;
+  // Sans nom ni enseigne, impossible de rattacher le point à un magasin.
+  const name = tags.name || tags.brand || tags.operator || '';
+  if (!name) return null;
 
   return {
     osmId: `${el.type}/${el.id}`,
-    name: tags.name || tags.brand || tags.operator || '',
+    name,
     brand: tags.brand || tags.operator || '',
     phone,
-    latitude: lat,
-    longitude: lon,
+    latitude: el.lat ?? el.center?.lat ?? null,
+    longitude: el.lon ?? el.center?.lon ?? null,
     city: tags['addr:city'] || '',
     postalCode: tags['addr:postcode'] || '',
     street: [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' '),
   };
 }
 
-// ─── Cache de lot ────────────────────────────────────────────────────────────
-// Le résultat « enseigne × département » est mémorisé le temps du traitement :
-// les magasins d'un même lot sont triés par enseigne puis département, si bien
-// que 300 magasins consécutifs se servent tous dans la même réponse.
-export type OsmCache = Map<string, OsmPoi[]>;
-
-export function createOsmCache(): OsmCache {
-  return new Map();
-}
-
 /**
- * Tous les points d'intérêt d'une enseigne dans un département, filtrés sur
- * ceux qui portent un numéro de téléphone.
+ * Tous les points d'intérêt nommés porteurs d'un numéro dans un rayon donné.
+ * Mode par défaut : réponse de l'ordre de quelques dizaines à quelques centaines
+ * d'objets, obtenue en quelques secondes.
  */
-export async function fetchBrandPoisInDepartment(
-  brand: string,
-  department: string,
-  cache?: OsmCache,
-): Promise<OsmPoi[]> {
-  const pattern = brandPattern(brand);
-  if (!pattern || !department) return [];
-
-  const key = `${normalizeText(brand)}|${department}`;
-  const cached = cache?.get(key);
-  if (cached) return cached;
-
-  // `ref:INSEE` sur une frontière administrative de niveau 6 = département
-  // français. Le nom et l'enseigne sont testés séparément : beaucoup de fiches
-  // portent l'enseigne dans `brand`/`operator` et un nom local dans `name`.
-  const query = `[out:json][timeout:120];
-area["boundary"="administrative"]["admin_level"="6"]["ref:INSEE"="${department}"]->.dept;
-(
-  nwr["name"~"${pattern}",i](area.dept);
-  nwr["brand"~"${pattern}",i](area.dept);
-  nwr["operator"~"${pattern}",i](area.dept);
-);
-out tags center;`;
-
-  const pois = (await overpass(query, 130_000)).map(toPoi).filter((p): p is OsmPoi => p !== null);
-  cache?.set(key, pois);
-  return pois;
-}
-
-/**
- * Points d'intérêt d'une enseigne dans un rayon donné autour d'un point.
- * Utilisé pour la recherche à l'unité déclenchée depuis la fiche affaire.
- */
-export async function fetchBrandPoisAround(
-  brand: string,
+export async function fetchPoisAround(
   latitude: number,
   longitude: number,
-  radiusMeters = 4000,
-): Promise<OsmPoi[]> {
-  const pattern = brandPattern(brand);
-  if (!pattern) return [];
-
+  radiusMeters = 3000,
+): Promise<OsmFetchResult> {
   const around = `(around:${Math.round(radiusMeters)},${latitude},${longitude})`;
   const query = `[out:json][timeout:40];
 (
-  nwr["name"~"${pattern}",i]${around};
-  nwr["brand"~"${pattern}",i]${around};
-  nwr["operator"~"${pattern}",i]${around};
+  nwr["phone"]["name"]${around};
+  nwr["contact:phone"]["name"]${around};
 );
 out tags center;`;
 
-  return (await overpass(query, 45_000)).map(toPoi).filter((p): p is OsmPoi => p !== null);
+  return overpass(query, 45_000);
+}
+
+// ─── Repli par département ───────────────────────────────────────────────────
+// Réservé aux magasins non géocodés. La réponse étant volumineuse, elle est
+// mise en cache au niveau du module : elle survit ainsi d'un lot à l'autre tant
+// que l'instance reste chaude, et sert TOUTES les enseignes du département
+// (la requête ne filtre plus par enseigne).
+
+interface CacheEntry { at: number; result: OsmFetchResult }
+const DEPT_CACHE_TTL_MS = 30 * 60 * 1000;
+/** Peu d'entrées : une réponse départementale pèse lourd en mémoire. */
+const DEPT_CACHE_MAX = 2;
+const deptCache = new Map<string, CacheEntry>();
+
+export async function fetchPoisInDepartment(department: string): Promise<OsmFetchResult> {
+  if (!department) {
+    return { pois: [], ok: false, status: 0, error: 'Département inconnu', elapsedMs: 0, query: '', elementCount: 0 };
+  }
+
+  const cached = deptCache.get(department);
+  if (cached && Date.now() - cached.at < DEPT_CACHE_TTL_MS) return cached.result;
+
+  // `ref:INSEE` sur une frontière administrative de niveau 6 = département
+  // français.
+  const query = `[out:json][timeout:180];
+area["boundary"="administrative"]["admin_level"="6"]["ref:INSEE"="${department}"]->.dept;
+(
+  nwr["phone"]["name"](area.dept);
+  nwr["contact:phone"]["name"](area.dept);
+);
+out tags center;`;
+
+  const result = await overpass(query, 185_000);
+
+  // Un échec n'est pas mis en cache : il doit pouvoir être retenté.
+  if (result.ok) {
+    if (deptCache.size >= DEPT_CACHE_MAX) {
+      const oldest = deptCache.keys().next();
+      if (!oldest.done) deptCache.delete(oldest.value);
+    }
+    deptCache.set(department, { at: Date.now(), result });
+  }
+  return result;
 }

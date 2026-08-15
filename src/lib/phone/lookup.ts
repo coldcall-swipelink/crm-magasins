@@ -4,36 +4,35 @@
 // PRINCIPE — une cascade, du gratuit vers le payant :
 //
 //   1. Le magasin a déjà un numéro         → on ne fait rien.
-//   2. OpenStreetMap (gratuit, sans clé)   → couvre une bonne part des grandes
-//      enseignes, en UNE requête par « enseigne × département ».
+//   2. OpenStreetMap (gratuit, sans clé)   → tous les commerces porteurs d'un
+//      numéro autour du magasin ; le rapprochement avec l'enseigne se fait ici,
+//      en JavaScript, pas dans la requête (cf. osm.ts).
 //   3. Google Places (payant, optionnel)   → uniquement le reliquat, c'est-à-dire
 //      les magasins qu'OSM n'a pas permis de trancher.
 //
 // VALIDATION — le risque n'est pas de ne pas trouver de numéro, c'est d'en
-// trouver un MAUVAIS (le Carrefour de la ville d'à côté). Chaque candidat est
-// donc noté sur des indices vérifiables : enseigne présente dans le nom, code
-// postal identique, ville identique, distance au magasin géocodé. Selon la note :
+// trouver un MAUVAIS (le Carrefour de la ville d'à côté, ou pire, la boulangerie
+// voisine). Deux garde-fous successifs :
 //
-//   • note élevée   → « trouve »      : le numéro est enregistré automatiquement ;
-//   • note moyenne  → « a_verifier »  : le numéro part dans une file de revue où
-//                                       il suffit d'un clic pour valider/rejeter ;
-//   • aucun candidat→ « introuvable » : à traiter à la main (ou à retenter plus
-//                                       tard avec Google activé).
+//   • un candidat dont le nom ne contient AUCUN mot de l'enseigne est écarté
+//     d'emblée — c'est éliminatoire, pas un simple malus ;
+//   • les survivants sont notés sur des indices vérifiables (enseigne complète,
+//     code postal, ville, distance au magasin géocodé, adresse).
+//
+// Selon la note : note élevée → « trouve », le numéro est enregistré ; note
+// moyenne → « a_verifier », un clic tranche dans l'interface ; rien →
+// « introuvable ». Et si la SOURCE elle-même a échoué (Overpass injoignable,
+// délai dépassé), le statut est « erreur » et non « introuvable » : un magasin
+// que la source n'a jamais examiné doit rester à retenter.
 //
 // Rien n'est jamais écrasé : un numéro déjà saisi à la main reste intact.
 
 import type { PrismaClient } from '@prisma/client';
-import { normalizeText, canonicalBrand } from '@/lib/utils';
+import { normalizeText } from '@/lib/utils';
 import { geocodeStore } from '@/lib/geocode';
 import { distanceKm, departmentCode } from './geo';
 import { normalizePhone, isProspectablePhone } from './normalize';
-import {
-  createOsmCache,
-  fetchBrandPoisAround,
-  fetchBrandPoisInDepartment,
-  type OsmCache,
-  type OsmPoi,
-} from './osm';
+import { fetchPoisAround, fetchPoisInDepartment, type OsmFetchResult, type OsmPoi } from './osm';
 import { isGoogleConfigured, searchPlaces, GooglePlacesError, type GooglePlace } from './google';
 
 // ─── Seuils de décision ──────────────────────────────────────────────────────
@@ -41,6 +40,8 @@ import { isGoogleConfigured, searchPlaces, GooglePlacesError, type GooglePlace }
 const AUTO_THRESHOLD = 6;
 /** Au-dessus : le numéro est proposé dans la file de revue. */
 const REVIEW_THRESHOLD = 3;
+/** Rayon d'interrogation d'OpenStreetMap autour du magasin. */
+const DEFAULT_RADIUS_M = 3000;
 
 export type PhoneLookupStatus = 'trouve' | 'a_verifier' | 'introuvable' | 'erreur';
 export type PhoneSource = 'osm' | 'google' | 'manuel' | 'import';
@@ -80,32 +81,65 @@ export interface StoreForLookup {
   brand: { name: string } | null;
 }
 
+/** Trace d'exécution, pour comprendre un résultat décevant sans deviner. */
+export interface LookupDiagnostics {
+  department: string;
+  latitude: number | null;
+  longitude: number | null;
+  /** Le magasin a-t-il été géocodé au cours de cette recherche ? */
+  geocodedNow: boolean;
+  osm: {
+    strategy: 'autour' | 'departement' | 'aucune';
+    ok: boolean;
+    status: number;
+    error: string;
+    elapsedMs: number;
+    /** Objets renvoyés par Overpass (tous types confondus). */
+    elementCount: number;
+    /** Objets porteurs d'un numéro et d'un nom. */
+    poiCount: number;
+    /** Objets dont le nom évoque l'enseigne du magasin. */
+    brandMatchCount: number;
+    query: string;
+  };
+  google: {
+    used: boolean;
+    configured: boolean;
+    query: string;
+    resultCount: number;
+  };
+  /** Tous les candidats notés, y compris ceux sous le seuil (10 au maximum). */
+  scored: PhoneCandidate[];
+}
+
 export interface StoreLookupResult {
   storeId: string;
   /** Libellé lisible du magasin, pour les journaux et la file de revue. */
   label: string;
   status: PhoneLookupStatus;
-  /** Numéro retenu (vide si « a_verifier » ou « introuvable »). */
+  /** Numéro retenu (vide si « a_verifier », « introuvable » ou « erreur »). */
   phone: string;
   source: PhoneSource | '';
   /** Meilleurs candidats, triés par note décroissante (3 au maximum). */
   candidates: PhoneCandidate[];
   /** Message d'erreur éventuel (statut « erreur »). */
   error?: string;
+  /** Renseigné uniquement en mode diagnostic. */
+  diagnostics?: LookupDiagnostics;
 }
 
 export interface LookupOptions {
   /** Interroger Google Places pour le reliquat (par défaut : si une clé existe). */
   useGoogle?: boolean;
-  /** Cache OSM partagé par un lot (indispensable au traitement de masse). */
-  osmCache?: OsmCache;
   /**
    * Géocoder le magasin s'il ne l'est pas encore. Les coordonnées améliorent
    * beaucoup la validation (distance) : activé par défaut.
    */
   geocode?: boolean;
-  /** Interrogation OSM resserrée autour du magasin (recherche à l'unité). */
-  around?: boolean;
+  /** Rayon d'interrogation d'OpenStreetMap, en mètres. */
+  radiusMeters?: number;
+  /** Conserver la trace d'exécution complète (écran de diagnostic). */
+  withDiagnostics?: boolean;
 }
 
 // ─── Libellés ────────────────────────────────────────────────────────────────
@@ -137,12 +171,42 @@ export function buildSearchQuery(store: StoreForLookup): string {
   return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-// ─── Notation des candidats ──────────────────────────────────────────────────
+// ─── Rapprochement d'enseigne ────────────────────────────────────────────────
 
-/** Mots significatifs d'un libellé (les mots d'un caractère sont ignorés). */
-function tokens(value: string): string[] {
-  return normalizeText(value).split(' ').filter((t) => t.length > 1);
+/** Mots d'un libellé, normalisés (accents et ponctuation supprimés). */
+function words(value: string): string[] {
+  return normalizeText(value).split(' ').filter(Boolean);
 }
+
+/**
+ * L'établissement candidat porte-t-il l'enseigne du magasin ?
+ *
+ * La comparaison se fait MOT À MOT sur des libellés normalisés des deux côtés :
+ * c'est ce qui permet à « Intermarché » de retrouver « Intermarché Contact » et
+ * à « E.Leclerc » de retrouver « E.Leclerc Drive ». Comparer des mots entiers
+ * (et non des sous-chaînes) évite au passage que l'enseigne « U » ne se
+ * reconnaisse dans n'importe quel commerce contenant un « u ».
+ *
+ *   « complet » : tous les mots de l'enseigne sont présents ;
+ *   « partiel » : au moins un mot significatif l'est ;
+ *   « aucun »   : éliminatoire.
+ */
+function brandMatch(store: StoreForLookup, candidateText: string): 'complet' | 'partiel' | 'aucun' {
+  const brandWords = words(brandOf(store));
+  if (brandWords.length === 0) return 'aucun';
+
+  const candidateWords = new Set(words(candidateText));
+  const present = brandWords.filter((w) => candidateWords.has(w));
+  if (present.length === brandWords.length) return 'complet';
+
+  // Un mot d'une seule lettre (« U », « E ») ne suffit pas à lui seul : sans
+  // cette précaution, « E.Leclerc » se reconnaîtrait dans n'importe quel nom
+  // contenant un « e » isolé.
+  if (present.some((w) => w.length > 1)) return 'partiel';
+  return 'aucun';
+}
+
+// ─── Notation des candidats ──────────────────────────────────────────────────
 
 /**
  * Note un candidat face au magasin visé. La note additionne des indices
@@ -153,52 +217,31 @@ function tokens(value: string): string[] {
 function scoreCandidate(
   store: StoreForLookup,
   candidate: Omit<PhoneCandidate, 'score' | 'reasons'>,
+  match: 'complet' | 'partiel',
 ): { score: number; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
 
-  // 1. Enseigne — indice indispensable : sans elle, on ne sait pas si le
-  // numéro est celui d'un magasin de l'enseigne ou du kebab d'en face.
-  const brand = canonicalBrand(brandOf(store));
-  const candidateName = normalizeText(candidate.name);
-  const brandWords = tokens(brand);
-  const brandMatch =
-    brandWords.length > 0 && brandWords.every((w) => candidateName.includes(w));
-  if (brandMatch) {
-    score += 2;
-    reasons.push('enseigne reconnue');
-  } else {
-    score -= 3;
-    reasons.push('enseigne absente du nom');
-  }
+  // 1. Enseigne (les candidats sans aucune correspondance sont déjà écartés).
+  if (match === 'complet') { score += 3; reasons.push('enseigne reconnue'); }
+  else { score += 1; reasons.push('enseigne partiellement reconnue'); }
 
   // 2. Code postal — l'indice le plus discriminant en zone dense.
   const cpStore = (store.postalCode || '').replace(/\D/g, '');
   const cpCandidate = (candidate.postalCode || '').replace(/\D/g, '');
   if (cpStore && cpCandidate) {
-    if (cpStore === cpCandidate) {
-      score += 3;
-      reasons.push('code postal identique');
-    } else {
-      score -= 2;
-      reasons.push(`code postal différent (${cpCandidate})`);
-    }
+    if (cpStore === cpCandidate) { score += 3; reasons.push('code postal identique'); }
+    else { score -= 2; reasons.push(`code postal différent (${cpCandidate})`); }
   }
 
   // 3. Ville.
   const cityStore = normalizeText(store.city);
   const cityCandidate = normalizeText(candidate.city);
   if (cityStore && cityCandidate) {
-    if (cityStore === cityCandidate) {
-      score += 2;
-      reasons.push('ville identique');
-    } else if (cityCandidate.includes(cityStore) || cityStore.includes(cityCandidate)) {
-      score += 1;
-      reasons.push('ville proche');
-    } else {
-      score -= 1;
-      reasons.push(`ville différente (${candidate.city})`);
-    }
+    if (cityStore === cityCandidate) { score += 2; reasons.push('ville identique'); }
+    else if (cityCandidate.includes(cityStore) || cityStore.includes(cityCandidate)) {
+      score += 1; reasons.push('ville proche');
+    } else { score -= 1; reasons.push(`ville différente (${candidate.city})`); }
   }
 
   // 4. Distance au magasin géocodé.
@@ -213,18 +256,32 @@ function scoreCandidate(
 
   // 5. Nom du magasin (souvent un lieu-dit ou un quartier : « Villeneuve »,
   // « Grand Littoral ») retrouvé dans le nom du candidat.
-  const nameWords = tokens(store.name).filter((w) => !brandWords.includes(w) && w !== cityStore);
-  if (nameWords.length > 0 && nameWords.some((w) => candidateName.includes(w))) {
+  const brandWords = words(brandOf(store));
+  const candidateWords = new Set(words(candidate.name));
+  const nameWords = words(store.name).filter(
+    (w) => w.length > 2 && !brandWords.includes(w) && w !== cityStore,
+  );
+  if (nameWords.length > 0 && nameWords.some((w) => candidateWords.has(w))) {
     score += 2;
     reasons.push('nom du magasin retrouvé');
   }
 
   // 6. Adresse (numéro + rue) commune.
-  const streetWords = tokens(store.address).filter((w) => w.length > 3);
-  const candidateAddress = normalizeText(candidate.address);
-  if (streetWords.length >= 2 && streetWords.filter((w) => candidateAddress.includes(w)).length >= 2) {
+  const streetWords = words(store.address).filter((w) => w.length > 3);
+  const addressWords = new Set(words(candidate.address));
+  if (streetWords.length >= 2 && streetWords.filter((w) => addressWords.has(w)).length >= 2) {
     score += 2;
     reasons.push('adresse concordante');
+  }
+
+  // Une enseigne seulement PARTIELLEMENT reconnue ne peut jamais suffire à
+  // valider toute seule, quels que soient les autres indices : « Super U » se
+  // reconnaît dans « Intermarché SUPER », et ces collisions de mots communs
+  // (Super, Market, Contact, Express, Drive) sont fréquentes entre enseignes.
+  // On plafonne donc sous le seuil : le candidat part en vérification humaine.
+  if (match === 'partiel' && score >= AUTO_THRESHOLD) {
+    score = AUTO_THRESHOLD - 1;
+    reasons.push('enseigne incomplète → vérification requise');
   }
 
   return { score, reasons };
@@ -243,6 +300,11 @@ function distanceTo(
 }
 
 function osmToCandidate(store: StoreForLookup, poi: OsmPoi): PhoneCandidate | null {
+  // Le nom ET l'étiquette d'enseigne sont examinés : beaucoup de fiches portent
+  // un nom local et l'enseigne uniquement dans `brand` / `operator`.
+  const match = brandMatch(store, `${poi.name} ${poi.brand}`);
+  if (match === 'aucun') return null;
+
   const phone = normalizePhone(poi.phone);
   if (!phone || !isProspectablePhone(phone)) return null;
 
@@ -250,17 +312,20 @@ function osmToCandidate(store: StoreForLookup, poi: OsmPoi): PhoneCandidate | nu
     phone: phone.display,
     e164: phone.e164,
     source: 'osm' as const,
-    name: poi.name || poi.brand,
+    name: poi.name,
     address: [poi.street, poi.postalCode, poi.city].filter(Boolean).join(' '),
     city: poi.city,
     postalCode: poi.postalCode,
     distanceKm: distanceTo(store, poi.latitude, poi.longitude),
     url: `https://www.openstreetmap.org/${poi.osmId}`,
   };
-  return { ...base, ...scoreCandidate(store, base) };
+  return { ...base, ...scoreCandidate(store, base, match) };
 }
 
 function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCandidate | null {
+  const match = brandMatch(store, place.name);
+  if (match === 'aucun') return null;
+
   const phone = normalizePhone(place.phone);
   if (!phone || !isProspectablePhone(phone)) return null;
 
@@ -275,7 +340,7 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
     distanceKm: distanceTo(store, place.latitude, place.longitude),
     url: place.mapsUrl,
   };
-  const scored = scoreCandidate(store, base);
+  const scored = scoreCandidate(store, base, match);
 
   // Établissement fermé : le numéro ne vaut rien, même si tout le reste colle.
   if (place.businessStatus === 'CLOSED_PERMANENTLY') {
@@ -320,46 +385,60 @@ export async function lookupStorePhone(
     return { storeId: store.id, label, status: 'introuvable', phone: '', source: '', candidates: [] };
   }
 
-  // Les coordonnées sont le meilleur garde-fou contre le mauvais magasin :
-  // on géocode au passage les magasins qui ne l'ont jamais été.
+  // Les coordonnées sont le meilleur garde-fou contre le mauvais magasin, et
+  // conditionnent la stratégie d'interrogation d'OSM : on géocode donc au
+  // passage les magasins qui ne l'ont jamais été.
   let located = store;
+  let geocodedNow = false;
   if ((store.latitude == null || store.longitude == null) && options.geocode !== false) {
     const geo = await geocodeStore({
       address: store.address,
       postalCode: store.postalCode,
       city: store.city,
     });
-    if (geo) located = { ...store, latitude: geo.latitude, longitude: geo.longitude };
+    if (geo) {
+      located = { ...store, latitude: geo.latitude, longitude: geo.longitude };
+      geocodedNow = true;
+    }
   }
-
-  const candidates: PhoneCandidate[] = [];
 
   // ── Étape 1 : OpenStreetMap (gratuit) ──────────────────────────────────────
   const dept = departmentCode(located);
-  const pois =
-    options.around && located.latitude != null && located.longitude != null
-      ? await fetchBrandPoisAround(brand, located.latitude, located.longitude)
-      : dept
-        ? await fetchBrandPoisInDepartment(brand, dept, options.osmCache)
-        : located.latitude != null && located.longitude != null
-          ? await fetchBrandPoisAround(brand, located.latitude, located.longitude, 15000)
-          : [];
+  let strategy: LookupDiagnostics['osm']['strategy'] = 'aucune';
+  let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, query: '', elementCount: 0 };
 
-  for (const poi of pois) {
+  if (located.latitude != null && located.longitude != null) {
+    strategy = 'autour';
+    osm = await fetchPoisAround(located.latitude, located.longitude, options.radiusMeters ?? DEFAULT_RADIUS_M);
+  } else if (dept) {
+    // Magasin non localisable : repli sur tout le département.
+    strategy = 'departement';
+    osm = await fetchPoisInDepartment(dept);
+  }
+
+  const candidates: PhoneCandidate[] = [];
+  let brandMatchCount = 0;
+  for (const poi of osm.pois) {
     const candidate = osmToCandidate(located, poi);
-    if (candidate) candidates.push(candidate);
+    if (candidate) { candidates.push(candidate); brandMatchCount++; }
   }
 
   let ranked = rank(candidates);
 
   // ── Étape 2 : Google Places (payant), seulement si OSM n'a pas tranché ─────
   const osmSettled = ranked.length > 0 && ranked[0].score >= AUTO_THRESHOLD;
+  const googleQuery = buildSearchQuery(located);
+  let googleUsed = false;
+  let googleResultCount = 0;
+
   if (useGoogle && !osmSettled) {
+    googleUsed = true;
     const bias =
       located.latitude != null && located.longitude != null
         ? { latitude: located.latitude, longitude: located.longitude, radiusMeters: 15000 }
         : undefined;
-    const places = await searchPlaces(buildSearchQuery(located), bias);
+    const places = await searchPlaces(googleQuery, bias);
+    googleResultCount = places.length;
     for (const place of places) {
       const candidate = googleToCandidate(located, place);
       if (candidate) candidates.push(candidate);
@@ -367,19 +446,52 @@ export async function lookupStorePhone(
     ranked = rank(candidates);
   }
 
+  const diagnostics: LookupDiagnostics | undefined = options.withDiagnostics
+    ? {
+        department: dept,
+        latitude: located.latitude,
+        longitude: located.longitude,
+        geocodedNow,
+        osm: {
+          strategy, ok: osm.ok, status: osm.status, error: osm.error,
+          elapsedMs: osm.elapsedMs, elementCount: osm.elementCount,
+          poiCount: osm.pois.length, brandMatchCount, query: osm.query,
+        },
+        google: { used: googleUsed, configured: isGoogleConfigured(), query: googleQuery, resultCount: googleResultCount },
+        scored: ranked.slice(0, 10),
+      }
+    : undefined;
+
   const kept = ranked.filter((c) => c.score >= REVIEW_THRESHOLD).slice(0, 3);
   const best = kept[0];
 
-  if (!best) {
-    return { storeId: store.id, label, status: 'introuvable', phone: '', source: '', candidates: [] };
-  }
-  if (best.score >= AUTO_THRESHOLD) {
+  if (best && best.score >= AUTO_THRESHOLD) {
     return {
       storeId: store.id, label, status: 'trouve',
-      phone: best.phone, source: best.source, candidates: kept,
+      phone: best.phone, source: best.source, candidates: kept, diagnostics,
     };
   }
-  return { storeId: store.id, label, status: 'a_verifier', phone: '', source: '', candidates: kept };
+  if (best) {
+    return { storeId: store.id, label, status: 'a_verifier', phone: '', source: '', candidates: kept, diagnostics };
+  }
+
+  // Rien trouvé — mais était-ce faute de données, ou faute de réponse ? Un
+  // magasin que la source n'a jamais pu examiner reste « en erreur », donc
+  // à retenter, plutôt que d'être classé « introuvable » à tort.
+  if (!osm.ok) {
+    return {
+      storeId: store.id, label, status: 'erreur', phone: '', source: '', candidates: [],
+      error: `OpenStreetMap injoignable : ${osm.error}`, diagnostics,
+    };
+  }
+  if (strategy === 'aucune') {
+    return {
+      storeId: store.id, label, status: 'erreur', phone: '', source: '', candidates: [],
+      error: 'Magasin ni géocodable ni rattaché à un département (adresse trop incomplète)',
+      diagnostics,
+    };
+  }
+  return { storeId: store.id, label, status: 'introuvable', phone: '', source: '', candidates: [], diagnostics };
 }
 
 // ─── Persistance ─────────────────────────────────────────────────────────────
@@ -440,6 +552,14 @@ export interface BatchReport {
   stopped?: string;
 }
 
+/**
+ * Taille de lot par défaut. Volontairement modeste : chaque magasin déclenche
+ * une requête Overpass précédée d'une pause de courtoisie, si bien qu'un lot
+ * doit rester très en dessous du temps d'exécution maximal d'une fonction
+ * serverless — et que l'avancement s'affiche vite dans l'interface.
+ */
+const DEFAULT_BATCH = 8;
+
 const STORE_SELECT = {
   id: true, name: true, city: true, postalCode: true, department: true,
   address: true, phone: true, latitude: true, longitude: true,
@@ -453,8 +573,9 @@ function whereForScope(scope: BatchScope, dealsOnly: boolean): Record<string, un
 
   if (scope === 'nouveaux') base.phoneLookupStatus = '';
   // « echecs » : magasins déjà cherchés sans succès — à relancer typiquement
-  // après avoir activé Google. La file de revue (« a_verifier ») est laissée de
-  // côté : elle attend une décision humaine, pas une nouvelle recherche.
+  // après une panne de source ou après avoir activé Google. La file de revue
+  // (« a_verifier ») est laissée de côté : elle attend une décision humaine,
+  // pas une nouvelle recherche.
   else if (scope === 'echecs') base.phoneLookupStatus = { in: ['introuvable', 'erreur'] };
   else base.phoneLookupStatus = { not: 'a_verifier' };
 
@@ -466,15 +587,12 @@ function whereForScope(scope: BatchScope, dealsOnly: boolean): Record<string, un
  * temps d'exécution d'une route serveur : l'interface rappelle la route en
  * boucle jusqu'à ce que `remaining` tombe à zéro, ce qui rend la campagne
  * interruptible et reprenable à tout moment.
- *
- * Les magasins sont traités groupés par enseigne et département : c'est ce qui
- * permet à une seule requête OpenStreetMap de servir des dizaines de magasins.
  */
 export async function runPhoneLookupBatch(
   prisma: PrismaClient,
   options: BatchOptions = {},
 ): Promise<BatchReport> {
-  const limit = Math.min(Math.max(options.limit ?? 25, 1), 500);
+  const limit = Math.min(Math.max(options.limit ?? DEFAULT_BATCH, 1), 500);
   const scope = options.scope ?? 'nouveaux';
   const dealsOnly = options.dealsOnly ?? true;
   const useGoogle = options.useGoogle ?? isGoogleConfigured();
@@ -483,9 +601,9 @@ export async function runPhoneLookupBatch(
   const stores = (await prisma.store.findMany({
     where,
     select: STORE_SELECT,
-    // Grouper par enseigne puis département maximise les réutilisations du
-    // cache OSM à l'intérieur d'un même lot.
-    orderBy: [{ brandId: 'asc' }, { department: 'asc' }, { postalCode: 'asc' }],
+    // Traiter les magasins voisins à la suite améliore les chances qu'Overpass
+    // serve des réponses déjà en cache côté serveur.
+    orderBy: [{ department: 'asc' }, { postalCode: 'asc' }],
     take: limit,
   })) as StoreForLookup[];
 
@@ -494,12 +612,10 @@ export async function runPhoneLookupBatch(
     remaining: 0, results: [],
   };
 
-  const osmCache = createOsmCache();
-
   for (const store of stores) {
     let result: StoreLookupResult;
     try {
-      result = await lookupStorePhone(store, { useGoogle, osmCache });
+      result = await lookupStorePhone(store, { useGoogle });
     } catch (err) {
       if (err instanceof GooglePlacesError) {
         // Clé refusée / quota épuisé : inutile de continuer, on rend la main
@@ -531,12 +647,13 @@ export async function runPhoneLookupBatch(
 /** Compteurs affichés dans l'écran de campagne (Paramètres). */
 export async function phoneLookupStats(prisma: PrismaClient, dealsOnly = true) {
   const scopeFilter = dealsOnly ? { deal: { isNot: null } } : {};
-  const [total, withPhone, pending, toReview, notFound] = await Promise.all([
+  const [total, withPhone, pending, toReview, notFound, errors] = await Promise.all([
     prisma.store.count({ where: scopeFilter }),
     prisma.store.count({ where: { ...scopeFilter, phone: { not: '' } } }),
     prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: '' } }),
     prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: 'a_verifier' } }),
-    prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: { in: ['introuvable', 'erreur'] } } }),
+    prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: 'introuvable' } }),
+    prisma.store.count({ where: { ...scopeFilter, phone: '', phoneLookupStatus: 'erreur' } }),
   ]);
-  return { total, withPhone, pending, toReview, notFound, googleConfigured: isGoogleConfigured() };
+  return { total, withPhone, pending, toReview, notFound, errors, googleConfigured: isGoogleConfigured() };
 }

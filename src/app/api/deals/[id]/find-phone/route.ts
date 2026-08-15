@@ -46,7 +46,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       });
     }
 
-    const result = await lookupStorePhone(store, { around: true });
+    const result = await lookupStorePhone(store);
     await applyLookupResult(prisma, result);
 
     return NextResponse.json({

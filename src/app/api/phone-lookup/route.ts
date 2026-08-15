@@ -18,7 +18,7 @@ export const maxDuration = 300;
 
 export async function GET() {
   if (USE_MOCK_DATA) {
-    return NextResponse.json({ total: 0, withPhone: 0, pending: 0, toReview: 0, notFound: 0, googleConfigured: false });
+    return NextResponse.json({ total: 0, withPhone: 0, pending: 0, toReview: 0, notFound: 0, errors: 0, googleConfigured: false });
   }
   try {
     return NextResponse.json(await phoneLookupStats(prisma));
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       body.scope === 'echecs' || body.scope === 'tout' ? body.scope : 'nouveaux';
 
     const report = await runPhoneLookupBatch(prisma, {
-      limit: typeof body.limit === 'number' ? body.limit : 25,
+      limit: typeof body.limit === 'number' ? body.limit : undefined,
       scope,
       useGoogle: typeof body.useGoogle === 'boolean' ? body.useGoogle : undefined,
       dealsOnly: body.dealsOnly !== false,
