@@ -19,6 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (USE_MOCK_DATA) {
     return NextResponse.json({ status: 'introuvable', phone: '', candidates: [] });
   }
+  const startedAt = Date.now();
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: params.id },
@@ -46,7 +47,13 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       });
     }
 
-    const result = await lookupStorePhone(store);
+    const result = await lookupStorePhone(store, {
+      // Sans cette échéance, un magasin sans correspondance à 1,5 km
+      // déclencherait un second essai à 4 km : deux attentes de 48 s, quand
+      // l'hébergeur coupe à 60. Tout magasin nécessitant ce second essai
+      // échouait donc mécaniquement. On ne l'entame que s'il reste du temps.
+      deadline: startedAt + 25_000,
+    });
     await applyLookupResult(prisma, result);
 
     return NextResponse.json({
@@ -54,6 +61,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       phone: result.phone,
       source: result.source,
       candidates: result.candidates,
+      // Distingue « ce magasin n'est pas référencé » de « la source n'a pas
+      // répondu » : sans cette information, l'utilisateur voit le même message
+      // dans les deux cas et croit à une absence de données.
+      error: result.error || null,
     });
   } catch (err) {
     if (err instanceof GooglePlacesError) {
