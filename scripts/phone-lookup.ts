@@ -73,6 +73,10 @@ async function main() {
 
     const report = await runPhoneLookupBatch(prisma, {
       limit: Math.min(batchSize, remainingBudget),
+      // En ligne de commande, aucune plateforme ne vient couper l'exécution :
+      // c'est le nombre de magasins qui borne le lot, pas le temps. Le budget
+      // est donc volontairement hors d'atteinte.
+      maxMillis: 6 * 60 * 60 * 1000,
       scope,
       useGoogle,
       dealsOnly,

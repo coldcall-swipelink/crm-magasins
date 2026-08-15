@@ -40,8 +40,17 @@ import { isGoogleConfigured, searchPlaces, GooglePlacesError, type GooglePlace }
 const AUTO_THRESHOLD = 6;
 /** Au-dessus : le numéro est proposé dans la file de revue. */
 const REVIEW_THRESHOLD = 3;
-/** Rayon d'interrogation d'OpenStreetMap autour du magasin. */
-const DEFAULT_RADIUS_M = 3000;
+/**
+ * Rayon d'interrogation d'OpenStreetMap autour du magasin. Généreux à dessein :
+ * en zone rurale, le magasin géocodé et sa fiche OSM peuvent être distants de
+ * plusieurs kilomètres, et le géocodage peut n'avoir résolu que la commune.
+ */
+const DEFAULT_RADIUS_M = 5000;
+/**
+ * Portée du bonus d'unicité : au-delà, « le seul magasin de l'enseigne dans le
+ * rayon » ne dit plus grand-chose du magasin qu'on cherche.
+ */
+const UNIQUE_BONUS_MAX_KM = 5;
 
 export type PhoneLookupStatus = 'trouve' | 'a_verifier' | 'introuvable' | 'erreur';
 export type PhoneSource = 'osm' | 'google' | 'manuel' | 'import';
@@ -60,6 +69,8 @@ export interface PhoneCandidate {
   postalCode: string;
   /** Distance au magasin géocodé, en km. Null si l'un des deux n'est pas localisé. */
   distanceKm: number | null;
+  /** L'enseigne du magasin est-elle entièrement ou partiellement reconnue ? */
+  brandMatch: 'complet' | 'partiel';
   score: number;
   /** Indices ayant joué dans la note — affichés tels quels dans la file de revue. */
   reasons: string[];
@@ -317,6 +328,7 @@ function osmToCandidate(store: StoreForLookup, poi: OsmPoi): PhoneCandidate | nu
     city: poi.city,
     postalCode: poi.postalCode,
     distanceKm: distanceTo(store, poi.latitude, poi.longitude),
+    brandMatch: match,
     url: `https://www.openstreetmap.org/${poi.osmId}`,
   };
   return { ...base, ...scoreCandidate(store, base, match) };
@@ -338,6 +350,7 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
     city: place.city,
     postalCode: place.postalCode,
     distanceKm: distanceTo(store, place.latitude, place.longitude),
+    brandMatch: match,
     url: place.mapsUrl,
   };
   const scored = scoreCandidate(store, base, match);
@@ -354,6 +367,35 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
   return { ...base, ...scored };
 }
 
+/**
+ * Bonus d'UNICITÉ : quand un seul établissement porte pleinement l'enseigne
+ * dans le rayon, la correspondance est bien plus sûre que la somme des indices
+ * ne le laisse croire.
+ *
+ * C'est décisif sur les fiches pauvres. Beaucoup de magasins n'ont ni adresse
+ * ni code postal en base, et beaucoup de points OSM n'ont pas d'étiquette de
+ * ville : il ne reste alors que l'enseigne et la distance, jamais assez pour
+ * valider. Or « le seul Super U à moins de 5 km d'un magasin Super U » n'a rien
+ * d'ambigu. Dès qu'il y en a deux, plus de bonus : l'ambiguïté est réelle et la
+ * décision revient à un humain.
+ */
+function applyUniquenessBonus(candidates: PhoneCandidate[]): PhoneCandidate[] {
+  const fullMatches = candidates.filter(
+    (c) => c.brandMatch === 'complet' && (c.distanceKm === null || c.distanceKm <= UNIQUE_BONUS_MAX_KM),
+  );
+  if (fullMatches.length !== 1) return candidates;
+
+  // Volontairement SANS effet de bord : `rank` est appelé plusieurs fois sur le
+  // même tableau de candidats (une fois après OpenStreetMap, une fois après
+  // Google), et muter les objets appliquerait le bonus deux fois.
+  const unique = fullMatches[0];
+  return candidates.map((c) =>
+    c === unique
+      ? { ...c, score: c.score + 2, reasons: [...c.reasons, 'seul magasin de l\'enseigne dans le rayon'] }
+      : c,
+  );
+}
+
 /** Dédoublonne par numéro en gardant la meilleure note, puis trie. */
 function rank(candidates: PhoneCandidate[]): PhoneCandidate[] {
   const best = new Map<string, PhoneCandidate>();
@@ -361,7 +403,11 @@ function rank(candidates: PhoneCandidate[]): PhoneCandidate[] {
     const existing = best.get(c.e164);
     if (!existing || c.score > existing.score) best.set(c.e164, c);
   }
-  return Array.from(best.values()).sort((a, b) => b.score - a.score);
+  // Le bonus d'unicité se calcule APRÈS dédoublonnage : deux fiches OSM du même
+  // magasin (le bâtiment et son point de vente) portant le même numéro ne
+  // doivent pas se faire passer pour deux magasins concurrents.
+  const deduped = applyUniquenessBonus(Array.from(best.values()));
+  return deduped.sort((a, b) => b.score - a.score);
 }
 
 // ─── Recherche pour UN magasin ───────────────────────────────────────────────
@@ -529,8 +575,13 @@ export async function applyLookupResult(
 export type BatchScope = 'nouveaux' | 'echecs' | 'tout';
 
 export interface BatchOptions {
-  /** Nombre de magasins traités par appel (le lot suivant reprend la suite). */
+  /** Plafond de magasins traités par appel (le lot suivant reprend la suite). */
   limit?: number;
+  /**
+   * Budget de temps du lot, en millisecondes. Le lot s'arrête dès qu'il est
+   * dépassé, sans entamer un magasin de plus.
+   */
+  maxMillis?: number;
   /** Périmètre : jamais cherchés / déjà déclarés introuvables / les deux. */
   scope?: BatchScope;
   useGoogle?: boolean;
@@ -553,12 +604,26 @@ export interface BatchReport {
 }
 
 /**
- * Taille de lot par défaut. Volontairement modeste : chaque magasin déclenche
- * une requête Overpass précédée d'une pause de courtoisie, si bien qu'un lot
- * doit rester très en dessous du temps d'exécution maximal d'une fonction
- * serverless — et que l'avancement s'affiche vite dans l'interface.
+ * Plafond de magasins par lot. C'est une borne haute, pas un objectif : le
+ * budget de temps ci-dessous s'atteint presque toujours en premier.
  */
-const DEFAULT_BATCH = 8;
+const DEFAULT_BATCH = 25;
+
+/**
+ * Budget de temps d'un lot. C'est LE garde-fou de la campagne.
+ *
+ * Une interrogation d'OpenStreetMap ne coûte presque rien en données, mais
+ * s'exécute sur une instance publique partagée : mesurée à ~37 s en conditions
+ * réelles, contre 2 à 3 s quand l'instance est disponible. Dimensionner un lot
+ * en NOMBRE de magasins revient donc à parier sur cette latence, et un mauvais
+ * pari dépasse le temps d'exécution maximal de la fonction — la requête est
+ * tuée et l'utilisateur voit une erreur.
+ *
+ * On raisonne donc en temps : le lot traite autant de magasins qu'il peut en
+ * 40 secondes, puis rend la main quel qu'en soit le nombre. La campagne avance
+ * au rythme réel de la source, sans jamais heurter la limite de la plateforme.
+ */
+const DEFAULT_BATCH_MILLIS = 40_000;
 
 const STORE_SELECT = {
   id: true, name: true, city: true, postalCode: true, department: true,
@@ -592,7 +657,9 @@ export async function runPhoneLookupBatch(
   prisma: PrismaClient,
   options: BatchOptions = {},
 ): Promise<BatchReport> {
+  const startedAt = Date.now();
   const limit = Math.min(Math.max(options.limit ?? DEFAULT_BATCH, 1), 500);
+  const budgetMs = Math.max(options.maxMillis ?? DEFAULT_BATCH_MILLIS, 1000);
   const scope = options.scope ?? 'nouveaux';
   const dealsOnly = options.dealsOnly ?? true;
   const useGoogle = options.useGoogle ?? isGoogleConfigured();
@@ -612,7 +679,21 @@ export async function runPhoneLookupBatch(
     remaining: 0, results: [],
   };
 
+  /** Durée de chaque magasin traité, pour anticiper le coût du suivant. */
+  const durations: number[] = [];
+
   for (const store of stores) {
+    // On n'entame un magasin que si on peut vraisemblablement le TERMINER dans
+    // le budget : vérifier le temps déjà écoulé ne suffirait pas, un magasin
+    // pouvant coûter à lui seul plus que le budget restant. Le premier magasin
+    // part toujours, sinon un lot pourrait ne rien faire et la campagne
+    // n'avancerait jamais.
+    if (durations.length > 0) {
+      const average = durations.reduce((a, b) => a + b, 0) / durations.length;
+      if (Date.now() - startedAt + average > budgetMs) break;
+    }
+
+    const storeStartedAt = Date.now();
     let result: StoreLookupResult;
     try {
       result = await lookupStorePhone(store, { useGoogle });
@@ -631,6 +712,7 @@ export async function runPhoneLookupBatch(
     }
 
     await applyLookupResult(prisma, result);
+    durations.push(Date.now() - storeStartedAt);
 
     report.processed++;
     report.results.push(result);
