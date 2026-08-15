@@ -241,9 +241,18 @@ async function searchViaGoogle(query: string, startedAt: number): Promise<WebSea
  * Lance la recherche web avec le fournisseur configuré. Ne lève jamais : une
  * source indisponible est un fait à rapporter, pas une exception à propager.
  */
-export async function searchPhoneOnWeb(query: string): Promise<WebSearchOutcome> {
+export async function searchPhoneOnWeb(query: string, force?: WebProvider): Promise<WebSearchOutcome> {
   const startedAt = Date.now();
-  const provider = webProvider();
+  // `force` sert au diagnostic : essayer l'accès direct à Google sans rien
+  // configurer, pour constater par soi-même ce que Google renvoie à un serveur.
+  const provider = force && force !== 'aucun' ? force : webProvider();
+
+  if (provider === 'serper' && !process.env.SERPER_API_KEY?.trim()) {
+    return {
+      results: [], ok: false, provider: 'serper', status: 0,
+      error: 'SERPER_API_KEY n\'est pas renseignée', elapsedMs: 0, query,
+    };
+  }
 
   if (provider === 'serper') return searchViaSerper(query, startedAt);
   if (provider === 'google') return searchViaGoogle(query, startedAt);

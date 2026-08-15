@@ -184,6 +184,11 @@ export interface LookupOptions {
   /** Conserver la trace d'exécution complète (écran de diagnostic). */
   withDiagnostics?: boolean;
   /**
+   * Impose un fournisseur de recherche web pour cette recherche seulement.
+   * Permet d'éprouver l'accès direct à Google sans rien configurer.
+   */
+  forceWebProvider?: 'serper' | 'google';
+  /**
    * Instant (horodatage absolu) au-delà duquel il ne faut plus entamer de
    * nouvelle interrogation. Sert à ne pas lancer un élargissement de rayon
    * qu'on n'aurait pas le temps de terminer avant que l'hébergeur ne coupe.
@@ -595,11 +600,11 @@ export async function lookupStorePhone(
   const webQuery = buildWebQuery(brand, located.name, located.city, located.postalCode);
   let web: WebSearchOutcome | null = null;
 
-  if (isWebSearchConfigured() && !settled()) {
+  if ((isWebSearchConfigured() || options.forceWebProvider) && !settled()) {
     // Comme pour l'élargissement de rayon : on n'entame pas une interrogation
     // qu'on n'aurait pas le temps de terminer.
     if (!options.deadline || Date.now() < options.deadline) {
-      web = await searchPhoneOnWeb(webQuery);
+      web = await searchPhoneOnWeb(webQuery, options.forceWebProvider);
       web.results.forEach((result, index) => {
         const candidate = webToCandidate(located, result, index);
         if (candidate) candidates.push(candidate);
