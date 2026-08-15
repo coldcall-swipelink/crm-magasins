@@ -39,11 +39,17 @@ export async function POST(req: NextRequest) {
     const scope: BatchScope =
       body.scope === 'echecs' || body.scope === 'tout' ? body.scope : 'nouveaux';
 
+    // Instant de départ de la campagne, transmis par l'interface à chaque lot.
+    // Il exclut les magasins déjà examinés depuis, sans quoi les périmètres de
+    // relance boucleraient indéfiniment sur les magasins restés sans solution.
+    const since = typeof body.since === 'string' ? new Date(body.since) : null;
+
     const report = await runPhoneLookupBatch(prisma, {
       limit: typeof body.limit === 'number' ? body.limit : undefined,
       scope,
       useGoogle: typeof body.useGoogle === 'boolean' ? body.useGoogle : undefined,
       dealsOnly: body.dealsOnly !== false,
+      notTouchedSince: since && !isNaN(since.getTime()) ? since : undefined,
     });
 
     return NextResponse.json(report);

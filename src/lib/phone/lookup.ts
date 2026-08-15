@@ -815,6 +815,17 @@ export interface BatchOptions {
   useGoogle?: boolean;
   /** Ne traiter que les magasins rattachés à une affaire (par défaut : oui). */
   dealsOnly?: boolean;
+  /**
+   * Écarte les magasins déjà examinés depuis cet instant — c'est-à-dire depuis
+   * le début de la campagne en cours.
+   *
+   * SANS CETTE BORNE, LA CAMPAGNE NE PEUT PAS SE TERMINER sur les périmètres de
+   * relance : ils sélectionnent les magasins « introuvable », or un magasin
+   * qu'on réexamine sans succès CONSERVE ce statut. Il reste donc dans le
+   * périmètre, revient en tête de liste au lot suivant, et la campagne le
+   * reprend en boucle sans jamais progresser.
+   */
+  notTouchedSince?: Date;
 }
 
 export interface BatchReport {
@@ -863,9 +874,23 @@ const STORE_SELECT = {
 } as const;
 
 /** Filtre Prisma correspondant au périmètre demandé. */
-function whereForScope(scope: BatchScope, dealsOnly: boolean): Record<string, unknown> {
+function whereForScope(
+  scope: BatchScope,
+  dealsOnly: boolean,
+  notTouchedSince?: Date,
+): Record<string, unknown> {
   const base: Record<string, unknown> = { phone: '' };
   if (dealsOnly) base.deal = { isNot: null };
+
+  // Un magasin déjà examiné pendant cette campagne en sort définitivement,
+  // quel qu'ait été le résultat. C'est ce qui garantit que le nombre de
+  // magasins restants décroît, donc que la campagne se termine.
+  if (notTouchedSince) {
+    base.OR = [
+      { phoneLookupAt: null },
+      { phoneLookupAt: { lt: notTouchedSince } },
+    ];
+  }
 
   if (scope === 'nouveaux') base.phoneLookupStatus = '';
   // « echecs » : magasins déjà cherchés sans succès — à relancer typiquement
@@ -894,7 +919,7 @@ export async function runPhoneLookupBatch(
   const scope = options.scope ?? 'nouveaux';
   const dealsOnly = options.dealsOnly ?? true;
   const useGoogle = options.useGoogle ?? isGoogleConfigured();
-  const where = whereForScope(scope, dealsOnly);
+  const where = whereForScope(scope, dealsOnly, options.notTouchedSince);
 
   const stores = (await prisma.store.findMany({
     where,

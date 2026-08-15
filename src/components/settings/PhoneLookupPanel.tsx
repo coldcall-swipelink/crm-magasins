@@ -71,6 +71,10 @@ export default function PhoneLookupPanel() {
   // Temps restant estimé, calculé sur la cadence réelle observée : une campagne
   // qui dure une heure doit dire combien de temps elle va encore durer.
   const [eta, setEta] = useState<string | null>(null);
+  // Motif d'arrêt de la dernière campagne, affiché explicitement : « terminée »
+  // et « abandonnée sur erreurs » appelaient la même annonce, ce qui laissait
+  // croire à un succès complet là où il y avait eu renoncement.
+  const [stopReason, setStopReason] = useState<'termine' | 'arrete' | 'echecs' | 'interrompu' | null>(null);
   // Drapeau lu à chaque tour de boucle : permet d'arrêter proprement entre deux
   // lots sans interrompre un lot en cours (qui serait alors à moitié écrit).
   const stopRef = useRef(false);
@@ -100,19 +104,27 @@ export default function PhoneLookupPanel() {
     setLastLines([]);
     setFailure(null);
     setEta(null);
+    setStopReason(null);
 
     const campaignStartedAt = Date.now();
+    // Transmis à chaque lot : les magasins déjà examinés depuis cet instant
+    // sortent du périmètre. Sans cela, une relance boucle indéfiniment sur les
+    // magasins restés sans solution, qui conservent leur statut.
+    const since = new Date().toISOString();
     let consecutiveFailures = 0;
     let done = 0;
+    // Pourquoi la campagne s'est arrêtée : annoncer « terminée » dans tous les
+    // cas, y compris après un abandon sur erreurs, revient à masquer l'échec.
+    let outcome: 'termine' | 'arrete' | 'echecs' | 'interrompu' = 'termine';
 
     try {
       for (;;) {
-        if (stopRef.current) break;
+        if (stopRef.current) { outcome = 'arrete'; break; }
 
         const res = await fetch('/api/phone-lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scope, useGoogle }),
+          body: JSON.stringify({ scope, useGoogle, since }),
         });
         if (!res.ok) {
           // Un appel qui échoue ne condamne pas la campagne : le magasin
@@ -121,10 +133,7 @@ export default function PhoneLookupPanel() {
           consecutiveFailures++;
           const data = await res.json().catch(() => ({}));
           setFailure(data.error || `Appel en échec (HTTP ${res.status}) — ${consecutiveFailures} d'affilée.`);
-          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            toast('Recherche interrompue : trop d\'échecs consécutifs', 'error');
-            break;
-          }
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) { outcome = 'echecs'; break; }
           await pause(3000);
           continue;
         }
@@ -167,7 +176,7 @@ export default function PhoneLookupPanel() {
           setEta(null);
         }
 
-        if (report.stopped) { toast(report.stopped, 'error'); break; }
+        if (report.stopped) { outcome = 'echecs'; setFailure(report.stopped); break; }
         // Plus rien à traiter dans le périmètre : la campagne est terminée.
         if (report.processed === 0 || report.remaining === 0) break;
 
@@ -175,8 +184,12 @@ export default function PhoneLookupPanel() {
         // met en file d'attente ceux qui la sollicitent sans relâche.
         await pause(PAUSE_BETWEEN_STORES_MS);
       }
-      toast('✓ Recherche terminée');
+      if (outcome === 'termine') toast('✓ Recherche terminée — plus aucun magasin à traiter');
+      else if (outcome === 'arrete') toast('Recherche arrêtée — relancez pour reprendre');
+      else toast('Recherche interrompue : trop d\'échecs consécutifs', 'error');
+      setStopReason(outcome);
     } catch {
+      setStopReason('interrompu');
       toast('Recherche interrompue', 'error');
     } finally {
       setRunning(false);
@@ -300,7 +313,12 @@ export default function PhoneLookupPanel() {
       {(running || progress.processed > 0) && (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
           <div style={{ fontSize: 12.5, color: '#334155', fontWeight: 600, marginBottom: 6 }}>
-            {running ? '⟳ Recherche en cours…' : 'Dernière campagne'} — {progress.processed} magasin(s) traité(s)
+            {running
+              ? '⟳ Recherche en cours…'
+              : stopReason === 'termine' ? '✅ Campagne terminée'
+              : stopReason === 'arrete' ? '⏸ Campagne arrêtée — relancez pour reprendre'
+              : stopReason ? '❌ Campagne interrompue sur erreurs'
+              : 'Dernière campagne'} — {progress.processed} magasin(s) traité(s)
             {progress.remaining > 0 && `, ${progress.remaining} restant(s)`}
             {running && eta && <span style={{ fontWeight: 500, color: '#64748b' }}> · fin estimée dans {eta}</span>}
           </div>
