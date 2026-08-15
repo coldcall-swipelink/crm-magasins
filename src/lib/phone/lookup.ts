@@ -105,6 +105,8 @@ export interface LookupDiagnostics {
     status: number;
     error: string;
     elapsedMs: number;
+    /** Instance Overpass réellement interrogée. */
+    endpoint: string;
     /** Objets renvoyés par Overpass (tous types confondus). */
     elementCount: number;
     /** Objets porteurs d'un numéro et d'un nom. */
@@ -149,6 +151,12 @@ export interface LookupOptions {
   geocode?: boolean;
   /** Rayon d'interrogation d'OpenStreetMap, en mètres. */
   radiusMeters?: number;
+  /**
+   * Instance Overpass à interroger pour cette recherche seulement, en lieu et
+   * place de celle configurée. Sert à comparer la vitesse de deux miroirs
+   * depuis l'écran de diagnostic, sans redéployer.
+   */
+  overpassEndpoint?: string;
   /** Conserver la trace d'exécution complète (écran de diagnostic). */
   withDiagnostics?: boolean;
 }
@@ -451,11 +459,15 @@ export async function lookupStorePhone(
   // ── Étape 1 : OpenStreetMap (gratuit) ──────────────────────────────────────
   const dept = departmentCode(located);
   let strategy: LookupDiagnostics['osm']['strategy'] = 'aucune';
-  let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, query: '', elementCount: 0 };
+  let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, endpoint: '', query: '', elementCount: 0 };
 
   if (located.latitude != null && located.longitude != null) {
     strategy = 'autour';
-    osm = await fetchPoisAround(located.latitude, located.longitude, options.radiusMeters ?? DEFAULT_RADIUS_M);
+    osm = await fetchPoisAround(
+      located.latitude, located.longitude,
+      options.radiusMeters ?? DEFAULT_RADIUS_M,
+      options.overpassEndpoint,
+    );
   } else if (dept) {
     // Magasin non localisable : repli sur tout le département.
     strategy = 'departement';
@@ -500,7 +512,7 @@ export async function lookupStorePhone(
         geocodedNow,
         osm: {
           strategy, ok: osm.ok, status: osm.status, error: osm.error,
-          elapsedMs: osm.elapsedMs, elementCount: osm.elementCount,
+          elapsedMs: osm.elapsedMs, endpoint: osm.endpoint, elementCount: osm.elementCount,
           poiCount: osm.pois.length, brandMatchCount, query: osm.query,
         },
         google: { used: googleUsed, configured: isGoogleConfigured(), query: googleQuery, resultCount: googleResultCount },
