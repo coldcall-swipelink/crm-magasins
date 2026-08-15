@@ -14,6 +14,11 @@ function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || '')
 const PRIORITIES: Priority[] = ['faible', 'normale', 'élevée', 'urgente'];
 const ACTION_TYPES = ['Appeler', 'Email', 'Relancer', 'Démo', 'Autre'];
 
+/** Délai entre le dévoilement du numéro (= début de l'appel) et la question
+ *  « Est-ce que le décisionnaire a pu être contacté ? ». Laisse le temps de
+ *  passer l'accueil du magasin avant de demander le résultat. */
+const DECISION_MAKER_PROMPT_DELAY_MS = 10_000;
+
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
 const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12 };
@@ -312,6 +317,21 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // comptage sur un double-clic.
   const [revealedPhone, setRevealedPhone] = useState<string | null>(null);
   const [phoneRevealing, setPhoneRevealing] = useState(false);
+  // Suivi du résultat de l'appel : on passe toujours par l'accueil du magasin,
+  // donc 10 s après le dévoilement du numéro on demande si le décisionnaire a
+  // pu être joint (réponse stockée dans CallLog.connected).
+  // `pendingCall` = appel dont la question est programmée (timer en cours),
+  // `callQuestion` = appel dont la question est actuellement affichée. On garde
+  // le magasin et le numéro appelés : le volet peut avoir changé d'affaire
+  // entre-temps (navigation « magasins proches »).
+  type CallQuestion = { id: string; store: string; phone: string };
+  const [pendingCall, setPendingCall] = useState<CallQuestion | null>(null);
+  const [callQuestion, setCallQuestion] = useState<CallQuestion | null>(null);
+  const [savingCallAnswer, setSavingCallAnswer] = useState(false);
+  // Fermeture du volet demandée alors que la question n'a pas encore de réponse :
+  // on la pose d'abord, le volet se ferme juste après.
+  const [closeAfterAnswer, setCloseAfterAnswer] = useState(false);
+  const callTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Recherche automatique du numéro du magasin (OpenStreetMap puis fiche
   // Google). `phoneSuggestions` n'est renseigné que lorsque la recherche
   // trouve des numéros plausibles sans pouvoir trancher : à l'utilisateur de
@@ -481,13 +501,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     return () => { cancelled = true; };
   }, [dealId, deal?.store?.brand?.name]);
 
-  // Fermeture au clavier (Échap)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   // Recherche débouncée d'un deal parent à rattacher (réutilise /api/deals/search).
   // On exclut l'affaire courante et les affaires déjà rattachées (sous-deals).
   useEffect(() => {
@@ -529,12 +542,75 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       const data = await res.json();
       setRevealedPhone(data.phone || '');
       setFields(f => ({ ...f, contactPhone: data.phone || '' }));
+
+      // Appel comptabilisé : on programme la question sur le décisionnaire.
+      if (data.callId) {
+        const question: CallQuestion = {
+          id: data.callId,
+          store: deal?.store?.name || '',
+          phone: data.phone || '',
+        };
+        if (callTimerRef.current) clearTimeout(callTimerRef.current);
+        setPendingCall(question);
+        callTimerRef.current = setTimeout(() => {
+          callTimerRef.current = null;
+          setPendingCall(null);
+          setCallQuestion(question);
+        }, DECISION_MAKER_PROMPT_DELAY_MS);
+      }
     } catch {
       toast('Impossible d\'afficher le numéro', 'error');
     } finally {
       setPhoneRevealing(false);
     }
   };
+
+  // Le timer ne doit pas survivre au démontage du volet.
+  useEffect(() => () => { if (callTimerRef.current) clearTimeout(callTimerRef.current); }, []);
+
+  // Réponse à « Est-ce que le décisionnaire a pu être contacté ? ».
+  const answerCallQuestion = async (connected: boolean) => {
+    const callId = callQuestion?.id;
+    if (!callId || savingCallAnswer) return;
+    setSavingCallAnswer(true);
+    try {
+      const res = await fetch(`/api/calls/${callId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connected }),
+      });
+      // En cas d'échec on garde la question à l'écran pour permettre un nouvel essai.
+      if (!res.ok) { toast('Réponse non enregistrée', 'error'); return; }
+      setCallQuestion(null);
+      toast(connected ? '✓ Décisionnaire contacté' : 'Décisionnaire non contacté');
+      if (closeAfterAnswer) { setCloseAfterAnswer(false); onClose(); }
+    } catch {
+      toast('Réponse non enregistrée', 'error');
+    } finally {
+      setSavingCallAnswer(false);
+    }
+  };
+
+  // Fermeture du volet : si un appel attend encore sa réponse, on pose la
+  // question tout de suite plutôt que de perdre l'information.
+  const closeDrawer = useCallback(() => {
+    if (callTimerRef.current) { clearTimeout(callTimerRef.current); callTimerRef.current = null; }
+    if (pendingCall) {
+      setCallQuestion(pendingCall);
+      setPendingCall(null);
+      setCloseAfterAnswer(true);
+      return;
+    }
+    if (callQuestion) { setCloseAfterAnswer(true); return; }
+    onClose();
+  }, [pendingCall, callQuestion, onClose]);
+
+  // Fermeture au clavier (Échap)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeDrawer(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closeDrawer]);
 
   // ---- Recherche automatique du numéro du magasin --------------------------
   // Reprend la cascade de la campagne de masse (cf. src/lib/phone/lookup.ts)
@@ -926,7 +1002,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
   // ---- Rendu ---------------------------------------------------------------
   if (loading || !deal) return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
+    <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ width: '66vw', maxWidth: 1200, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ color: '#94a3b8' }}>Chargement…</span>
       </div>
@@ -979,7 +1055,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const currentCollab = deal.collaborator as Collaborator | null;
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
+    <>
+    <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '66vw', maxWidth: 1200, minWidth: 720, height: '100%', background: '#f8fafc', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* En-tête */}
@@ -1021,7 +1098,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>
-              <button onClick={onClose} title="Fermer (Échap)" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: '#94a3b8', padding: 0, lineHeight: 1 }}>×</button>
+              <button onClick={closeDrawer} title="Fermer (Échap)" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: '#94a3b8', padding: 0, lineHeight: 1 }}>×</button>
             </div>
           </div>
 
@@ -1690,6 +1767,40 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         </div>
       </div>
     </div>
+
+    {/* Suivi de l'appel : posée 10 s après le dévoilement du numéro (ou tout de
+        suite si le volet est fermé avant), la question renseigne
+        CallLog.connected. Volontairement sans échappatoire (pas de fermeture au
+        clic sur le fond) : la réponse est le seul moyen de savoir si l'accueil
+        a passé l'appel au décisionnaire. */}
+    {callQuestion && (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 380, maxWidth: '100%', boxShadow: '0 12px 40px rgba(15,23,42,.3)', textAlign: 'center' }}>
+          <div style={{ fontSize: 26, marginBottom: 8 }}>📞</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+            Est-ce que le décisionnaire a pu être contacté ?
+          </div>
+          <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 20, lineHeight: 1.45 }}>
+            {callQuestion.store}{callQuestion.phone ? ` — ${callQuestion.phone}` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button
+              type="button" onClick={() => answerCallQuestion(false)} disabled={savingCallAnswer}
+              style={{ flex: 1, height: 40, borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+            >
+              Non
+            </button>
+            <button
+              type="button" onClick={() => answerCallQuestion(true)} disabled={savingCallAnswer}
+              style={{ flex: 1, height: 40, borderRadius: 9, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+            >
+              Oui
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
