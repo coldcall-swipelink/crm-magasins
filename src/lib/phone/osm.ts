@@ -36,6 +36,15 @@ const DEFAULT_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 /** Pause minimale entre deux requêtes Overpass (usage courtois de l'API). */
 const MIN_DELAY_MS = 1100;
 const MAX_ATTEMPTS = 3;
+/**
+ * Au-delà de ce temps déjà passé sur une requête, on ne retente plus.
+ *
+ * L'instance publique d'Overpass peut mettre plusieurs dizaines de secondes à
+ * répondre. Sans ce plafond, trois tentatives à 45 s cumuleraient plus de deux
+ * minutes et feraient tuer la fonction serverless par la plateforme — un échec
+ * bien pire que celui qu'on essayait de rattraper.
+ */
+const RETRY_DEADLINE_MS = 20_000;
 
 /** Point d'intérêt OSM porteur d'un numéro de téléphone. */
 export interface OsmPoi {
@@ -134,7 +143,10 @@ async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResul
         // d'Overpass : on patiente puis on retente.
         if (res.status === 429 || res.status === 504) {
           lastError = `Overpass saturé (HTTP ${res.status})`;
-          if (attempt < MAX_ATTEMPTS) { await sleep(2000 * attempt); continue; }
+          if (attempt < MAX_ATTEMPTS && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+            await sleep(2000 * attempt);
+            continue;
+          }
           return fail(lastStatus, lastError);
         }
         if (!res.ok) {
@@ -151,7 +163,10 @@ async function overpass(query: string, timeoutMs: number): Promise<OsmFetchResul
         };
       } catch (err) {
         lastError = err instanceof Error ? `${err.name}: ${err.message}` : 'Erreur réseau';
-        if (attempt < MAX_ATTEMPTS) { await sleep(1500 * attempt); continue; }
+        if (attempt < MAX_ATTEMPTS && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+          await sleep(1500 * attempt);
+          continue;
+        }
         return fail(lastStatus, lastError);
       }
     }
