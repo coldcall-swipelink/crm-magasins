@@ -460,6 +460,12 @@ model CallLog {
   // Numéro affiché au moment du clic (trace de ce qui a été composé).
   phone     String   @default("")
   calledAt  DateTime @default(now())
+  // Le décisionnaire a-t-il pu être joint lors de cet appel ? On passe toujours
+  // par l'accueil du magasin avant de le demander : cette réponse distingue les
+  // appels réellement utiles des simples passages par le standard.
+  // Renseigné par la pop-up affichée 10 s après le clic sur « Afficher le
+  // numéro » ; reste null tant que l'utilisateur n'a pas répondu.
+  connected Boolean?
 
   @@index([calledAt])
   @@index([userId, calledAt])
