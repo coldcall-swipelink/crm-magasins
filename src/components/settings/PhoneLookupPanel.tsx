@@ -224,13 +224,14 @@ export default function PhoneLookupPanel() {
           si une campagne décevante vient des données ou d'une clé manquante. */}
       {stats && (
         <div style={{ fontSize: 11.5, color: '#475569', marginBottom: 12, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <span>✅ OpenStreetMap</span>
+          <span>✅ Annuaire des supermarchés</span>
           <span>
             {stats.webProvider === 'serper' ? '✅' : stats.webProvider === 'google' ? '⚠️' : '⛔'} Recherche Google
             {stats.webProvider === 'serper' && ' (via serper.dev)'}
             {stats.webProvider === 'google' && ' (accès direct — souvent bloqué depuis un hébergeur)'}
             {stats.webProvider === 'aucun' && ' — inactive, renseignez SERPER_API_KEY'}
           </span>
+          <span>✅ OpenStreetMap (lent, utilisé en dernier recours gratuit)</span>
           <span>{stats.googleConfigured ? '✅' : '⛔'} Google Places{!stats.googleConfigured && ' — inactif (payant)'}</span>
         </div>
       )}
