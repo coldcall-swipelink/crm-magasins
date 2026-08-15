@@ -1,14 +1,25 @@
 // src/lib/phone/lookup.ts
 // Cœur de la recherche automatique des numéros de magasins.
 //
-// PRINCIPE — une cascade, du gratuit vers le payant :
+// PRINCIPE — une cascade, de la source la plus sûre et la plus rapide vers la
+// plus coûteuse. Chaque étape n'est sollicitée que si les précédentes n'ont pas
+// tranché, si bien qu'un magasin résolu tôt ne coûte ni temps ni argent :
 //
-//   1. Le magasin a déjà un numéro         → on ne fait rien.
-//   2. OpenStreetMap (gratuit, sans clé)   → tous les commerces porteurs d'un
-//      numéro autour du magasin ; le rapprochement avec l'enseigne se fait ici,
-//      en JavaScript, pas dans la requête (cf. osm.ts).
-//   3. Google Places (payant, optionnel)   → uniquement le reliquat, c'est-à-dire
-//      les magasins qu'OSM n'a pas permis de trancher.
+//   1. Le magasin a déjà un numéro       → on ne fait rien.
+//   2. Recherche web (clé serper.dev)    → « numéro de téléphone <enseigne>
+//      <magasin> », la recherche faite à la main : la plus fiable, et la plus
+//      rapide (cf. web.ts).
+//   3. Annuaire emplettes.net (gratuit)  → repli sans inscription, pages déjà
+//      restreintes à une enseigne dans une ville (cf. emplettes.ts).
+//   4. OpenStreetMap (gratuit, sans clé) → tous les commerces porteurs d'un
+//      numéro autour du magasin (cf. osm.ts). Gratuit et sans inscription, mais
+//      son instance publique fait patienter jusqu'à cinquante secondes : elle
+//      passe donc APRÈS les sources rapides, jamais avant.
+//   5. Google Places (payant, optionnel) → le reliquat, et lui seul.
+//
+// Le rapprochement avec l'enseigne se fait toujours en JavaScript, jamais dans
+// la requête envoyée à la source : les deux côtés passent ainsi par la même
+// normalisation (accents, ponctuation, casse).
 //
 // VALIDATION — le risque n'est pas de ne pas trouver de numéro, c'est d'en
 // trouver un MAUVAIS (le Carrefour de la ville d'à côté, ou pire, la boulangerie
@@ -38,6 +49,7 @@ import {
   buildWebQuery, isWebSearchConfigured, searchPhoneOnWeb, webProvider,
   type WebResult, type WebSearchOutcome,
 } from './web';
+import { searchDirectory, type DirectoryOutcome } from './emplettes';
 
 // ─── Seuils de décision ──────────────────────────────────────────────────────
 /** Au-dessus : le numéro est enregistré sans intervention humaine. */
@@ -67,7 +79,7 @@ const RADIUS_STEPS_M = [1500, 4000];
 const UNIQUE_BONUS_MAX_KM = 5;
 
 export type PhoneLookupStatus = 'trouve' | 'a_verifier' | 'introuvable' | 'erreur';
-export type PhoneSource = 'osm' | 'google' | 'web' | 'manuel' | 'import';
+export type PhoneSource = 'osm' | 'google' | 'web' | 'annuaire' | 'manuel' | 'import';
 
 /** Un numéro proposé pour un magasin, avec de quoi juger sur pièces. */
 export interface PhoneCandidate {
@@ -75,7 +87,7 @@ export interface PhoneCandidate {
   phone: string;
   /** Forme canonique, pour dédoublonner les candidats. */
   e164: string;
-  source: 'osm' | 'google' | 'web';
+  source: 'osm' | 'google' | 'web' | 'annuaire';
   /** Nom de l'établissement chez la source (à comparer au magasin). */
   name: string;
   address: string;
@@ -128,6 +140,19 @@ export interface LookupDiagnostics {
     /** Objets dont le nom évoque l'enseigne du magasin. */
     brandMatchCount: number;
     query: string;
+  };
+  /** Annuaire emplettes.net (pages ciblées par enseigne et par ville). */
+  annuaire: {
+    used: boolean;
+    ok: boolean;
+    status: number;
+    error: string;
+    elapsedMs: number;
+    urls: string[];
+    textLength: number;
+    resultCount: number;
+    /** Extrait de la page, pour ajuster l'extraction sans deviner. */
+    sample: string;
   };
   /** Recherche web (« numéro de téléphone <enseigne> <magasin> »). */
   web: {
@@ -429,7 +454,12 @@ function googleToCandidate(store: StoreForLookup, place: GooglePlace): PhoneCand
  * Le premier numéro de la page est privilégié : c'est celui de la fiche de
  * l'établissement, avant les numéros du service client ou des pages voisines.
  */
-function webToCandidate(store: StoreForLookup, result: WebResult, index: number): PhoneCandidate | null {
+function webToCandidate(
+  store: StoreForLookup,
+  result: WebResult,
+  index: number,
+  source: 'web' | 'annuaire' = 'web',
+): PhoneCandidate | null {
   const phone = normalizePhone(result.phone);
   if (!phone || !isProspectablePhone(phone)) return null;
 
@@ -442,7 +472,7 @@ function webToCandidate(store: StoreForLookup, result: WebResult, index: number)
   const base = {
     phone: phone.display,
     e164: phone.e164,
-    source: 'web' as const,
+    source,
     name: result.title || '(numéro relevé dans les résultats)',
     address: result.snippet,
     // La ville n'est retenue que si le résultat la mentionne réellement.
@@ -454,7 +484,10 @@ function webToCandidate(store: StoreForLookup, result: WebResult, index: number)
   };
 
   const scored = scoreCandidate(store, base, match);
-  if (index === 0) {
+  // Le premier numéro de la page n'a de valeur particulière que dans un
+  // résultat de recherche, où la fiche de l'établissement figure en tête. Dans
+  // une page d'annuaire qui liste plusieurs magasins, l'ordre ne dit rien.
+  if (index === 0 && source === 'web') {
     scored.score += 2;
     scored.reasons.push('premier numéro de la fiche Google');
   }
@@ -530,90 +563,118 @@ export async function lookupStorePhone(
     return { storeId: store.id, label, status: 'introuvable', phone: '', source: '', candidates: [] };
   }
 
-  // Les coordonnées sont le meilleur garde-fou contre le mauvais magasin, et
-  // conditionnent la stratégie d'interrogation d'OSM : on géocode donc au
-  // passage les magasins qui ne l'ont jamais été.
-  let located = store;
-  let geocodedNow = false;
-  if ((store.latitude == null || store.longitude == null) && options.geocode !== false) {
-    const geo = await geocodeStore({
-      address: store.address,
-      postalCode: store.postalCode,
-      city: store.city,
-    });
-    if (geo) {
-      located = { ...store, latitude: geo.latitude, longitude: geo.longitude };
-      geocodedNow = true;
-    }
-  }
-
-  // ── Étape 1 : OpenStreetMap (gratuit) ──────────────────────────────────────
-  const dept = departmentCode(located);
-  let strategy: LookupDiagnostics['osm']['strategy'] = 'aucune';
-  let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, endpoint: '', query: '', elementCount: 0 };
-
+  const dept = departmentCode(store);
   const candidates: PhoneCandidate[] = [];
-  let brandMatchCount = 0;
-
-  /** Convertit les points d'intérêt d'une réponse en candidats notés. */
-  const collect = (result: OsmFetchResult) => {
-    candidates.length = 0;
-    brandMatchCount = 0;
-    for (const poi of result.pois) {
-      const candidate = osmToCandidate(located, poi);
-      if (candidate) { candidates.push(candidate); brandMatchCount++; }
-    }
-  };
-
-  if (located.latitude != null && located.longitude != null) {
-    strategy = 'autour';
-    // Rayon imposé (diagnostic) : une seule tentative, sans élargissement.
-    const steps = options.radiusMeters ? [options.radiusMeters] : RADIUS_STEPS_M;
-
-    for (let i = 0; i < steps.length; i++) {
-      // Élargir demande une seconde interrogation, aussi longue que la première.
-      // Si le temps imparti ne le permet pas, on s'en tient à ce qu'on a plutôt
-      // que de se faire couper au milieu et de tout perdre.
-      if (i > 0 && options.deadline && Date.now() > options.deadline) break;
-
-      osm = await fetchPoisAround(located.latitude, located.longitude, steps[i], options.overpassEndpoint);
-      collect(osm);
-      // On n'élargit que si la requête a abouti sans rien trouver de l'enseigne.
-      // Sur un échec, élargir ne ferait que rendre la requête suivante encore
-      // plus coûteuse — donc encore plus susceptible d'échouer.
-      if (!osm.ok || brandMatchCount > 0) break;
-    }
-  } else if (dept) {
-    // Magasin non localisable : repli sur tout le département.
-    strategy = 'departement';
-    osm = await fetchPoisInDepartment(dept);
-    collect(osm);
-  }
-
-  let ranked = rank(candidates);
+  let ranked: PhoneCandidate[] = [];
   const settled = () => ranked.length > 0 && ranked[0].score >= AUTO_THRESHOLD;
 
-  // ── Étape 2 : recherche web, seulement si OSM n'a pas tranché ─────────────
-  // Reproduit la recherche faite à la main : « numéro de téléphone <enseigne>
-  // <magasin> ». C'est la source qui couvre le mieux les enseignes françaises,
-  // OpenStreetMap ne cartographiant qu'une partie des commerces.
-  const webQuery = buildWebQuery(brand, located.name, located.city, located.postalCode);
+  // ── Étape 1 : recherche web (« numéro de téléphone <enseigne> <magasin> ») ─
+  // Reproduit exactement la recherche faite à la main, et c'est la source la
+  // plus fiable dont on dispose : elle répond en une seconde et couvre les
+  // enseignes françaises mieux qu'OpenStreetMap. Elle passe donc en tête dès
+  // qu'une clé est configurée — son quota gratuit se compte en milliers de
+  // recherches, largement de quoi traiter une base entière.
+  const webQuery = buildWebQuery(brand, store.name, store.city, store.postalCode);
   let web: WebSearchOutcome | null = null;
 
-  if ((isWebSearchConfigured() || options.forceWebProvider) && !settled()) {
-    // Comme pour l'élargissement de rayon : on n'entame pas une interrogation
-    // qu'on n'aurait pas le temps de terminer.
+  if (isWebSearchConfigured() || options.forceWebProvider) {
     if (!options.deadline || Date.now() < options.deadline) {
       web = await searchPhoneOnWeb(webQuery, options.forceWebProvider);
       web.results.forEach((result, index) => {
-        const candidate = webToCandidate(located, result, index);
+        const candidate = webToCandidate(store, result, index);
         if (candidate) candidates.push(candidate);
       });
       ranked = rank(candidates);
     }
   }
 
-  // ── Étape 3 : Google Places (payant), en dernier recours ──────────────────
+  // ── Étape 2 : annuaire des supermarchés ───────────────────────────────────
+  // Source de repli entièrement gratuite et sans inscription, utile quand
+  // aucune clé n'est configurée ou quand la recherche web n'a pas tranché. Ses
+  // pages sont déjà restreintes à une enseigne dans une ville, ce qui en fait
+  // la plus ciblée du lot.
+  let directory: DirectoryOutcome | null = null;
+  if (store.city && dept && !settled()) {
+    directory = await searchDirectory(brand, store.city, dept);
+    directory.results.forEach((entry, index) => {
+      const candidate = webToCandidate(
+        store,
+        { phone: entry.phone, title: entry.context, snippet: entry.context, url: entry.url },
+        index,
+        'annuaire',
+      );
+      if (candidate) candidates.push(candidate);
+    });
+    ranked = rank(candidates);
+  }
+
+  // ── Étape 3 : OpenStreetMap (gratuit, mais lent) ──────────────────────────
+  let located = store;
+  let geocodedNow = false;
+  let strategy: LookupDiagnostics['osm']['strategy'] = 'aucune';
+  let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, endpoint: '', query: '', elementCount: 0 };
+  let brandMatchCount = 0;
+
+  if (!settled()) {
+    // Les coordonnées sont le meilleur garde-fou contre le mauvais magasin, et
+    // conditionnent la stratégie d'interrogation d'OSM : on géocode donc au
+    // passage les magasins qui ne l'ont jamais été. Inutile en revanche d'y
+    // consacrer un appel réseau si l'annuaire a déjà tranché.
+    if ((store.latitude == null || store.longitude == null) && options.geocode !== false) {
+      const geo = await geocodeStore({
+        address: store.address,
+        postalCode: store.postalCode,
+        city: store.city,
+      });
+      if (geo) {
+        located = { ...store, latitude: geo.latitude, longitude: geo.longitude };
+        geocodedNow = true;
+      }
+    }
+
+    // Les candidats d'OpenStreetMap sont collectés à part : la boucle
+    // d'élargissement repart de zéro à chaque rayon, et ne doit surtout pas
+    // effacer au passage ce que l'annuaire a déjà trouvé.
+    let osmCandidates: PhoneCandidate[] = [];
+    const collect = (result: OsmFetchResult) => {
+      osmCandidates = [];
+      brandMatchCount = 0;
+      for (const poi of result.pois) {
+        const candidate = osmToCandidate(located, poi);
+        if (candidate) { osmCandidates.push(candidate); brandMatchCount++; }
+      }
+    };
+
+    if (located.latitude != null && located.longitude != null) {
+      strategy = 'autour';
+      // Rayon imposé (diagnostic) : une seule tentative, sans élargissement.
+      const steps = options.radiusMeters ? [options.radiusMeters] : RADIUS_STEPS_M;
+
+      for (let i = 0; i < steps.length; i++) {
+        // Élargir demande une seconde interrogation, aussi longue que la première.
+        // Si le temps imparti ne le permet pas, on s'en tient à ce qu'on a plutôt
+        // que de se faire couper au milieu et de tout perdre.
+        if (i > 0 && options.deadline && Date.now() > options.deadline) break;
+
+        osm = await fetchPoisAround(located.latitude, located.longitude, steps[i], options.overpassEndpoint);
+        collect(osm);
+        // On n'élargit que si la requête a abouti sans rien trouver de l'enseigne.
+        // Sur un échec, élargir ne ferait que rendre la requête suivante encore
+        // plus coûteuse — donc encore plus susceptible d'échouer.
+        if (!osm.ok || brandMatchCount > 0) break;
+      }
+    } else if (dept) {
+      // Magasin non localisable : repli sur tout le département.
+      strategy = 'departement';
+      osm = await fetchPoisInDepartment(dept);
+      collect(osm);
+    }
+
+    candidates.push(...osmCandidates);
+    ranked = rank(candidates);
+  }
+
+  // ── Étape 4 : Google Places (payant), en dernier recours ──────────────────
   const googleQuery = buildSearchQuery(located);
   let googleUsed = false;
   let googleResultCount = 0;
@@ -653,6 +714,17 @@ export async function lookupStorePhone(
           query: webQuery,
           resultCount: web?.results.length ?? 0,
         },
+        annuaire: {
+          used: directory !== null,
+          ok: directory?.ok ?? false,
+          status: directory?.status ?? 0,
+          error: directory?.error ?? '',
+          elapsedMs: directory?.elapsedMs ?? 0,
+          urls: directory?.urls ?? [],
+          textLength: directory?.textLength ?? 0,
+          resultCount: directory?.results.length ?? 0,
+          sample: directory?.sample ?? '',
+        },
         google: { used: googleUsed, configured: isGoogleConfigured(), query: googleQuery, resultCount: googleResultCount },
         scored: ranked.slice(0, 10),
       }
@@ -675,10 +747,11 @@ export async function lookupStorePhone(
   // magasin qu'AUCUNE source n'a pu examiner reste « en erreur », donc à
   // retenter, plutôt que d'être classé « introuvable » à tort. Dès qu'une
   // source a répondu correctement, « introuvable » redevient honnête.
-  if (!osm.ok && !web?.ok) {
+  if (!osm.ok && !web?.ok && !directory?.ok) {
     const reasons = [
-      !osm.ok && osm.error ? `OpenStreetMap injoignable : ${osm.error}` : '',
+      directory && !directory.ok && directory.error ? `Annuaire : ${directory.error}` : '',
       web && !web.ok && web.error ? `Recherche web (${web.provider}) : ${web.error}` : '',
+      !osm.ok && osm.error ? `OpenStreetMap injoignable : ${osm.error}` : '',
     ].filter(Boolean);
     return {
       storeId: store.id, label, status: 'erreur', phone: '', source: '', candidates: [],
