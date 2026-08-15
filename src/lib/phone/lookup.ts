@@ -41,11 +41,21 @@ const AUTO_THRESHOLD = 6;
 /** Au-dessus : le numéro est proposé dans la file de revue. */
 const REVIEW_THRESHOLD = 3;
 /**
- * Rayon d'interrogation d'OpenStreetMap autour du magasin. Généreux à dessein :
- * en zone rurale, le magasin géocodé et sa fiche OSM peuvent être distants de
- * plusieurs kilomètres, et le géocodage peut n'avoir résolu que la commune.
+ * Rayons d'interrogation d'OpenStreetMap, essayés dans l'ordre.
+ *
+ * Le coût d'une requête croît avec le CARRÉ du rayon, et c'est ce qui a fait
+ * échouer une première campagne : à 5 km, l'instance publique dépassait 45 s
+ * par magasin et rendait un délai dépassé pour chaque magasin. Or le magasin
+ * est géocodé depuis sa propre adresse : sa fiche OpenStreetMap est presque
+ * toujours à quelques centaines de mètres.
+ *
+ * On commence donc petit — 1,5 km couvre l'immense majorité des cas pour un
+ * neuvième du coût — et on n'élargit que pour les magasins où la première
+ * tentative n'a rien donné, typiquement en zone rurale où le géocodage n'a
+ * résolu que la commune. Deux requêtes bon marché valent mieux qu'une seule
+ * hors de portée.
  */
-const DEFAULT_RADIUS_M = 5000;
+const RADIUS_STEPS_M = [1500, 4000];
 /**
  * Portée du bonus d'unicité : au-delà, « le seul magasin de l'enseigne dans le
  * rayon » ne dit plus grand-chose du magasin qu'on cherche.
@@ -461,24 +471,37 @@ export async function lookupStorePhone(
   let strategy: LookupDiagnostics['osm']['strategy'] = 'aucune';
   let osm: OsmFetchResult = { pois: [], ok: true, status: 0, error: '', elapsedMs: 0, endpoint: '', query: '', elementCount: 0 };
 
+  const candidates: PhoneCandidate[] = [];
+  let brandMatchCount = 0;
+
+  /** Convertit les points d'intérêt d'une réponse en candidats notés. */
+  const collect = (result: OsmFetchResult) => {
+    candidates.length = 0;
+    brandMatchCount = 0;
+    for (const poi of result.pois) {
+      const candidate = osmToCandidate(located, poi);
+      if (candidate) { candidates.push(candidate); brandMatchCount++; }
+    }
+  };
+
   if (located.latitude != null && located.longitude != null) {
     strategy = 'autour';
-    osm = await fetchPoisAround(
-      located.latitude, located.longitude,
-      options.radiusMeters ?? DEFAULT_RADIUS_M,
-      options.overpassEndpoint,
-    );
+    // Rayon imposé (diagnostic) : une seule tentative, sans élargissement.
+    const steps = options.radiusMeters ? [options.radiusMeters] : RADIUS_STEPS_M;
+
+    for (const radius of steps) {
+      osm = await fetchPoisAround(located.latitude, located.longitude, radius, options.overpassEndpoint);
+      collect(osm);
+      // On n'élargit que si la requête a abouti sans rien trouver de l'enseigne.
+      // Sur un échec, élargir ne ferait que rendre la requête suivante encore
+      // plus coûteuse — donc encore plus susceptible d'échouer.
+      if (!osm.ok || brandMatchCount > 0) break;
+    }
   } else if (dept) {
     // Magasin non localisable : repli sur tout le département.
     strategy = 'departement';
     osm = await fetchPoisInDepartment(dept);
-  }
-
-  const candidates: PhoneCandidate[] = [];
-  let brandMatchCount = 0;
-  for (const poi of osm.pois) {
-    const candidate = osmToCandidate(located, poi);
-    if (candidate) { candidates.push(candidate); brandMatchCount++; }
+    collect(osm);
   }
 
   let ranked = rank(candidates);

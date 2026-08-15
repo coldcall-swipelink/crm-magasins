@@ -239,14 +239,19 @@ export async function fetchPoisAround(
   endpointOverride?: string,
 ): Promise<OsmFetchResult> {
   const around = `(around:${Math.round(radiusMeters)},${latitude},${longitude})`;
-  const query = `[out:json][timeout:40];
+  // Le délai déclaré à Overpass (25 s) est volontairement INFÉRIEUR au nôtre
+  // (35 s) : ainsi c'est le serveur qui abandonne et nous répond « requête trop
+  // longue », au lieu que ce soit nous qui coupions la communication. La
+  // différence compte pour le diagnostic — un abandon serveur est un message
+  // explicite, une coupure client n'est qu'un « TimeoutError » muet.
+  const query = `[out:json][timeout:25];
 (
   nwr["phone"]["name"]${around};
   nwr["contact:phone"]["name"]${around};
 );
 out tags center;`;
 
-  return overpass(query, 45_000, endpointOverride);
+  return overpass(query, 35_000, endpointOverride);
 }
 
 // ─── Repli par département ───────────────────────────────────────────────────
