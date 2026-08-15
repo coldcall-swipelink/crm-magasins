@@ -32,6 +32,23 @@ interface ReviewItem {
 }
 type Scope = 'nouveaux' | 'echecs' | 'tout';
 
+/** Nombre d'appels en échec d'affilée au-delà duquel on cesse d'insister. */
+const MAX_CONSECUTIVE_FAILURES = 5;
+/** Pause entre deux magasins : ménage l'instance publique d'OpenStreetMap. */
+const PAUSE_BETWEEN_STORES_MS = 1500;
+
+const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+/** « 1 h 47 min », « 12 min », « moins d'une minute ». */
+function humanDuration(ms: number): string {
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 1) return 'moins d\'une minute';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
 const SCOPE_LABELS: Record<Scope, string> = {
   nouveaux: 'Magasins jamais cherchés',
   echecs: 'Relancer les magasins non résolus',
@@ -51,6 +68,9 @@ export default function PhoneLookupPanel() {
   // inexploitable…). Sans lui, une panne de source ressemblerait exactement à
   // « aucun numéro n'existe » — c'est précisément le piège à éviter.
   const [failure, setFailure] = useState<string | null>(null);
+  // Temps restant estimé, calculé sur la cadence réelle observée : une campagne
+  // qui dure une heure doit dire combien de temps elle va encore durer.
+  const [eta, setEta] = useState<string | null>(null);
   // Drapeau lu à chaque tour de boucle : permet d'arrêter proprement entre deux
   // lots sans interrompre un lot en cours (qui serait alors à moitié écrit).
   const stopRef = useRef(false);
@@ -79,6 +99,11 @@ export default function PhoneLookupPanel() {
     setProgress({ processed: 0, found: 0, toReview: 0, notFound: 0, errors: 0, remaining: 0 });
     setLastLines([]);
     setFailure(null);
+    setEta(null);
+
+    const campaignStartedAt = Date.now();
+    let consecutiveFailures = 0;
+    let done = 0;
 
     try {
       for (;;) {
@@ -90,12 +115,20 @@ export default function PhoneLookupPanel() {
           body: JSON.stringify({ scope, useGoogle }),
         });
         if (!res.ok) {
+          // Un appel qui échoue ne condamne pas la campagne : le magasin
+          // concerné reste à traiter et on passe au suivant. On ne renonce
+          // qu'après plusieurs échecs d'affilée, signe d'une panne durable.
+          consecutiveFailures++;
           const data = await res.json().catch(() => ({}));
-          const message = data.error || `La recherche a échoué (HTTP ${res.status})`;
-          setFailure(message);
-          toast(message, 'error');
-          break;
+          setFailure(data.error || `Appel en échec (HTTP ${res.status}) — ${consecutiveFailures} d'affilée.`);
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            toast('Recherche interrompue : trop d\'échecs consécutifs', 'error');
+            break;
+          }
+          await pause(3000);
+          continue;
         }
+        consecutiveFailures = 0;
         const report = await res.json();
 
         setProgress(p => ({
@@ -123,10 +156,24 @@ export default function PhoneLookupPanel() {
         // « la recherche n'a pas pu aboutir ».
         const firstError = results.find(r => r.status === 'erreur' && r.error);
         if (firstError?.error) setFailure(firstError.error);
+        else setFailure(null);
+
+        // Temps restant estimé d'après la cadence réellement observée.
+        done += report.processed;
+        if (done > 0 && report.remaining > 0) {
+          const perStore = (Date.now() - campaignStartedAt) / done;
+          setEta(humanDuration(perStore * report.remaining));
+        } else {
+          setEta(null);
+        }
 
         if (report.stopped) { toast(report.stopped, 'error'); break; }
         // Plus rien à traiter dans le périmètre : la campagne est terminée.
         if (report.processed === 0 || report.remaining === 0) break;
+
+        // Respiration entre deux magasins : l'instance publique d'OpenStreetMap
+        // met en file d'attente ceux qui la sollicitent sans relâche.
+        await pause(PAUSE_BETWEEN_STORES_MS);
       }
       toast('✓ Recherche terminée');
     } catch {
@@ -239,18 +286,27 @@ export default function PhoneLookupPanel() {
           <div style={{ fontSize: 12.5, color: '#334155', fontWeight: 600, marginBottom: 6 }}>
             {running ? '⟳ Recherche en cours…' : 'Dernière campagne'} — {progress.processed} magasin(s) traité(s)
             {progress.remaining > 0 && `, ${progress.remaining} restant(s)`}
+            {running && eta && <span style={{ fontWeight: 500, color: '#64748b' }}> · fin estimée dans {eta}</span>}
           </div>
+          {running && (
+            <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 8, lineHeight: 1.5 }}>
+              Chaque magasin demande une interrogation d&apos;OpenStreetMap, qui peut mettre jusqu&apos;à une minute
+              lorsque le serveur public est chargé. Vous pouvez laisser cet onglet ouvert et faire autre chose : la
+              campagne reprend là où elle s&apos;arrête, rien n&apos;est jamais perdu.
+            </div>
+          )}
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
             ✅ {progress.found} enregistrés · 🟠 {progress.toReview} à vérifier · ⚪ {progress.notFound} non résolus
             {progress.errors > 0 && ` · ❌ ${progress.errors} en erreur`}
           </div>
 
           {failure && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, padding: '8px 10px', marginBottom: 8, fontSize: 12, color: '#b91c1c' }}>
-              <strong>La recherche n&apos;a pas abouti :</strong> {failure}
-              <div style={{ marginTop: 4, color: '#7f1d1d' }}>
-                Les magasins concernés sont marqués « en erreur », pas « non résolus » : relancez-les avec le
-                périmètre « Relancer les magasins non résolus » une fois la cause levée.
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', marginBottom: 8, fontSize: 12, color: '#92400e' }}>
+              <strong>Dernier incident :</strong> {failure}
+              <div style={{ marginTop: 4 }}>
+                {running
+                  ? 'La campagne continue : ce magasin est marqué « en erreur » et sera repris plus tard, on passe au suivant.'
+                  : 'Les magasins concernés sont marqués « en erreur », pas « non résolus » : reprenez-les avec le périmètre « Relancer les magasins non résolus ».'}
               </div>
             </div>
           )}

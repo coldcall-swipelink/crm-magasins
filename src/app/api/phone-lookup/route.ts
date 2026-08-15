@@ -12,9 +12,11 @@ import { runPhoneLookupBatch, phoneLookupStats, type BatchScope } from '@/lib/ph
 import { USE_MOCK_DATA } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
-// Un lot peut enchaîner plusieurs requêtes Overpass (lentes par nature) :
-// on demande le maximum de temps d'exécution disponible.
-export const maxDuration = 300;
+// Une interrogation d'OpenStreetMap passe l'essentiel de son temps en file
+// d'attente chez l'instance publique (40 à 50 s couramment). On demande donc le
+// maximum, en sachant que l'hébergeur peut plafonner plus bas — c'est pourquoi
+// un appel ne traite qu'UN magasin, à qui il laisse toute la fenêtre.
+export const maxDuration = 60;
 
 export async function GET() {
   if (USE_MOCK_DATA) {

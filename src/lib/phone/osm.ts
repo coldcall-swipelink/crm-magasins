@@ -244,14 +244,19 @@ export async function fetchPoisAround(
   // longue », au lieu que ce soit nous qui coupions la communication. La
   // différence compte pour le diagnostic — un abandon serveur est un message
   // explicite, une coupure client n'est qu'un « TimeoutError » muet.
-  const query = `[out:json][timeout:25];
+  const query = `[out:json][timeout:40];
 (
   nwr["phone"]["name"]${around};
   nwr["contact:phone"]["name"]${around};
 );
 out tags center;`;
 
-  return overpass(query, 35_000, endpointOverride);
+  // 48 s : le maximum exploitable sous la limite d'exécution de 60 s imposée par
+  // l'hébergeur, une fois réservé de quoi géocoder, écrire en base et répondre.
+  // L'instance publique d'Overpass fait patienter en file d'attente quand son
+  // quota est atteint — l'attente EST la normalité, pas une anomalie, et il faut
+  // lui laisser toute la place disponible.
+  return overpass(query, 48_000, endpointOverride);
 }
 
 // ─── Repli par département ───────────────────────────────────────────────────
