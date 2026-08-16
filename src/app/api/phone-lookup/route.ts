@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const scope: BatchScope =
-      body.scope === 'echecs' || body.scope === 'tout' ? body.scope : 'nouveaux';
+      body.scope === 'erreurs' || body.scope === 'echecs' || body.scope === 'tout'
+        ? body.scope
+        : 'nouveaux';
 
     // Instant de départ de la campagne, transmis par l'interface à chaque lot.
     // Il exclut les magasins déjà examinés depuis, sans quoi les périmètres de

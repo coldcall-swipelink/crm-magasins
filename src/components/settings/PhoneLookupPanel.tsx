@@ -30,7 +30,7 @@ interface Candidate {
 interface ReviewItem {
   storeId: string; dealId: string | null; label: string; address: string; candidates: Candidate[];
 }
-type Scope = 'nouveaux' | 'echecs' | 'tout';
+type Scope = 'nouveaux' | 'erreurs' | 'echecs' | 'tout';
 
 /** Nombre d'appels en échec d'affilée au-delà duquel on cesse d'insister. */
 const MAX_CONSECUTIVE_FAILURES = 5;
@@ -51,9 +51,20 @@ function humanDuration(ms: number): string {
 
 const SCOPE_LABELS: Record<Scope, string> = {
   nouveaux: 'Magasins jamais cherchés',
-  echecs: 'Relancer les magasins non résolus',
+  erreurs: 'Reprendre les magasins en erreur (source injoignable)',
+  echecs: 'Relancer les magasins non résolus (erreurs comprises)',
   tout: 'Tous les magasins sans numéro',
 };
+
+/** Combien de magasins un périmètre va-t-il traiter ? Affiché dans le
+ *  sélecteur : le nombre décide, l'intitulé seul ne suffit pas — reprendre
+ *  200 magasins en erreur ou en relancer 4 000 n'engage pas les mêmes crédits. */
+function scopeCount(scope: Scope, stats: Stats): number {
+  if (scope === 'nouveaux') return stats.pending;
+  if (scope === 'erreurs') return stats.errors;
+  if (scope === 'echecs') return stats.notFound + stats.errors;
+  return stats.pending + stats.notFound + stats.errors;
+}
 
 export default function PhoneLookupPanel() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -277,7 +288,9 @@ export default function PhoneLookupPanel() {
           style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a', fontSize: 13 }}
         >
           {(Object.keys(SCOPE_LABELS) as Scope[]).map(s => (
-            <option key={s} value={s}>{SCOPE_LABELS[s]}</option>
+            <option key={s} value={s}>
+              {SCOPE_LABELS[s]}{stats ? ` — ${scopeCount(s, stats)} magasin(s)` : ''}
+            </option>
           ))}
         </select>
 

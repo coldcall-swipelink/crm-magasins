@@ -800,7 +800,7 @@ export async function applyLookupResult(
 
 // ─── Campagne (traitement de masse) ──────────────────────────────────────────
 
-export type BatchScope = 'nouveaux' | 'echecs' | 'tout';
+export type BatchScope = 'nouveaux' | 'erreurs' | 'echecs' | 'tout';
 
 export interface BatchOptions {
   /** Plafond de magasins traités par appel (le lot suivant reprend la suite). */
@@ -893,6 +893,11 @@ function whereForScope(
   }
 
   if (scope === 'nouveaux') base.phoneLookupStatus = '';
+  // « erreurs » : magasins qu'AUCUNE source n'a pu examiner (clé sans crédits,
+  // Overpass injoignable…). Ce sont les seuls dont on sait que la recherche n'a
+  // pas eu lieu : les reprendre seuls, une fois la panne réparée, ne coûte
+  // aucun crédit sur les magasins déjà correctement examinés.
+  else if (scope === 'erreurs') base.phoneLookupStatus = 'erreur';
   // « echecs » : magasins déjà cherchés sans succès — à relancer typiquement
   // après une panne de source ou après avoir activé Google. La file de revue
   // (« a_verifier ») est laissée de côté : elle attend une décision humaine,
