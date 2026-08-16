@@ -13,7 +13,7 @@
 //
 // Options :
 //   --run          exécute réellement (sans lui, simple état des lieux)
-//   --scope        nouveaux (défaut) | echecs | tout
+//   --scope        nouveaux (défaut) | erreurs | echecs | tout
 //   --limit        nombre maximum de magasins traités (défaut : tous)
 //   --batch        taille d'un lot entre deux affichages d'avancement (défaut : 25)
 //   --no-google    n'utilise que les sources gratuites (OpenStreetMap)
@@ -38,7 +38,9 @@ function getArg(flag: string): string | undefined {
 async function main() {
   const scopeArg = getArg('--scope');
   const scope: BatchScope =
-    scopeArg === 'echecs' || scopeArg === 'tout' ? scopeArg : 'nouveaux';
+    scopeArg === 'erreurs' || scopeArg === 'echecs' || scopeArg === 'tout'
+      ? scopeArg
+      : 'nouveaux';
   const dealsOnly = !hasFlag('--all-stores');
   const useGoogle = !hasFlag('--no-google');
   const batchSize = Number(getArg('--batch') || 25);
@@ -66,6 +68,11 @@ async function main() {
 
   const totals = { processed: 0, found: 0, toReview: 0, notFound: 0, errors: 0 };
   const startedAt = Date.now();
+  // Un magasin déjà examiné depuis le début de cette campagne en sort, quel
+  // qu'ait été le résultat. Sans cela, les périmètres de relance boucleraient :
+  // un magasin repris sans succès conserve son statut, donc reste dans le
+  // périmètre et revient en tête du lot suivant (cf. même garde côté interface).
+  const notTouchedSince = new Date();
 
   for (;;) {
     const remainingBudget = max > 0 ? max - totals.processed : Infinity;
@@ -80,6 +87,7 @@ async function main() {
       scope,
       useGoogle,
       dealsOnly,
+      notTouchedSince,
     });
 
     totals.processed += report.processed;
@@ -114,7 +122,7 @@ async function main() {
 
   console.log('─'.repeat(60));
   console.log(`Terminé : ${totals.found} numéros enregistrés, ${totals.toReview} à valider dans Paramètres → Numéros de téléphone, ${totals.notFound} non résolus.`);
-  if (totals.errors) console.log(`${totals.errors} magasin(s) en erreur — relancez avec --scope echecs.`);
+  if (totals.errors) console.log(`${totals.errors} magasin(s) en erreur — relancez avec --scope erreurs.`);
   console.log('');
 }
 
