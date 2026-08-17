@@ -3,6 +3,10 @@
 // (date de closing + valeur renseignées), toutes les échéances de la date de
 // closing jusqu'à un horizon fixe (5 ans), selon le type d'abonnement et la
 // cadence de paiement. Renvoie une ligne par échéance, triées par date.
+//
+// Les abonnements résiliés (churn) sont exclus : plus aucun paiement n'est
+// attendu d'un client perdu, ils ne doivent donc pas apparaître dans les
+// paiements à venir (même règle que le MRR du Dashboard).
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { addMonths } from '@/lib/utils';
@@ -20,7 +24,7 @@ export async function GET() {
   // des abonnements fictifs (cf. src/lib/mockData.ts).
   if (USE_MOCK_DATA) {
     const horizonEnd = addMonths(new Date(), HORIZON_MONTHS);
-    const payments = mockSubscriptions.flatMap(s => {
+    const payments = mockSubscriptions.filter(s => !s.churned).flatMap(s => {
       const deal = mockDeals.find(d => d.id === s.dealId);
       const schedule = generatePaymentSchedule(
         { closingDate: s.closingDate, subscriptionType: s.subscriptionType, paymentTiming: s.paymentTiming, value: s.value },
@@ -54,7 +58,8 @@ export async function GET() {
 
   const [subs, brands] = await Promise.all([
     prisma.subscription.findMany({
-      where: { closingDate: { not: null }, value: { not: null } },
+      // churned: false → un abonnement résilié ne génère plus d'échéance.
+      where: { closingDate: { not: null }, value: { not: null }, churned: false },
       select: {
         id: true,
         value: true,
