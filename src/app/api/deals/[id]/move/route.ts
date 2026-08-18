@@ -6,7 +6,7 @@ import {
   provisionDemoOrganization,
   provisionSmartlinkeSupportRecruiter,
 } from '@/lib/supabaseProvisioning';
-import { setPrimaryClosingDate } from '@/lib/subscriptions';
+import { setPendingClosingDate, setSubscriptionClosingDates } from '@/lib/subscriptions';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
@@ -23,7 +23,7 @@ function isSmartlinkColumn(title?: string | null): boolean {
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position, pvChoice, closingDate, userId, userName, source } = await req.json();
+    const { columnId, position, pvChoice, closingDate, closingDates, userId, userName, source } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
@@ -70,10 +70,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // (un rebooking s'ajoute à l'historique, il n'écrase rien).
     await markDemoBookedIfNeeded(params.id, columnId, { userId, userName });
 
-    // Date de closing demandée au passage en « SMARTLINKÉ » : on la pose sur
-    // l'abonnement principal (créé si besoin) puis on dénormalise sur le deal.
-    if (closingDate !== undefined) {
-      await setPrimaryClosingDate(params.id, closingDate ? new Date(closingDate) : null);
+    // Date(s) de closing demandée(s) au passage en « SMARTLINKÉ ». Dans les deux
+    // formes, un abonnement DÉJÀ daté n'est jamais écrasé (garde-fou dans
+    // src/lib/subscriptions.ts) : une affaire qui décroche un second contrat ne
+    // doit pas perdre la date de closing du premier.
+    if (Array.isArray(closingDates)) {
+      // Forme explicite : la pop-up a proposé un champ par abonnement en attente.
+      await setSubscriptionClosingDates(
+        params.id,
+        closingDates
+          .filter((e: unknown): e is { subscriptionId: string; closingDate: string } =>
+            Boolean(e)
+            && typeof (e as { subscriptionId?: unknown }).subscriptionId === 'string'
+            && typeof (e as { closingDate?: unknown }).closingDate === 'string')
+          .map(e => ({ subscriptionId: e.subscriptionId, closingDate: new Date(e.closingDate) }))
+          .filter(e => !Number.isNaN(e.closingDate.getTime())),
+      );
+    } else if (closingDate !== undefined) {
+      // Forme simple, conservée pour l'affaire sans aucun abonnement (l'appel le
+      // crée) et pour un onglet resté ouvert sur une version antérieure du front.
+      await setPendingClosingDate(params.id, closingDate ? new Date(closingDate) : null);
     }
 
     // SMARTLINKÉ (pipeline Closing) → création d'un Recruiter « Support » sur
