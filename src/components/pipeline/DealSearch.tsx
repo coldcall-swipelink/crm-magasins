@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { findSearchMatch } from '@/lib/searchText';
 
 interface Result {
   id: string;
@@ -14,15 +15,17 @@ interface Result {
 
 interface Props { onSelect: (dealId: string) => void; }
 
-// Surligne la portion de texte qui correspond à la requête (insensible à la casse).
+// Surligne la portion de texte qui correspond à la requête, en ignorant la
+// casse, les accents et la ponctuation — comme la recherche côté serveur : taper
+// « saint loudeac » surligne bien « Saint-Loudéac ».
 function highlight(text: string, q: string) {
-  const idx = text.toLowerCase().indexOf(q.toLowerCase());
-  if (idx === -1) return text;
+  const match = findSearchMatch(text, q);
+  if (!match) return text;
   return (
     <>
-      {text.slice(0, idx)}
-      <mark style={{ background: '#fef08a', color: 'inherit', padding: 0, borderRadius: 2 }}>{text.slice(idx, idx + q.length)}</mark>
-      {text.slice(idx + q.length)}
+      {text.slice(0, match.start)}
+      <mark style={{ background: '#fef08a', color: 'inherit', padding: 0, borderRadius: 2 }}>{text.slice(match.start, match.end)}</mark>
+      {text.slice(match.end)}
     </>
   );
 }
