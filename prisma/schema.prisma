@@ -518,3 +518,28 @@ model AppSetting {
   value     String   @default("")
   updatedAt DateTime @updatedAt
 }
+
+// Paramétrage CRM des liens de paiement Stripe (onglet « Liens de paiement »
+// des Paramètres). Stripe reste la source des liens eux-mêmes (URL, produit,
+// montant) ; cette table ne stocke QUE la présentation côté CRM :
+//
+//   - category    « classique » (les offres standard, en tête de liste) ou
+//                 « special » (lien créé pour un seul client). Un lien Stripe
+//                 sans ligne ici est traité comme « special » par défaut, donc
+//                 un nouveau lien apparaît sans rien casser.
+//   - displayName libellé d'affichage propre au CRM. Vide = on retombe sur le
+//                 nom du produit Stripe. Ne change RIEN pour le client.
+//   - position    ordre manuel à l'intérieur de sa catégorie.
+//   - hidden      masque le lien du sélecteur (sans le désactiver sur Stripe).
+model PaymentLinkConfig {
+  // Id du Payment Link Stripe (plink_…). Clé primaire : une ligne par lien.
+  stripeLinkId String   @id
+  category     String   @default("special")
+  displayName  String   @default("")
+  position     Int      @default(0)
+  hidden       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category, position])
+}

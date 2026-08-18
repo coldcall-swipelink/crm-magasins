@@ -1,7 +1,9 @@
 // src/app/api/deals/[id]/payment-links/route.ts
 //
-// Liste les liens de paiement Stripe ACTIFS pour une affaire, en construisant
-// pour chacun l'URL finale avec `?client_reference_id=<ref>` :
+// Liste les liens de paiement Stripe ACTIFS pour une affaire, dans l'ordre et
+// le groupement paramétrés dans les Paramètres (classiques puis spéciaux, liens
+// masqués exclus — voir src/lib/paymentLinkCatalog.ts), en construisant pour
+// chacun l'URL finale avec `?client_reference_id=<ref>` :
 //   - <ref> = group_id de l'Organization si elle est rattachée à un groupe
 //   - <ref> = organization_id sinon
 //
@@ -13,7 +15,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
 import { resolveClientReference } from '@/lib/recruitment';
-import { isStripeConfigured, fetchActivePaymentLinks, appendClientReferenceId } from '@/lib/stripe';
+import { isStripeConfigured, appendClientReferenceId } from '@/lib/stripe';
+import { getVisiblePaymentLinks } from '@/lib/paymentLinkCatalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +71,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     let links;
     try {
-      links = await fetchActivePaymentLinks();
+      // Catalogue paramétré dans les Paramètres : déjà trié (classiques puis
+      // spéciaux, dans l'ordre choisi) et sans les liens masqués.
+      links = await getVisiblePaymentLinks();
     } catch (stripeErr) {
       // Erreur côté Stripe (clé invalide, permissions manquantes, etc.) : on
       // remonte le message réel pour faciliter le diagnostic côté CRM.
@@ -84,7 +89,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       reference,
       links: links.map(l => ({
         id: l.id,
-        label: l.label,
+        // Libellé d'affichage (personnalisation CRM si elle existe) et montant,
+        // séparés : le sélecteur les met sur deux colonnes.
+        name: l.name,
+        amountLabel: l.amountLabel,
+        category: l.category,
+        // Conservé pour compatibilité : « Nom — 1 200,00 €/mois ».
+        label: l.amountLabel ? `${l.name} — ${l.amountLabel}` : l.name,
         // URL finale prête à copier / envoyer, avec le client_reference_id ajouté.
         url: appendClientReferenceId(l.url, reference.referenceId),
       })),

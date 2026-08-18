@@ -25,8 +25,12 @@ export interface StripePaymentLink {
   id: string;
   /** URL publique du lien de paiement (https://buy.stripe.com/…). */
   url: string;
-  /** Libellé lisible : « Nom du produit — 1 200,00 € » (au mieux). */
+  /** Libellé lisible complet : « Nom du produit — 1 200,00 €/mois » (au mieux). */
   label: string;
+  /** Nom du produit seul, sans le montant (« Abonnement Premium »). */
+  productName: string;
+  /** Montant seul, périodicité comprise (« 1 200,00 €/mois »). Vide si inconnu. */
+  amountLabel: string;
 }
 
 // ---- Types bruts (partiels) renvoyés par l'API Stripe -----------------------
@@ -69,18 +73,26 @@ function formatAmount(unitAmount: number | null | undefined, currency: string | 
   }
 }
 
-/** Construit un libellé lisible à partir de la 1re ligne de commande d'un lien. */
-function buildLabel(item: StripeLineItem | undefined): string {
+/**
+ * Décrit la 1re ligne de commande d'un lien : nom du produit et montant, gardés
+ * SÉPARÉS pour que le CRM puisse les afficher sur deux colonnes (nom à gauche,
+ * montant à droite). `label` reste la concaténation des deux, pour les usages
+ * qui veulent une seule chaîne.
+ */
+function describeLineItem(item: StripeLineItem | undefined): { productName: string; amountLabel: string; label: string } {
   const price = item?.price ?? null;
   const product = price?.product;
-  const productName =
-    product && typeof product === 'object' ? product.name?.trim() : undefined;
+  const name =
+    (product && typeof product === 'object' ? product.name?.trim() : undefined)
+    || price?.nickname?.trim()
+    || item?.description?.trim()
+    || 'Lien de paiement';
 
-  const name = productName || price?.nickname?.trim() || item?.description?.trim() || 'Lien de paiement';
   const amount = formatAmount(price?.unit_amount, price?.currency);
   const interval = price?.recurring?.interval ? `/${price.recurring.interval === 'month' ? 'mois' : price.recurring.interval}` : '';
+  const amountLabel = amount ? `${amount}${interval}` : '';
 
-  return amount ? `${name} — ${amount}${interval}` : name;
+  return { productName: name, amountLabel, label: amountLabel ? `${name} — ${amountLabel}` : name };
 }
 
 /** Appel GET Stripe avec la clé secrète. Lève une erreur si non configuré ou HTTP KO. */
@@ -124,7 +136,8 @@ async function stripeGet<T>(path: string): Promise<T> {
 }
 
 /**
- * Récupère le libellé d'un Payment Link via ses line items. On utilise
+ * Récupère le libellé (nom du produit + montant) d'un Payment Link via ses
+ * line items. On utilise
  * l'endpoint dédié `/payment_links/{id}/line_items` (qui, contrairement au
  * « list » des payment links, autorise l'expansion de line_items) avec
  * expansion du produit pour afficher son nom.
@@ -133,7 +146,7 @@ async function stripeGet<T>(path: string): Promise<T> {
  * Products/Prices absentes sur une clé restreinte) plutôt que de faire échouer
  * la récupération de tout le lien.
  */
-async function fetchPaymentLinkLabel(id: string): Promise<string> {
+async function fetchPaymentLinkLabel(id: string): Promise<{ productName: string; amountLabel: string; label: string }> {
   try {
     const params = new URLSearchParams();
     params.set('limit', '1');
@@ -141,9 +154,9 @@ async function fetchPaymentLinkLabel(id: string): Promise<string> {
     const res = await stripeGet<StripeList<StripeLineItem>>(
       `/payment_links/${encodeURIComponent(id)}/line_items?${params.toString()}`,
     );
-    return buildLabel(res.data?.[0]);
+    return describeLineItem(res.data?.[0]);
   } catch {
-    return 'Lien de paiement';
+    return { productName: 'Lien de paiement', amountLabel: '', label: 'Lien de paiement' };
   }
 }
 
@@ -185,7 +198,7 @@ export async function fetchActivePaymentLinks(): Promise<StripePaymentLink[]> {
   // 2. Libellés (en parallèle, best-effort).
   const labels = await Promise.all(active.map(l => fetchPaymentLinkLabel(l.id)));
 
-  return active.map((l, i) => ({ id: l.id, url: l.url, label: labels[i] || 'Lien de paiement' }));
+  return active.map((l, i) => ({ id: l.id, url: l.url, ...labels[i] }));
 }
 
 /**
