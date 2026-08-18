@@ -273,7 +273,20 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneLookupStatus\" TEXT NOT NULL DEFAULT '';",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneLookupAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneCandidates\" JSONB;",
-  "CREATE INDEX IF NOT EXISTS \"Store_phoneLookupStatus_idx\" ON \"Store\"(\"phoneLookupStatus\");"
+  "CREATE INDEX IF NOT EXISTS \"Store_phoneLookupStatus_idx\" ON \"Store\"(\"phoneLookupStatus\");",
+  // Paramétrage CRM des liens de paiement Stripe (Paramètres › Liens de
+  // paiement) : catégorie classique/spécial, libellé d'affichage, ordre,
+  // masquage. Une ligne par Payment Link ; les liens sans ligne sont traités
+  // comme « spéciaux ».
+  "CREATE TABLE IF NOT EXISTS \"PaymentLinkConfig\" (\"stripeLinkId\" TEXT NOT NULL, CONSTRAINT \"PaymentLinkConfig_pkey\" PRIMARY KEY (\"stripeLinkId\"));",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"stripeLinkId\" TEXT;",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"category\" TEXT NOT NULL DEFAULT 'special';",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"displayName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"position\" INTEGER NOT NULL DEFAULT 0;",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"hidden\" BOOLEAN NOT NULL DEFAULT false;",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"PaymentLinkConfig_category_position_idx\" ON \"PaymentLinkConfig\"(\"category\",\"position\");"
 ];
 
 export async function GET(req: NextRequest) {
