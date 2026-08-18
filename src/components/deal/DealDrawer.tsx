@@ -1739,7 +1739,17 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       <span>{payError}</span>
                       <button onClick={loadPaymentLinks} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Réessayer</button>
                     </div>
-                  ) : paySlots.length === 0 && paySpecials.length === 0 ? (
+                  ) : paySlots.length === 0 ? (
+                    // Le plan tarifaire est codé en dur : l'API en renvoie
+                    // toujours les 42 cases. Une liste vide signifie donc que
+                    // cette page tourne encore sur un JavaScript antérieur à une
+                    // mise à jour du CRM (onglet resté ouvert pendant un
+                    // déploiement) — pas que Stripe n'a plus de liens.
+                    <div style={{ fontSize: 12.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>Cette page a été chargée avant une mise à jour du CRM. Rechargez-la pour retrouver les liens de paiement.</span>
+                      <button onClick={() => window.location.reload()} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Recharger</button>
+                    </div>
+                  ) : paySpecials.length === 0 && paySlots.every(s => !s.link) ? (
                     <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucun lien de paiement actif sur Stripe.</div>
                   ) : (
                     <>
