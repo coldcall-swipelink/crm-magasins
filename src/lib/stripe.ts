@@ -42,7 +42,9 @@ interface StripePrice {
   unit_amount?: number | null;
   currency?: string | null;
   nickname?: string | null;
-  recurring?: { interval?: string | null } | null;
+  // Stripe décrit une périodicité en DEUX champs : l'unité (`month`) et son
+  // multiple (`interval_count`: 3 pour « tous les 3 mois »).
+  recurring?: { interval?: string | null; interval_count?: number | null } | null;
   product?: string | StripeProduct | null;
 }
 interface StripeLineItem {
@@ -78,11 +80,28 @@ type LinkLabel = { productName: string; amountLabel: string; label: string };
 
 const FALLBACK_LABEL: LinkLabel = { productName: 'Lien de paiement', amountLabel: '', label: 'Lien de paiement' };
 
-/** Suffixe de périodicité affichable : « /mois », « /an »… */
-function intervalSuffix(interval: string | null | undefined): string {
+/** Unités de périodicité Stripe, au singulier et au pluriel. */
+const INTERVAL_UNITS: Record<string, { one: string; many: string }> = {
+  day: { one: 'jour', many: 'jours' },
+  week: { one: 'semaine', many: 'semaines' },
+  month: { one: 'mois', many: 'mois' },
+  year: { one: 'an', many: 'ans' },
+};
+
+/**
+ * Suffixe de périodicité affichable : « /mois », « /an », mais aussi « /3 mois »
+ * ou « /6 mois ».
+ *
+ * Stripe exprime une périodicité en deux champs — l'unité (`interval`) et son
+ * multiple (`interval_count`). Ignorer le second faisait afficher « /mois » à un
+ * abonnement facturé tous les 3 mois.
+ */
+function intervalSuffix(interval: string | null | undefined, count: number | null | undefined): string {
   if (!interval) return '';
-  const fr: Record<string, string> = { day: 'jour', week: 'semaine', month: 'mois', year: 'an' };
-  return `/${fr[interval] || interval}`;
+  const n = typeof count === 'number' && count > 1 ? count : 1;
+  const unit = INTERVAL_UNITS[interval];
+  if (!unit) return n > 1 ? `/${n} ${interval}` : `/${interval}`;
+  return n > 1 ? `/${n} ${unit.many}` : `/${unit.one}`;
 }
 
 /** Nom d'une ligne de commande, quantité comprise si elle dépasse 1. */
@@ -108,7 +127,8 @@ function lineItemName(item: StripeLineItem): string {
  * intitulé qui ne correspondait pas à ce qu'on voit chez Stripe.
  *
  * Le montant est la somme des lignes (prix unitaire × quantité), avec la
- * périodicité de la première ligne récurrente.
+ * périodicité complète de la première ligne récurrente — unité ET multiple,
+ * pour distinguer « /mois » de « /3 mois ».
  */
 function describeLineItems(items: StripeLineItem[]): LinkLabel {
   const names = items.map(lineItemName).filter(Boolean);
@@ -123,9 +143,11 @@ function describeLineItems(items: StripeLineItem[]): LinkLabel {
   // Devise et périodicité : celles de la première ligne qui les porte. Un lien
   // mélangeant deux devises n'existe pas côté Stripe, l'ambiguïté est théorique.
   const currency = items.find(i => i.price?.currency)?.price?.currency ?? 'eur';
-  const interval = items.find(i => i.price?.recurring?.interval)?.price?.recurring?.interval;
+  const recurring = items.find(i => i.price?.recurring?.interval)?.price?.recurring ?? null;
 
-  const amountLabel = hasAmount ? `${formatAmount(total, currency)}${intervalSuffix(interval)}` : '';
+  const amountLabel = hasAmount
+    ? `${formatAmount(total, currency)}${intervalSuffix(recurring?.interval, recurring?.interval_count)}`
+    : '';
   return { productName, amountLabel, label: amountLabel ? `${productName} — ${amountLabel}` : productName };
 }
 
