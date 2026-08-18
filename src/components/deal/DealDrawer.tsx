@@ -79,6 +79,22 @@ interface DemoBooking {
 // seule (cf. POST /api/deals/[id]/find-phone).
 interface PhoneSuggestion { phone: string; name: string; address: string; source: string; url: string; }
 
+/** Un lien de paiement proposé dans le composer, tel que le renvoie
+ *  /api/deals/[id]/payment-links : déjà trié et catégorisé selon le
+ *  paramétrage (Paramètres › Liens de paiement). */
+interface PaymentLinkOption {
+  id: string;
+  /** Libellé d'affichage CRM (personnalisé si paramétré, sinon nom produit). */
+  name: string;
+  /** Montant et périodicité, affichés à droite (« 1 200,00 €/mois »). */
+  amountLabel: string;
+  category: 'classique' | 'special';
+  /** « Nom — montant », conservé pour l'affichage compact / les tooltips. */
+  label: string;
+  /** URL finale, client_reference_id compris. */
+  url: string;
+}
+
 interface Props { dealId: string; onClose: () => void; onUpdated: () => void; onNavigate?: (dealId: string) => void; }
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
@@ -372,8 +388,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
   // Formulaire « lien de paiement » : liens Stripe actifs résolus pour ce deal,
   // chacun avec son URL finale (client_reference_id = group_id ou organization_id).
-  const [payLinks, setPayLinks] = useState<{ id: string; label: string; url: string }[]>([]);
+  const [payLinks, setPayLinks] = useState<PaymentLinkOption[]>([]);
   const [payLinkId, setPayLinkId] = useState('');
+  // Recherche dans le sélecteur de lien, et dépliage de la section « spéciaux »
+  // (repliée par défaut : les liens spéciaux sont nombreux et ne concernent
+  // qu'un client chacun, ils ne doivent pas noyer les offres classiques).
+  const [paySearch, setPaySearch] = useState('');
+  const [payShowSpecials, setPayShowSpecials] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState('');
   const [payReference, setPayReference] = useState<{ referenceId: string; kind: 'group' | 'organization'; organizationName: string } | null>(null);
@@ -806,6 +827,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // du composer « Envoyer un lien de paiement ».
   const loadPaymentLinks = useCallback(async () => {
     setPayLoading(true); setPayError(''); setPayLinks([]); setPayLinkId(''); setPayReference(null);
+    setPaySearch(''); setPayShowSpecials(false);
     try {
       const res = await fetch(`/api/deals/${dealId}/payment-links`);
       const data = await res.json().catch(() => ({}));
@@ -820,6 +842,53 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   }, [dealId]);
 
   const selectedPayLink = payLinks.find(l => l.id === payLinkId) || null;
+
+  // Sélecteur de lien : deux groupes, dans l'ordre défini en Paramètres. La
+  // recherche filtre les deux à la fois et déplie d'office les « spéciaux » —
+  // chercher un nom ne doit pas obliger à ouvrir la section pour voir le
+  // résultat.
+  const paySearchTerm = paySearch.trim().toLowerCase();
+  const payMatches = (l: PaymentLinkOption) =>
+    !paySearchTerm
+    || l.name.toLowerCase().includes(paySearchTerm)
+    || l.amountLabel.toLowerCase().includes(paySearchTerm);
+  const payClassiques = payLinks.filter(l => l.category === 'classique' && payMatches(l));
+  const paySpeciaux = payLinks.filter(l => l.category === 'special' && payMatches(l));
+  const paySpecialCount = payLinks.filter(l => l.category === 'special').length;
+  // Repliée par défaut, SAUF s'il n'y a aucun lien classique : tant que rien
+  // n'est paramétré (ou que la base n'est pas encore migrée), tous les liens
+  // sont « spéciaux » et les cacher rendrait le sélecteur inutilisable.
+  const paySpecialsOpen = payShowSpecials || paySearchTerm.length > 0 || payClassiques.length === 0;
+
+  /** Une ligne cliquable du sélecteur : nom à gauche, montant à droite. */
+  const renderPayLinkRow = (l: PaymentLinkOption) => {
+    const selected = l.id === payLinkId;
+    return (
+      <button
+        key={l.id}
+        type="button"
+        onClick={() => setPayLinkId(l.id)}
+        title={l.label}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+          padding: '7px 10px', marginBottom: 4, borderRadius: 7, cursor: 'pointer',
+          border: `1px solid ${selected ? '#7c3aed' : '#ede9fe'}`,
+          background: selected ? '#f3e8ff' : '#fff',
+          boxShadow: selected ? 'inset 0 0 0 1px #7c3aed' : 'none',
+        }}
+      >
+        <span style={{ color: selected ? '#7c3aed' : '#cbd5e1', fontSize: 12, flexShrink: 0 }}>{selected ? '●' : '○'}</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: selected ? 600 : 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {l.name}
+        </span>
+        {l.amountLabel && (
+          <span style={{ fontSize: 11.5, color: selected ? '#7c3aed' : '#64748b', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {l.amountLabel}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   const copyPaymentLink = async () => {
     if (!selectedPayLink) return;
@@ -1631,9 +1700,45 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                     <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucun lien de paiement actif sur Stripe.</div>
                   ) : (
                     <>
-                      <select style={inp} value={payLinkId} onChange={e => setPayLinkId(e.target.value)}>
-                        {payLinks.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                      </select>
+                      <input
+                        style={{ ...inp, marginBottom: 8 }}
+                        placeholder="Rechercher un lien…"
+                        value={paySearch}
+                        onChange={e => setPaySearch(e.target.value)}
+                      />
+                      <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: 2 }}>
+                        {/* Offres standard : toujours dépliées, en tête. */}
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', letterSpacing: '.6px', textTransform: 'uppercase', margin: '2px 0 6px' }}>
+                          Liens classiques
+                        </div>
+                        {payClassiques.length === 0 ? (
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>
+                            {paySearchTerm ? 'Aucun lien classique ne correspond.' : 'Aucun lien classique paramétré (Paramètres › Liens de paiement).'}
+                          </div>
+                        ) : payClassiques.map(renderPayLinkRow)}
+
+                        {/* Liens dédiés à un client : repliés par défaut. */}
+                        {paySpecialCount > 0 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setPayShowSpecials(v => !v)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 0 6px', cursor: paySearchTerm ? 'default' : 'pointer', fontSize: 10, fontWeight: 700, color: '#7c3aed', letterSpacing: '.6px', textTransform: 'uppercase' }}
+                              title={paySearchTerm ? 'Déplié automatiquement pendant une recherche' : undefined}
+                            >
+                              <span style={{ fontSize: 11 }}>{paySpecialsOpen ? '▾' : '▸'}</span>
+                              Liens spéciaux ({paySpecialCount})
+                            </button>
+                            {paySpecialsOpen ? (
+                              paySpeciaux.length === 0 ? (
+                                <div style={{ fontSize: 12, color: '#94a3b8' }}>Aucun lien spécial ne correspond.</div>
+                              ) : paySpeciaux.map(renderPayLinkRow)
+                            ) : (
+                              <div style={{ fontSize: 11.5, color: '#94a3b8' }}>Liens créés pour un client précis — cliquez pour les afficher.</div>
+                            )}
+                          </>
+                        )}
+                      </div>
                       {payReference && (
                         <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 6 }}>
                           Rattaché à <b>{payReference.organizationName}</b> · <code style={{ fontFamily: 'monospace' }}>{payReference.kind === 'group' ? 'group_id' : 'organization_id'}={payReference.referenceId}</code>
@@ -1641,7 +1746,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       )}
                       {selectedPayLink && (
                         <div style={{ marginTop: 10 }}>
-                          <label style={labelStyle}>Lien à envoyer (client_reference_id ajouté)</label>
+                          {/* Rappel explicite du lien retenu : la section « spéciaux »
+                              peut être repliée, la sélection doit rester visible. */}
+                          <label style={labelStyle}>
+                            Lien à envoyer — <b style={{ color: '#7c3aed' }}>{selectedPayLink.label}</b> <span style={{ color: '#94a3b8' }}>({selectedPayLink.category === 'classique' ? 'classique' : 'spécial'}, client_reference_id ajouté)</span>
+                          </label>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <input readOnly value={selectedPayLink.url} onFocus={e => e.currentTarget.select()} style={{ ...inp, flex: 1, fontFamily: 'monospace', fontSize: 11 }} />
                             <button onClick={copyPaymentLink} style={{ ...btnPri, background: '#7c3aed', whiteSpace: 'nowrap' }}>Copier</button>

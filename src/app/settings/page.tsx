@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/Toast';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import PhoneLookupPanel from '@/components/settings/PhoneLookupPanel';
 import DealsWithoutPhonePanel from '@/components/settings/DealsWithoutPhonePanel';
+import PaymentLinksPanel from '@/components/settings/PaymentLinksPanel';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
@@ -665,6 +666,9 @@ export default function SettingsPage() {
 
         {/* Reliquat de la recherche automatique : saisie manuelle des numéros */}
         <DealsWithoutPhonePanel />
+
+        {/* Liens de paiement Stripe : catégories, libellés, ordre */}
+        <PaymentLinksPanel />
 
         {/* Organisations produit (Supabase) — backfill */}
         <div style={{ marginBottom: 28, border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, background: '#f8fafc' }}>
