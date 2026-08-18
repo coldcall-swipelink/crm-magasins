@@ -1,12 +1,12 @@
 'use client';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Deal, PipelineColumn, Brand } from '@/types';
+import type { Deal, PipelineColumn, Brand, Subscription } from '@/types';
 import DealCard from './DealCard';
 import DealSearch from './DealSearch';
 import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
-import ClosingDateModal from './ClosingDateModal';
+import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
@@ -15,6 +15,25 @@ import { useCurrentUser } from '@/lib/currentUser';
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
 interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
+
+/** Date saisie ("YYYY-MM-DD") → ISO à midi UTC, pour qu'aucun fuseau ne la
+ *  fasse basculer d'un jour. */
+function toIsoNoon(date: string): string {
+  return new Date(`${date}T12:00:00Z`).toISOString();
+}
+
+/**
+ * Intitulé d'un abonnement dans la pop-up de dates de closing. Son rang dans
+ * l'affaire est ce qui compte pour s'y retrouver ; le type et la valeur, quand
+ * ils sont renseignés, lèvent le doute restant.
+ */
+function subscriptionLabel(sub: Subscription, all: Subscription[]): string {
+  const rank = all.findIndex(s => s.id === sub.id) + 1;
+  const details = [sub.subscriptionType, sub.value != null ? `${sub.value} €` : '']
+    .filter(Boolean)
+    .join(' · ');
+  return details ? `Abonnement ${rank} — ${details}` : `Abonnement ${rank}`;
+}
 
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
@@ -39,7 +58,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
-  const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; initialDate?: string } | null>(null);
+  const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; targets: ClosingTarget[] } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Notifications d'offres (offres créées par les organisations rattachées).
@@ -176,16 +195,10 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       return;
     }
 
-    // Arrivée dans « SMARTLINKÉ » : on demande la date de closing AVANT de
-    // persister, pour pouvoir annuler proprement (cf. handleClosing*).
+    // Arrivée dans « SMARTLINKÉ » : on demande la ou les dates de closing AVANT
+    // de persister, pour pouvoir annuler proprement (cf. handleClosing*).
     if (isSmartlinkColumn(targetTitle)) {
-      setClosing({
-        dealId: deal.id,
-        targetColId,
-        originColId,
-        storeName: deal.store?.name,
-        initialDate: deal.closingDate ? String(deal.closingDate).slice(0, 10) : '',
-      });
+      await promptClosingDates(deal.id, targetColId, originColId, deal.store?.name);
       return;
     }
 
@@ -263,17 +276,100 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
     setPv(null);
   };
 
-  // Réponse à la pop-up « Date de closing » (drop dans SMARTLINKÉ) :
-  // on persiste le déplacement avec la date saisie ("YYYY-MM-DD" ou '' → null).
-  const handleClosingConfirm = async (date: string) => {
+  // Déplacement « nu » : aucune date de closing à transmettre.
+  const moveDeal = useCallback(async (dealId: string, columnId: string) => {
+    const res = await fetch(`/api/deals/${dealId}/move`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
+    });
+    if (!res.ok) throw new Error('move');
+  }, [currentUser]);
+
+  /**
+   * Prépare la pop-up « Date de closing » pour un drop dans SMARTLINKÉ.
+   *
+   * On ne demande une date que pour les abonnements QUI N'EN ONT PAS. Une
+   * affaire qui décroche un second contrat garde ainsi la date de closing du
+   * premier, au lieu de se la voir proposer puis écraser. Si tous les
+   * abonnements sont déjà datés, il n'y a rien à saisir : on déplace directement.
+   *
+   * La liste des abonnements n'est pas embarquée dans le board (le pipeline en
+   * charge beaucoup) : on la lit au moment du drop. Si cette lecture échoue, on
+   * retombe sur un champ unique plutôt que de bloquer le déplacement.
+   */
+  const promptClosingDates = useCallback(async (
+    dealId: string,
+    targetColId: string,
+    originColId: string,
+    storeName?: string,
+  ) => {
+    let subs: Subscription[] | null = null;
+    try {
+      const res = await fetch(`/api/deals/${dealId}/subscriptions`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) subs = data;
+      }
+    } catch { /* lecture impossible : repli sur un champ unique, ci-dessous */ }
+
+    if (subs && subs.length > 0) {
+      const pending = subs.filter(sub => !sub.closingDate);
+
+      if (pending.length === 0) {
+        try {
+          await moveDeal(dealId, targetColId);
+          toast('Affaire déplacée — tous les abonnements ont déjà une date de closing');
+        } catch {
+          toast('Erreur lors du déplacement', 'error');
+          setDeals(prev => prev.map(d => d.id === dealId ? { ...d, columnId: originColId } : d));
+        }
+        fetchDeals();
+        return;
+      }
+
+      setClosing({
+        dealId, targetColId, originColId, storeName,
+        targets: pending.map(sub => ({
+          subscriptionId: sub.id,
+          // On nomme l'abonnement seulement si l'affaire en compte plusieurs :
+          // c'est là que savoir lequel on date compte. Sur une affaire à
+          // abonnement unique, « Abonnement 1 » n'apprendrait rien.
+          label: subs!.length > 1 ? subscriptionLabel(sub, subs!) : '',
+        })),
+      });
+      return;
+    }
+
+    // Aucun abonnement (ou lecture impossible) : un seul champ, dont la
+    // validation créera l'abonnement côté serveur.
+    setClosing({ dealId, targetColId, originColId, storeName, targets: [{ subscriptionId: null, label: '' }] });
+  }, [fetchDeals, moveDeal]);
+
+  // Réponse à la pop-up « Date de closing » (drop dans SMARTLINKÉ) : on persiste
+  // le déplacement avec la ou les dates saisies. Les champs laissés vides ne
+  // sont pas transmis — l'abonnement reste simplement à dater.
+  const handleClosingConfirm = async (entries: ClosingDateEntry[]) => {
     if (!closing) return;
-    const closingDate = date ? new Date(date + 'T12:00:00Z').toISOString() : null;
+    const filled = entries.filter(e => e.date);
+
+    // Une cible sans identifiant = l'affaire n'a aucun abonnement : on envoie la
+    // forme simple, que le serveur traduit par une création.
+    const isCreation = closing.targets.length === 1 && closing.targets[0].subscriptionId === null;
+    const payload = isCreation
+      ? { closingDate: filled[0] ? toIsoNoon(filled[0].date) : null }
+      : { closingDates: filled.map(e => ({ subscriptionId: e.subscriptionId, closingDate: toIsoNoon(e.date) })) };
+
     const res = await fetch(`/api/deals/${closing.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: closing.targetColId, closingDate, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
+      body: JSON.stringify({ columnId: closing.targetColId, ...payload, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
     });
     if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
-    toast(date ? 'Affaire déplacée — date de closing enregistrée' : 'Affaire déplacée dans SMARTLINKÉ');
+
+    toast(
+      filled.length === 0 ? 'Affaire déplacée dans SMARTLINKÉ'
+      : filled.length === 1 ? 'Affaire déplacée — date de closing enregistrée'
+      : `Affaire déplacée — ${filled.length} dates de closing enregistrées`,
+    );
     setClosing(null);
     fetchDeals();
   };
@@ -432,7 +528,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={openDeal} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
-      {closing && <ClosingDateModal storeName={closing.storeName} initialDate={closing.initialDate} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
+      {closing && <ClosingDateModal storeName={closing.storeName} targets={closing.targets} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
     </div>
   );
 }
