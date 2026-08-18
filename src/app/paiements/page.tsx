@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { searchKeyIncludes } from '@/lib/searchText';
 import AppLayout from '@/components/layout/AppLayout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import {
@@ -365,8 +366,12 @@ function DealPicker({ options, value, onChange }: {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const q = query.trim().toLowerCase();
-  const list = q ? options.filter(o => `${o.storeName} ${o.city} ${o.brandName}`.toLowerCase().includes(q)) : options;
+  // Comparaison sur les clés normalisées : accents, casse et ponctuation
+  // ignorés, comme dans la recherche d'affaires du pipeline.
+  const q = query.trim();
+  const list = q
+    ? options.filter(o => searchKeyIncludes(`${o.storeName} ${o.city} ${o.brandName}`, q))
+    : options;
   const label = selected ? `${selected.storeName}${selected.city ? ' · ' + selected.city : ''}` : '';
 
   return (

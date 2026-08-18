@@ -13,6 +13,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { normalizePhone } from '@/lib/phone/normalize';
 import { USE_MOCK_DATA } from '@/lib/mockData';
+import { findStoreIdsMatchingSearch } from '@/lib/searchStores';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,20 +27,14 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get('limit')) || DEFAULT_LIMIT, 1), MAX_LIMIT);
     const offset = Math.max(Number(req.nextUrl.searchParams.get('offset')) || 0, 0);
 
+    // Magasins correspondants, résolus sur les clés normalisées : « saint
+    // loudeac » retrouve « Saint-Loudéac ». Le code postal reste comparé par
+    // préfixe (« 35 » = tout le département). `null` = saisie inexploitable.
+    const storeIds = q ? await findStoreIdsMatchingSearch(q, { includePostalCode: true }) : null;
+
     const where: Prisma.DealWhereInput = {
       contactPhone: '',
-      ...(q
-        ? {
-            store: {
-              OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { city: { contains: q, mode: 'insensitive' } },
-                { postalCode: { startsWith: q } },
-                { brand: { name: { contains: q, mode: 'insensitive' } } },
-              ],
-            },
-          }
-        : {}),
+      ...(storeIds ? { storeId: { in: storeIds } } : {}),
     };
 
     const [deals, total] = await Promise.all([

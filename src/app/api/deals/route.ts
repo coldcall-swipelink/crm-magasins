@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBrandColor, normalizeText } from '@/lib/utils';
 import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
+import { searchKeyIncludes } from '@/lib/searchText';
+import { findStoreIdsMatchingSearch } from '@/lib/searchStores';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -14,16 +16,18 @@ export async function GET(req: NextRequest) {
       const pipelineId     = searchParams.get('pipelineId');
       const assignedUserId = searchParams.get('assignedUserId');
       const brandId        = searchParams.get('brandId');
-      const search         = (searchParams.get('search') || '').toLowerCase();
+      const search         = (searchParams.get('search') || '').trim();
       // Les sous-deals (absorbés) n'apparaissent pas dans le pipeline.
       let result = mockDeals.filter(d => !d.parentDealId);
       if (pipelineId)     result = result.filter(d => d.pipelineId === pipelineId);
       if (assignedUserId) result = result.filter(d => d.assignedUserId === assignedUserId);
       if (brandId)        result = result.filter(d => d.store.brand?.id === brandId);
+      // Comparaison sur les clés normalisées : « saint loudeac » retrouve
+      // « Saint-Loudéac », comme en base.
       if (search)         result = result.filter(d =>
-        d.store.name.toLowerCase().includes(search) ||
-        d.store.city.toLowerCase().includes(search) ||
-        (d.store.brand ? d.store.brand.name.toLowerCase().includes(search) : false));
+        searchKeyIncludes(d.store.name, search) ||
+        searchKeyIncludes(d.store.city, search) ||
+        searchKeyIncludes(d.store.brand?.name, search));
       return NextResponse.json(result);
     }
 
@@ -51,11 +55,10 @@ export async function GET(req: NextRequest) {
     if (assignedUserId) where.assignedUserId = assignedUserId;
 
     if (search) {
-      where.store = { OR: [
-        { name:  { contains: search, mode: 'insensitive' } },
-        { city:  { contains: search, mode: 'insensitive' } },
-        { brand: { name: { contains: search, mode: 'insensitive' } } },
-      ]};
+      // Les magasins sont résolus sur les clés normalisées (accents, casse et
+      // ponctuation ignorés) ; `null` = saisie inexploitable, on ne filtre pas.
+      const storeIds = await findStoreIdsMatchingSearch(search);
+      if (storeIds) where.storeId = { in: storeIds };
     }
     if (brandId) {
       where.store = { ...(where.store as object || {}), brandId };
