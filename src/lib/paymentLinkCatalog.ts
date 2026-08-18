@@ -1,118 +1,84 @@
 // src/lib/paymentLinkCatalog.ts
 //
-// Catalogue des liens de paiement tel que le CRM doit le présenter.
+// Assemble le catalogue des liens de paiement tel que le CRM le présente, à
+// partir de deux sources :
+//   - STRIPE (src/lib/stripe.ts) : les Payment Links actifs, leur URL, le nom du
+//     produit et le montant. Source de vérité de ce qui existe.
+//   - LE CRM (table PaymentLinkSlot) : quel lien occupe quelle case du plan
+//     tarifaire fixe décrit dans src/lib/paymentLinkSlots.ts.
 //
-// Deux sources, fusionnées ici une bonne fois pour toutes :
-//   - STRIPE (src/lib/stripe.ts) : les liens actifs, leur URL, le produit et le
-//     montant. C'est la source de vérité de ce qui existe.
-//   - LE CRM (table PaymentLinkConfig) : la mise en forme choisie dans les
-//     Paramètres — catégorie « classique » / « spécial », libellé personnalisé,
-//     ordre manuel, masquage.
+// D'où la règle unique qui sépare les deux familles :
+//   - un lien ATTRIBUÉ à une case est un lien « classique » ;
+//   - tout autre lien actif est « spécial » (créé pour un seul client).
 //
-// Règles de fusion, pensées pour qu'un lien créé sur Stripe n'ait JAMAIS besoin
-// d'une intervention avant de pouvoir être envoyé :
-//   - un lien sans ligne de config est « spécial », non masqué, position 0 ;
-//   - un libellé personnalisé vide retombe sur le nom du produit Stripe ;
-//   - une ligne de config qui ne correspond à aucun lien actif est ignorée
-//     (lien archivé côté Stripe) — on ne la supprime pas pour autant, au cas où
-//     le lien serait réactivé.
-//
-// La lecture de la config est TOLÉRANTE : si la table n'existe pas encore (base
-// pas migrée), on retombe sur « tout est spécial » plutôt que de casser l'envoi
-// de liens de paiement.
+// La lecture des attributions est TOLÉRANTE : si la table n'existe pas encore
+// (base pas migrée), on renvoie un plan entièrement vide plutôt que de faire
+// échouer l'envoi d'un lien de paiement — les liens spéciaux restent utilisables.
 import { prisma } from '@/lib/prisma';
-import { fetchActivePaymentLinks } from '@/lib/stripe';
+import { fetchActivePaymentLinks, type StripePaymentLink } from '@/lib/stripe';
+import { PAYMENT_LINK_SLOTS, type PaymentLinkSlotDefinition } from '@/lib/paymentLinkSlots';
 
-/** Catégories de présentation. Stockées telles quelles en base. */
-export type PaymentLinkCategory = 'classique' | 'special';
-
-export const PAYMENT_LINK_CATEGORIES: PaymentLinkCategory[] = ['classique', 'special'];
-
-/** Un lien de paiement, prêt à afficher. */
-export interface PaymentLinkEntry {
-  /** Id du Payment Link Stripe (plink_…). */
+/** Le lien Stripe résumé, tel qu'exposé au front. */
+export interface CatalogLink {
   id: string;
-  /** URL publique Stripe, SANS client_reference_id (ajouté par l'appelant). */
   url: string;
-  /** Libellé affiché : personnalisation CRM si présente, sinon nom du produit. */
+  /** Nom du produit Stripe. */
   name: string;
-  /** Nom du produit tel qu'il est sur Stripe (affiché en Paramètres). */
-  stripeName: string;
-  /** Libellé personnalisé saisi dans le CRM ('' si aucun). */
-  displayName: string;
   /** Montant + périodicité (« 1 200,00 €/mois »). Vide si Stripe ne l'a pas donné. */
   amountLabel: string;
-  category: PaymentLinkCategory;
-  position: number;
-  hidden: boolean;
-  /** false = ce lien n'a encore jamais été paramétré dans le CRM. */
-  configured: boolean;
 }
 
-/** Normalise une catégorie venue de la base ou d'une requête HTTP. */
-export function normalizeCategory(value: unknown): PaymentLinkCategory {
-  return value === 'classique' ? 'classique' : 'special';
+/** Une case du plan, avec le lien qui l'occupe (ou null si elle est vide). */
+export interface CatalogSlot extends PaymentLinkSlotDefinition {
+  link: CatalogLink | null;
 }
 
-/**
- * Ordre d'affichage : la position manuelle d'abord, puis le libellé (pour que
- * les liens jamais paramétrés — tous en position 0 — restent alphabétiques et
- * donc stables d'un chargement à l'autre, l'ordre de l'API Stripe ne l'étant pas).
- */
-export function comparePaymentLinks(a: PaymentLinkEntry, b: PaymentLinkEntry): number {
-  if (a.position !== b.position) return a.position - b.position;
-  return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+export interface PaymentLinkCatalog {
+  /** Les 42 cases, toujours dans l'ordre du plan, vides comprises. */
+  slots: CatalogSlot[];
+  /** Les liens actifs n'occupant aucune case, triés par nom. */
+  specials: CatalogLink[];
+  /** Tous les liens actifs, triés par nom — alimente les listes déroulantes. */
+  allLinks: CatalogLink[];
 }
 
-/** Lit les lignes de config. Renvoie une map vide si la table n'existe pas encore. */
-async function loadConfigs(): Promise<Map<string, { category: PaymentLinkCategory; displayName: string; position: number; hidden: boolean }>> {
-  const map = new Map<string, { category: PaymentLinkCategory; displayName: string; position: number; hidden: boolean }>();
+function toCatalogLink(l: StripePaymentLink): CatalogLink {
+  return { id: l.id, url: l.url, name: l.productName, amountLabel: l.amountLabel };
+}
+
+const byName = (a: CatalogLink, b: CatalogLink) =>
+  a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+
+/** Lit les attributions. Map vide si la table n'existe pas encore. */
+async function loadAssignments(): Promise<Map<string, string>> {
   try {
-    const rows = await prisma.paymentLinkConfig.findMany();
-    for (const r of rows) {
-      map.set(r.stripeLinkId, {
-        category: normalizeCategory(r.category),
-        displayName: r.displayName || '',
-        position: r.position,
-        hidden: r.hidden,
-      });
-    }
+    const rows = await prisma.paymentLinkSlot.findMany();
+    return new Map(rows.map(r => [r.slotKey, r.stripeLinkId]));
   } catch (err) {
-    // Base pas encore migrée (`npm run db:push`) : on continue sans config.
-    console.warn('PaymentLinkConfig illisible, catalogue non paramétré :', (err as Error).message);
+    // Base pas encore migrée (db-sync / `npm run db:push`) : plan vide.
+    console.warn('PaymentLinkSlot illisible, plan tarifaire non attribué :', (err as Error).message);
+    return new Map();
   }
-  return map;
 }
 
-/**
- * Catalogue complet, trié, liens masqués COMPRIS (le drapeau `hidden` est
- * renvoyé tel quel). L'écran de paramétrage veut tout voir ; le sélecteur de la
- * fiche affaire filtre lui-même — voir getVisiblePaymentLinks.
- */
-export async function getPaymentLinkCatalog(): Promise<PaymentLinkEntry[]> {
-  const [links, configs] = await Promise.all([fetchActivePaymentLinks(), loadConfigs()]);
+/** Le catalogue complet : le plan tarifaire attribué, plus les liens spéciaux. */
+export async function getPaymentLinkCatalog(): Promise<PaymentLinkCatalog> {
+  const [links, assignments] = await Promise.all([fetchActivePaymentLinks(), loadAssignments()]);
 
-  return links
-    .map<PaymentLinkEntry>(link => {
-      const cfg = configs.get(link.id);
-      const displayName = cfg?.displayName || '';
-      return {
-        id: link.id,
-        url: link.url,
-        name: displayName || link.productName,
-        stripeName: link.productName,
-        displayName,
-        amountLabel: link.amountLabel,
-        category: cfg?.category ?? 'special',
-        position: cfg?.position ?? 0,
-        hidden: cfg?.hidden ?? false,
-        configured: Boolean(cfg),
-      };
-    })
-    .sort(comparePaymentLinks);
-}
+  const byId = new Map(links.map(l => [l.id, toCatalogLink(l)]));
 
-/** Catalogue destiné au sélecteur d'une affaire : sans les liens masqués. */
-export async function getVisiblePaymentLinks(): Promise<PaymentLinkEntry[]> {
-  return (await getPaymentLinkCatalog()).filter(l => !l.hidden);
+  const slots: CatalogSlot[] = PAYMENT_LINK_SLOTS.map(def => {
+    const assignedId = assignments.get(def.slotKey);
+    // Un lien attribué puis archivé côté Stripe n'est plus dans `byId` : la case
+    // redevient vide, sans qu'on ait à nettoyer la table.
+    return { ...def, link: (assignedId && byId.get(assignedId)) || null };
+  });
+
+  // « Spécial » = actif mais n'occupant aucune case OCCUPÉE (donc en tenant
+  // compte des attributions réellement résolues, pas des lignes orphelines).
+  const usedIds = new Set(slots.filter(s => s.link).map(s => s.link!.id));
+  const specials = links.filter(l => !usedIds.has(l.id)).map(toCatalogLink).sort(byName);
+  const allLinks = links.map(toCatalogLink).sort(byName);
+
+  return { slots, specials, allLinks };
 }

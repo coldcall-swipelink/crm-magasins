@@ -274,19 +274,18 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneLookupAt\" TIMESTAMP(3);",
   "ALTER TABLE \"Store\" ADD COLUMN IF NOT EXISTS \"phoneCandidates\" JSONB;",
   "CREATE INDEX IF NOT EXISTS \"Store_phoneLookupStatus_idx\" ON \"Store\"(\"phoneLookupStatus\");",
-  // Paramétrage CRM des liens de paiement Stripe (Paramètres › Liens de
-  // paiement) : catégorie classique/spécial, libellé d'affichage, ordre,
-  // masquage. Une ligne par Payment Link ; les liens sans ligne sont traités
-  // comme « spéciaux ».
-  "CREATE TABLE IF NOT EXISTS \"PaymentLinkConfig\" (\"stripeLinkId\" TEXT NOT NULL, CONSTRAINT \"PaymentLinkConfig_pkey\" PRIMARY KEY (\"stripeLinkId\"));",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"stripeLinkId\" TEXT;",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"category\" TEXT NOT NULL DEFAULT 'special';",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"displayName\" TEXT NOT NULL DEFAULT '';",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"position\" INTEGER NOT NULL DEFAULT 0;",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"hidden\" BOOLEAN NOT NULL DEFAULT false;",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
-  "ALTER TABLE \"PaymentLinkConfig\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
-  "CREATE INDEX IF NOT EXISTS \"PaymentLinkConfig_category_position_idx\" ON \"PaymentLinkConfig\"(\"category\",\"position\");"
+  // Attribution des liens de paiement « classiques » aux cases du plan tarifaire
+  // (Paramètres › Liens de paiement). Une ligne par case occupée ; le plan
+  // lui-même vit dans src/lib/paymentLinkSlots.ts.
+  "CREATE TABLE IF NOT EXISTS \"PaymentLinkSlot\" (\"slotKey\" TEXT NOT NULL, CONSTRAINT \"PaymentLinkSlot_pkey\" PRIMARY KEY (\"slotKey\"));",
+  "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"slotKey\" TEXT;",
+  "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"stripeLinkId\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"PaymentLinkSlot_stripeLinkId_idx\" ON \"PaymentLinkSlot\"(\"stripeLinkId\");",
+  // La table PaymentLinkConfig d'une version précédente n'est plus utilisée.
+  // Elle n'est pas supprimée ici (cette route reste strictement additive) ; elle
+  // peut être retirée à la main si elle existe.
 ];
 
 export async function GET(req: NextRequest) {

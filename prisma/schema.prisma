@@ -519,27 +519,26 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
-// Paramétrage CRM des liens de paiement Stripe (onglet « Liens de paiement »
-// des Paramètres). Stripe reste la source des liens eux-mêmes (URL, produit,
-// montant) ; cette table ne stocke QUE la présentation côté CRM :
+// Attribution des liens de paiement « classiques » aux cases du plan tarifaire.
 //
-//   - category    « classique » (les offres standard, en tête de liste) ou
-//                 « special » (lien créé pour un seul client). Un lien Stripe
-//                 sans ligne ici est traité comme « special » par défaut, donc
-//                 un nouveau lien apparaît sans rien casser.
-//   - displayName libellé d'affichage propre au CRM. Vide = on retombe sur le
-//                 nom du produit Stripe. Ne change RIEN pour le client.
-//   - position    ordre manuel à l'intérieur de sa catégorie.
-//   - hidden      masque le lien du sélecteur (sans le désactiver sur Stripe).
-model PaymentLinkConfig {
-  // Id du Payment Link Stripe (plink_…). Clé primaire : une ligne par lien.
-  stripeLinkId String   @id
-  category     String   @default("special")
-  displayName  String   @default("")
-  position     Int      @default(0)
-  hidden       Boolean  @default(false)
+// Le plan lui-même (7 offres × 2 jeux de tarifs × 3 modes de paiement = 42 cases)
+// est décrit en dur dans src/lib/paymentLinkSlots.ts : il ne change pas au gré
+// des données. Cette table dit seulement QUEL Payment Link Stripe occupe QUELLE
+// case — c'est ce qu'on renseigne depuis Paramètres › Liens de paiement.
+//
+// Une case sans ligne ici est simplement vide (non sélectionnable côté affaire).
+// Un lien Stripe actif qui n'occupe aucune case est un lien « spécial », créé
+// pour un client donné : la distinction classique/spécial se déduit de cette
+// table, il n'y a rien d'autre à cocher.
+model PaymentLinkSlot {
+  // Clé de la case, ex. « c1-mois/actuel/mensuel » (voir buildSlotKey).
+  slotKey      String   @id
+  // Id du Payment Link Stripe (plink_…). Volontairement NON unique : rien
+  // n'interdit qu'un même lien serve deux cases (l'écran de paramétrage le
+  // signale, mais ne le refuse pas).
+  stripeLinkId String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@index([category, position])
+  @@index([stripeLinkId])
 }

@@ -1,19 +1,18 @@
 // src/app/api/payment-links/route.ts
 //
-// Paramétrage CRM des liens de paiement (écran Paramètres › Liens de paiement).
+// Paramétrage des liens de paiement (écran Paramètres › Liens de paiement).
 //
-//   GET  → le catalogue complet : tous les liens Stripe actifs, enrichis de leur
-//          paramétrage CRM (catégorie, libellé personnalisé, ordre, masquage),
-//          liens masqués COMPRIS — c'est l'écran qui décide quoi montrer.
-//   PUT  → enregistre le paramétrage en un seul appel. Le front envoie l'état
-//          complet des deux listes ; on réécrit les lignes correspondantes.
-//          Enregistrement en bloc (et non par ligne) parce qu'un réordonnancement
-//          touche par nature plusieurs liens à la fois : une seule transaction,
-//          pas d'état intermédiaire incohérent.
+//   GET → le plan tarifaire complet (les 42 cases, vides comprises), la liste
+//         des liens spéciaux, et tous les liens Stripe actifs pour alimenter
+//         les listes déroulantes d'attribution.
+//   PUT → enregistre les attributions en un seul appel. Le front envoie l'état
+//         complet du plan ; une case sans lien est effacée. Enregistrement en
+//         bloc et en transaction : le plan est cohérent ou il ne change pas.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isStripeConfigured } from '@/lib/stripe';
-import { getPaymentLinkCatalog, normalizeCategory } from '@/lib/paymentLinkCatalog';
+import { getPaymentLinkCatalog } from '@/lib/paymentLinkCatalog';
+import { isKnownSlotKey } from '@/lib/paymentLinkSlots';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +24,7 @@ export async function GET() {
     );
   }
   try {
-    return NextResponse.json({ links: await getPaymentLinkCatalog() });
+    return NextResponse.json(await getPaymentLinkCatalog());
   } catch (err) {
     console.error('Payment links GET error:', err);
     return NextResponse.json(
@@ -35,51 +34,52 @@ export async function GET() {
   }
 }
 
-interface IncomingItem {
+interface IncomingAssignment {
+  slotKey?: unknown;
   stripeLinkId?: unknown;
-  category?: unknown;
-  displayName?: unknown;
-  position?: unknown;
-  hidden?: unknown;
 }
 
 export async function PUT(req: NextRequest) {
-  let body: { items?: IncomingItem[] };
+  let body: { assignments?: IncomingAssignment[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Corps de requête invalide.' }, { status: 400 });
   }
 
-  const items = Array.isArray(body.items) ? body.items : null;
-  if (!items) return NextResponse.json({ error: 'items requis' }, { status: 400 });
+  const assignments = Array.isArray(body.assignments) ? body.assignments : null;
+  if (!assignments) return NextResponse.json({ error: 'assignments requis' }, { status: 400 });
 
-  // Nettoyage : on ne garde que des lignes exploitables, et on borne les
-  // libellés pour ne pas stocker un copier-coller accidentel de 10 000 signes.
-  const rows = items
-    .filter(i => typeof i.stripeLinkId === 'string' && i.stripeLinkId.startsWith('plink_'))
-    .map(i => ({
-      stripeLinkId: i.stripeLinkId as string,
-      category: normalizeCategory(i.category),
-      displayName: typeof i.displayName === 'string' ? i.displayName.trim().slice(0, 120) : '',
-      position: Number.isFinite(Number(i.position)) ? Math.trunc(Number(i.position)) : 0,
-      hidden: Boolean(i.hidden),
-    }));
+  // Une clé inconnue signalerait un plan désynchronisé entre le front et
+  // paymentLinkSlots.ts : on refuse plutôt que d'écrire une case fantôme.
+  const unknown = assignments.filter(a => !isKnownSlotKey(a.slotKey));
+  if (unknown.length > 0) {
+    return NextResponse.json({ error: 'Une ou plusieurs cases sont inconnues du plan tarifaire.' }, { status: 400 });
+  }
 
-  if (rows.length !== items.length) {
-    return NextResponse.json({ error: 'Un ou plusieurs identifiants de lien sont invalides.' }, { status: 400 });
+  const toSet: { slotKey: string; stripeLinkId: string }[] = [];
+  const toClear: string[] = [];
+  for (const a of assignments) {
+    const slotKey = a.slotKey as string;
+    const linkId = typeof a.stripeLinkId === 'string' ? a.stripeLinkId.trim() : '';
+    if (!linkId) { toClear.push(slotKey); continue; }
+    if (!linkId.startsWith('plink_')) {
+      return NextResponse.json({ error: `Identifiant de lien invalide : ${linkId}` }, { status: 400 });
+    }
+    toSet.push({ slotKey, stripeLinkId: linkId });
   }
 
   try {
-    await prisma.$transaction(
-      rows.map(r =>
-        prisma.paymentLinkConfig.upsert({
-          where: { stripeLinkId: r.stripeLinkId },
+    await prisma.$transaction([
+      ...(toClear.length ? [prisma.paymentLinkSlot.deleteMany({ where: { slotKey: { in: toClear } } })] : []),
+      ...toSet.map(r =>
+        prisma.paymentLinkSlot.upsert({
+          where: { slotKey: r.slotKey },
           create: r,
-          update: { category: r.category, displayName: r.displayName, position: r.position, hidden: r.hidden },
+          update: { stripeLinkId: r.stripeLinkId },
         }),
       ),
-    );
+    ]);
   } catch (err) {
     console.error('Payment links PUT error:', err);
     return NextResponse.json(
@@ -88,5 +88,5 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ saved: rows.length });
+  return NextResponse.json({ assigned: toSet.length, cleared: toClear.length });
 }

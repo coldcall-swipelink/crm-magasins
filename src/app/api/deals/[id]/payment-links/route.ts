@@ -1,9 +1,14 @@
 // src/app/api/deals/[id]/payment-links/route.ts
 //
-// Liste les liens de paiement Stripe ACTIFS pour une affaire, dans l'ordre et
-// le groupement paramétrés dans les Paramètres (classiques puis spéciaux, liens
-// masqués exclus — voir src/lib/paymentLinkCatalog.ts), en construisant pour
-// chacun l'URL finale avec `?client_reference_id=<ref>` :
+// Liens de paiement disponibles pour une affaire, prêts à envoyer.
+//
+// Deux familles, issues du catalogue (src/lib/paymentLinkCatalog.ts) :
+//   - `slots` : le plan tarifaire fixe (offre × jeu de tarifs × mode de paiement),
+//     42 cases toujours renvoyées dans le même ordre, vides comprises — la fiche
+//     affaire en fait ses trois listes déroulantes ;
+//   - `specials` : les liens actifs n'occupant aucune case, créés pour un client.
+//
+// Chaque lien porte son URL finale, avec `?client_reference_id=<ref>` :
 //   - <ref> = group_id de l'Organization si elle est rattachée à un groupe
 //   - <ref> = organization_id sinon
 //
@@ -16,7 +21,7 @@ import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
 import { resolveClientReference } from '@/lib/recruitment';
 import { isStripeConfigured, appendClientReferenceId } from '@/lib/stripe';
-import { getVisiblePaymentLinks } from '@/lib/paymentLinkCatalog';
+import { getPaymentLinkCatalog, type CatalogLink } from '@/lib/paymentLinkCatalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,11 +74,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       );
     }
 
-    let links;
+    let catalog;
     try {
-      // Catalogue paramétré dans les Paramètres : déjà trié (classiques puis
-      // spéciaux, dans l'ordre choisi) et sans les liens masqués.
-      links = await getVisiblePaymentLinks();
+      catalog = await getPaymentLinkCatalog();
     } catch (stripeErr) {
       // Erreur côté Stripe (clé invalide, permissions manquantes, etc.) : on
       // remonte le message réel pour faciliter le diagnostic côté CRM.
@@ -84,21 +87,30 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       );
     }
 
+    // L'URL finale (client_reference_id compris) est calculée ici, une fois :
+    // le front n'a plus qu'à copier ce qu'on lui donne.
+    const withUrl = (l: CatalogLink) => ({
+      id: l.id,
+      name: l.name,
+      amountLabel: l.amountLabel,
+      url: appendClientReferenceId(l.url, reference.referenceId),
+    });
+
     return NextResponse.json({
       organizationId,
       reference,
-      links: links.map(l => ({
-        id: l.id,
-        // Libellé d'affichage (personnalisation CRM si elle existe) et montant,
-        // séparés : le sélecteur les met sur deux colonnes.
-        name: l.name,
-        amountLabel: l.amountLabel,
-        category: l.category,
-        // Conservé pour compatibilité : « Nom — 1 200,00 €/mois ».
-        label: l.amountLabel ? `${l.name} — ${l.amountLabel}` : l.name,
-        // URL finale prête à copier / envoyer, avec le client_reference_id ajouté.
-        url: appendClientReferenceId(l.url, reference.referenceId),
+      slots: catalog.slots.map(s => ({
+        slotKey: s.slotKey,
+        offerKey: s.offerKey,
+        offerLabel: s.offerLabel,
+        tariffKey: s.tariffKey,
+        tariffLabel: s.tariffLabel,
+        modeKey: s.modeKey,
+        modeLabel: s.modeLabel,
+        fullLabel: s.fullLabel,
+        link: s.link ? withUrl(s.link) : null,
       })),
+      specials: catalog.specials.map(withUrl),
     });
   } catch (err) {
     console.error('Deal payment-links GET error:', err);
