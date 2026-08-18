@@ -6,6 +6,7 @@
 // Aucun outil n'écrit en base : l'assistant ne fait que lire et agréger.
 // -----------------------------------------------------------------------------
 import { prisma } from '@/lib/prisma';
+import { findStoreIdsMatchingSearch } from '@/lib/searchStores';
 
 export interface ToolDefinition {
   name: string;
@@ -225,11 +226,10 @@ async function searchDeals(input: Record<string, any>) {
   const storeFilter: Record<string, unknown> = {};
 
   if (query) {
-    storeFilter.OR = [
-      { name: { contains: query, mode: 'insensitive' } },
-      { city: { contains: query, mode: 'insensitive' } },
-      { brand: { name: { contains: query, mode: 'insensitive' } } },
-    ];
+    // Magasins résolus sur les clés normalisées (accents, casse et ponctuation
+    // ignorés), pour que « saint loudeac » retrouve « Saint-Loudéac ».
+    const storeIds = await findStoreIdsMatchingSearch(query);
+    if (storeIds) where.storeId = { in: storeIds };
   }
   if (input.brandName?.trim()) {
     storeFilter.brand = { name: { contains: input.brandName.trim(), mode: 'insensitive' } };
