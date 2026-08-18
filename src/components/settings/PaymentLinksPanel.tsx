@@ -35,6 +35,26 @@ function linkOptionLabel(l: CatalogLink): string {
   return l.amountLabel ? `${l.name} — ${l.amountLabel}` : l.name;
 }
 
+/**
+ * Un Payment Link n'a pas de nom propre chez Stripe : il est désigné par ses
+ * produits. Deux liens distincts peuvent donc porter exactement le même
+ * intitulé (même produit, même prix). Dans ce cas seulement, on ajoute la fin
+ * de l'identifiant Stripe pour pouvoir les distinguer dans la liste.
+ */
+function buildOptionLabels(links: CatalogLink[]): Record<string, string> {
+  const counts: Record<string, number> = {};
+  for (const l of links) {
+    const base = linkOptionLabel(l);
+    counts[base] = (counts[base] || 0) + 1;
+  }
+  const labels: Record<string, string> = {};
+  for (const l of links) {
+    const base = linkOptionLabel(l);
+    labels[l.id] = counts[base] > 1 ? `${base} · …${l.id.slice(-6)}` : base;
+  }
+  return labels;
+}
+
 export default function PaymentLinksPanel() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [allLinks, setAllLinks] = useState<CatalogLink[]>([]);
@@ -48,10 +68,12 @@ export default function PaymentLinksPanel() {
   // Les anciens tarifs ne servent qu'aux clients historiques : repliés par défaut.
   const [showOldTariffs, setShowOldTariffs] = useState(false);
 
-  const load = useCallback(async () => {
+  // `refresh` force la relecture des libellés chez Stripe : ils sont mis en cache
+  // quelques minutes côté serveur pour ne pas déclencher son rate limit.
+  const load = useCallback(async (refresh = false) => {
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/payment-links');
+      const res = await fetch(`/api/payment-links${refresh ? '?refresh=1' : ''}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || 'Erreur de chargement des liens de paiement.'); return; }
       const loaded: Slot[] = Array.isArray(data.slots) ? data.slots : [];
@@ -67,9 +89,12 @@ export default function PaymentLinksPanel() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(false); }, [load]);
 
   const assignedCount = useMemo(() => Object.values(draft).filter(Boolean).length, [draft]);
+
+  // Intitulés des options, avec suffixe d'identifiant sur les seuls doublons.
+  const optionLabels = useMemo(() => buildOptionLabels(allLinks), [allLinks]);
 
   // Un même lien attribué à plusieurs cases n'est pas interdit (deux cases
   // peuvent légitimement pointer le même tarif), mais c'est le plus souvent une
@@ -122,7 +147,7 @@ export default function PaymentLinksPanel() {
           title={duplicated ? 'Ce lien est déjà attribué à une autre case' : slot.fullLabel}
         >
           <option value="">— Aucun lien —</option>
-          {allLinks.map(l => <option key={l.id} value={l.id}>{linkOptionLabel(l)}</option>)}
+          {allLinks.map(l => <option key={l.id} value={l.id}>{optionLabels[l.id]}</option>)}
         </select>
       </div>
     );
@@ -176,7 +201,7 @@ export default function PaymentLinksPanel() {
       ) : error ? (
         <div style={{ fontSize: 12.5, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span>{error}</span>
-          <button onClick={load} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Réessayer</button>
+          <button onClick={() => load(false)} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Réessayer</button>
         </div>
       ) : (
         <>
@@ -188,6 +213,12 @@ export default function PaymentLinksPanel() {
               <input type="checkbox" checked={showOldTariffs} onChange={e => setShowOldTariffs(e.target.checked)} />
               Afficher les anciens tarifs
             </label>
+            <button
+              style={{ ...btnDef, padding: '3px 10px', fontSize: 11.5, marginLeft: 'auto' }}
+              onClick={() => load(true)}
+              disabled={loading}
+              title="Relit les noms et montants chez Stripe (après un renommage de produit)"
+            >↻ Rafraîchir depuis Stripe</button>
           </div>
 
           {allLinks.length === 0 && (
@@ -212,7 +243,7 @@ export default function PaymentLinksPanel() {
             >{saving ? '⟳ Enregistrement…' : 'Enregistrer le plan'}</button>
             <button
               style={{ ...btnDef, opacity: saving || !dirty ? 0.6 : 1, cursor: saving || !dirty ? 'not-allowed' : 'pointer' }}
-              onClick={load} disabled={saving || !dirty}
+              onClick={() => load(false)} disabled={saving || !dirty}
             >Annuler</button>
           </div>
 
