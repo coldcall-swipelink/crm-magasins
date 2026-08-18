@@ -203,6 +203,13 @@ export default function PaymentLinksPanel() {
           <span>{error}</span>
           <button onClick={() => load(false)} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Réessayer</button>
         </div>
+      ) : slots.length === 0 ? (
+        // Le plan est codé en dur : l'API en renvoie toujours les 42 cases. Une
+        // liste vide trahit un JavaScript antérieur à une mise à jour du CRM.
+        <div style={{ fontSize: 12.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>Cette page a été chargée avant une mise à jour du CRM. Rechargez-la pour afficher le plan tarifaire.</span>
+          <button onClick={() => window.location.reload()} style={{ ...btnDef, padding: '2px 8px', fontSize: 11 }}>Recharger</button>
+        </div>
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
