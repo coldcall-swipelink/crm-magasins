@@ -31,6 +31,13 @@ const DEFAULT_SMARTLINK_CREDITS = 3;
 // user précis, quelle que soit la valeur du user « Démo prévue ».
 const DEFAULT_SUPPORT_RECRUITER_USER_ID = 'e05bd473-a010-4658-b0b7-cfd5e344b919';
 const DEFAULT_SUPPORT_COMPANY_POSITION = 'Support';
+// Décalage appliqué à `configured_at` : l'heure d'exécution moins 3 heures.
+const CONFIGURED_AT_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/** `configured_at` du Recruiter : horodatage de l'exécution décalé de -3 h (ISO 8601). */
+function buildConfiguredAt(): string {
+  return new Date(Date.now() - CONFIGURED_AT_OFFSET_MS).toISOString();
+}
 
 export interface DemoOrganizationInput {
   brandName?: string | null;
@@ -227,6 +234,7 @@ export async function createSupportRecruiterRecord(
     organization_id: organizationId,
     company_position: companyPosition,
     is_admin: true,
+    configured_at: buildConfiguredAt(),
   });
 
   return { created: true };
