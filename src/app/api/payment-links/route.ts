@@ -4,19 +4,21 @@
 //
 //   GET → le plan tarifaire complet (les 42 cases, vides comprises), la liste
 //         des liens spéciaux, et tous les liens Stripe actifs pour alimenter
-//         les listes déroulantes d'attribution.
+//         les listes déroulantes d'attribution. `?refresh=1` force la relecture
+//         des libellés chez Stripe (ils sont mis en cache quelques minutes).
 //   PUT → enregistre les attributions en un seul appel. Le front envoie l'état
 //         complet du plan ; une case sans lien est effacée. Enregistrement en
 //         bloc et en transaction : le plan est cohérent ou il ne change pas.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isStripeConfigured } from '@/lib/stripe';
+import { isStripeConfigured, clearPaymentLinkLabelCache } from '@/lib/stripe';
 import { getPaymentLinkCatalog } from '@/lib/paymentLinkCatalog';
 import { isKnownSlotKey } from '@/lib/paymentLinkSlots';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get('refresh')) clearPaymentLinkLabelCache();
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: 'Intégration Stripe non configurée (STRIPE_SECRET_KEY manquant).' },
