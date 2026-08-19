@@ -34,11 +34,11 @@ interface MapDeal {
   address: string;
   phone: string;
   priority: string;
-  // Tag commercial de l'affaire (Prospection de Valeur / Classique) : alimente
-  // l'onglet « PV » de la carte.
+  // Tag commercial de l'affaire (Prospection de Valeur / Classique), affiché
+  // en pastille dans la liste de la carte.
   isPV: boolean;
-  // Affaire signée (étape « SMARTLINKÉ » / « Signé » / « Client ») : alimente
-  // l'onglet « Clients » de la carte.
+  // Affaire cliente : étape « SMARTLINKÉ » ou « LIEN DE PAIEMENT ENVOYÉ ».
+  // Alimente l'onglet « Clients » de la carte.
   isClient: boolean;
   // Null quand l'adresse est vide ou introuvable : le magasin apparaît alors
   // dans la liste latérale en « non localisé », avec un bouton « Localiser ».
@@ -52,12 +52,13 @@ function normTitle(s: string): string {
 }
 
 /**
- * Vrai si l'étape correspond à une affaire signée : « SMARTLINKÉ » (étape de
- * closing du CRM) ou ses variantes historiques « Signé » / « Client ».
+ * Vrai si l'étape désigne un client : « SMARTLINKÉ » ou « LIEN DE PAIEMENT
+ * ENVOYÉ ». Comparaison sur le titre normalisé (minuscules, sans accents) et
+ * par inclusion, pour rester insensible aux variantes de libellé.
  */
 function isClientColumn(title: string): boolean {
   const t = normTitle(title);
-  return t.includes('smartlink') || t.includes('signe') || t === 'client';
+  return t.includes('smartlink') || t.includes('lien de paiement');
 }
 
 /** Payload carte construit depuis les données fictives (cf. src/lib/mockData). */

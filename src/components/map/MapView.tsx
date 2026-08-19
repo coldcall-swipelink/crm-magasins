@@ -23,15 +23,17 @@ const DealsMap = dynamic(() => import('./DealsMap'), {
 });
 
 /* ── Onglets ────────────────────────────────────────────────────────────────
-   « Clients »  : affaires signées (étape SMARTLINKÉ / Signé / Client).
-   « PV »       : affaires taguées Prospection de Valeur sur la fiche affaire.
-   « Tous »     : l'intégralité des pipelines Prospection & Closing.        */
-type TabKey = 'tous' | 'clients' | 'pv';
+   « Clients » : affaires en « SMARTLINKÉ » ou « LIEN DE PAIEMENT ENVOYÉ ».
+   « DEMO »    : toutes les affaires du pipeline Closing.
+   « Tous »    : l'intégralité des pipelines Prospection & Closing.        */
+type TabKey = 'tous' | 'clients' | 'demo';
+
+const CLOSING_PIPELINE = 'Closing';
 
 const TABS: { key: TabKey; label: string; subtitle: string; noun: string; match: (d: MapDeal) => boolean }[] = [
   { key: 'tous', label: 'Tous', subtitle: 'Magasins suivis — Prospection & Closing', noun: 'magasin', match: () => true },
   { key: 'clients', label: 'Clients', subtitle: 'Nos clients en France', noun: 'client', match: (d) => d.isClient },
-  { key: 'pv', label: 'PV', subtitle: 'Magasins en Prospection de Valeur', noun: 'magasin', match: (d) => d.isPV },
+  { key: 'demo', label: 'DEMO', subtitle: 'Affaires du pipeline Closing', noun: 'magasin', match: (d) => d.pipelineName === CLOSING_PIPELINE },
 ];
 
 /** Rayon du cercle de prospection dessiné autour d'une zone recherchée. */
