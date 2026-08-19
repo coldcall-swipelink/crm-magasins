@@ -7,6 +7,7 @@ import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
+import FlowWarningModal, { type FlowKey } from './FlowWarningModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
@@ -43,6 +44,17 @@ function isSmartlinkColumn(title?: string | null): boolean {
   return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
 }
 
+/**
+ * Séquence automatique n8n déclenchée à l'arrivée dans la colonne, ou null.
+ * Les titres sont comparés à l'identique de ce que teste /api/deals/[id]/move
+ * pour envoyer le webhook : la pop-up prévient exactement quand ça part.
+ */
+function flowForColumn(title?: string | null): FlowKey | null {
+  if (title === 'DEMO FAITE') return 'DEMO_FAITE';
+  if (title === 'RELANCE 1') return 'RELANCE_1';
+  return null;
+}
+
 export default function PipelineBoard() {
   // Auteur des déplacements : transmis à /move pour alimenter l'historique.
   const { user: currentUser } = useCurrentUser();
@@ -64,6 +76,8 @@ export default function PipelineBoard() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
   const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; targets: ClosingTarget[] } | null>(null);
+  // Confirmation avant de lancer une séquence automatique (DEMO FAITE / RELANCE 1).
+  const [flowWarn, setFlowWarn] = useState<{ dealId: string; targetColId: string; originColId: string; flow: FlowKey; isPV: boolean; storeName?: string; dealEmail?: string | null } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Notifications d'offres (offres créées par les organisations rattachées).
@@ -207,6 +221,22 @@ export default function PipelineBoard() {
       return;
     }
 
+    // Arrivée dans une colonne qui déclenche une séquence automatique n8n
+    // (DEMO FAITE / RELANCE 1) : on détaille les mails à venir et on attend la
+    // confirmation AVANT de persister — le webhook ne part qu'au déplacement.
+    const flow = flowForColumn(targetTitle);
+    if (flow) {
+      setFlowWarn({
+        dealId: deal.id, targetColId, originColId, flow,
+        // Même lecture que le badge PV/PC de la carte : la pop-up annonce
+        // exactement le mail J+9 correspondant au tag affiché.
+        isPV: !!deal.isPV,
+        storeName: deal.store?.name,
+        dealEmail: deal.dealEmail,
+      });
+      return;
+    }
+
     // Autres colonnes : persistance immédiate du déplacement.
     try {
       const res = await fetch(`/api/deals/${deal.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId: targetColId, userId: currentUser?.id || null, userName: currentUser?.name || '' }) });
@@ -279,6 +309,32 @@ export default function PipelineBoard() {
       setDeals(prev => prev.map(d => d.id === pv.dealId ? { ...d, columnId: pv.originColId } : d));
     }
     setPv(null);
+  };
+
+  // Séquence automatique confirmée : on persiste le déplacement, qui déclenche
+  // le webhook n8n côté serveur.
+  const handleFlowConfirm = async () => {
+    if (!flowWarn) return;
+    try {
+      await moveDeal(flowWarn.dealId, flowWarn.targetColId);
+    } catch {
+      toast('Erreur lors du déplacement', 'error');
+      throw new Error('move');
+    }
+    toast(flowWarn.flow === 'DEMO_FAITE'
+      ? 'Affaire déplacée dans DEMO FAITE — séquence promotionnelle lancée'
+      : 'Affaire déplacée dans RELANCE 1 — séquence de relance lancée');
+    setFlowWarn(null);
+    fetchDeals();
+  };
+
+  // Séquence refusée : rien n'a été persisté, donc aucun mail ne part → on
+  // remet l'affaire dans sa colonne d'origine.
+  const handleFlowCancel = () => {
+    if (flowWarn) {
+      setDeals(prev => prev.map(d => d.id === flowWarn.dealId ? { ...d, columnId: flowWarn.originColId } : d));
+    }
+    setFlowWarn(null);
   };
 
   // Déplacement « nu » : aucune date de closing à transmettre.
@@ -538,6 +594,16 @@ export default function PipelineBoard() {
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
       {closing && <ClosingDateModal storeName={closing.storeName} targets={closing.targets} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
+      {flowWarn && (
+        <FlowWarningModal
+          flow={flowWarn.flow}
+          isPV={flowWarn.isPV}
+          storeName={flowWarn.storeName}
+          dealEmail={flowWarn.dealEmail}
+          onConfirm={handleFlowConfirm}
+          onCancel={handleFlowCancel}
+        />
+      )}
     </div>
   );
 }

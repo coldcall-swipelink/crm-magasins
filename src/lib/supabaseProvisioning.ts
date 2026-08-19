@@ -22,25 +22,53 @@ import { matchDealOrganization } from '@/lib/recruitment';
 export { isProductSupabaseConfigured };
 
 /**
+ * Issue du provisioning, pour que l'appelant (bouton manuel) puisse afficher un
+ * message explicite. Les appels automatiques (déplacement de colonne) l'ignorent.
+ */
+export type ProvisionOutcome =
+  | { status: 'created'; organizationId: string; organizationName: string }
+  | { status: 'already_provisioned'; organizationId: string }
+  | { status: 'not_configured' }
+  | { status: 'deal_not_found' }
+  | { status: 'wrong_column' };
+
+/**
  * Crée Organization + Organization_to_plan + Recruiter dans la base produit
  * Supabase pour une affaire passée en « Démo prévue ».
  *
  * Idempotent : ne fait rien si le deal possède déjà un supabaseOrganizationId
  * ou si l'intégration n'est pas configurée.
+ *
+ * `force: true` saute la seule vérification de colonne : c'est le mode du
+ * bouton « Créer l'organisation » du drawer, qui provisionne à la demande sans
+ * faire passer l'affaire en « Démo prévue ». Tout le reste (données envoyées,
+ * plan, Recruiter, idempotence) est strictement identique.
  */
-export async function provisionDemoOrganization(dealId: string): Promise<void> {
-  if (!isProductSupabaseConfigured()) return;
+export async function provisionDemoOrganization(
+  dealId: string,
+  options: { force?: boolean } = {},
+): Promise<ProvisionOutcome> {
+  if (!isProductSupabaseConfigured()) return { status: 'not_configured' };
 
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
     include: { store: { include: { brand: true } }, column: true },
   });
-  if (!deal) return;
+  if (!deal) return { status: 'deal_not_found' };
   // « Démo prévue » (pipeline Prospection) ou « DEMO PREVUE » (pipeline Closing).
-  if (deal.column?.title !== 'Démo prévue' && deal.column?.title !== 'DEMO PREVUE') return;
-  if (deal.supabaseOrganizationId) return; // déjà provisionné → on ne refait rien
+  if (
+    !options.force &&
+    deal.column?.title !== 'Démo prévue' &&
+    deal.column?.title !== 'DEMO PREVUE'
+  ) {
+    return { status: 'wrong_column' };
+  }
+  // déjà provisionné → on ne refait rien
+  if (deal.supabaseOrganizationId) {
+    return { status: 'already_provisioned', organizationId: deal.supabaseOrganizationId };
+  }
 
-  await createDemoOrganizationRecords(
+  const result = await createDemoOrganizationRecords(
     {
       brandName: deal.store.brand?.name,
       storeName: deal.store.name,
@@ -57,6 +85,12 @@ export async function provisionDemoOrganization(dealId: string): Promise<void> {
       });
     },
   );
+
+  return {
+    status: 'created',
+    organizationId: result.organizationId,
+    organizationName: result.organizationName,
+  };
 }
 
 /**
