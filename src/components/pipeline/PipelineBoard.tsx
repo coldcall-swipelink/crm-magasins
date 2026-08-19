@@ -409,7 +409,7 @@ export default function PipelineBoard() {
   // Réponse à la pop-up « Date de closing » (drop dans SMARTLINKÉ) : on persiste
   // le déplacement avec la ou les dates saisies. Les champs laissés vides ne
   // sont pas transmis — l'abonnement reste simplement à dater.
-  const handleClosingConfirm = async (entries: ClosingDateEntry[]) => {
+  const handleClosingConfirm = async (entries: ClosingDateEntry[], closedBy: { id: string; name: string } | null) => {
     if (!closing) return;
     const filled = entries.filter(e => e.date);
 
@@ -422,14 +422,23 @@ export default function PipelineBoard() {
 
     const res = await fetch(`/api/deals/${closing.dealId}/move`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: closing.targetColId, ...payload, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
+      body: JSON.stringify({
+        columnId: closing.targetColId,
+        ...payload,
+        // Closeur choisi dans la pop-up : distinct de l'auteur du déplacement.
+        closedByUserId: closedBy?.id || null,
+        closedByName: closedBy?.name || '',
+        userId: currentUser?.id || null,
+        userName: currentUser?.name || '',
+      }),
     });
     if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
 
+    const par = closedBy ? ` · closé par ${closedBy.name}` : '';
     toast(
-      filled.length === 0 ? 'Affaire déplacée dans SMARTLINKÉ'
-      : filled.length === 1 ? 'Affaire déplacée — date de closing enregistrée'
-      : `Affaire déplacée — ${filled.length} dates de closing enregistrées`,
+      filled.length === 0 ? `Affaire déplacée dans SMARTLINKÉ${par}`
+      : filled.length === 1 ? `Affaire déplacée — date de closing enregistrée${par}`
+      : `Affaire déplacée — ${filled.length} dates de closing enregistrées${par}`,
     );
     setClosing(null);
     fetchDeals();
@@ -593,7 +602,7 @@ export default function PipelineBoard() {
       {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={openDeal} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
-      {closing && <ClosingDateModal storeName={closing.storeName} targets={closing.targets} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
+      {closing && <ClosingDateModal storeName={closing.storeName} targets={closing.targets} users={users} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
       {flowWarn && (
         <FlowWarningModal
           flow={flowWarn.flow}

@@ -26,10 +26,15 @@ export interface ClosingDateEntry {
   date: string;
 }
 
+/** Utilisateur proposé dans la liste « Closé par ». */
+export interface ClosingUser { id: string; name: string; color?: string }
+
 interface Props {
   storeName?: string;
   targets: ClosingTarget[];
-  onConfirm: (entries: ClosingDateEntry[]) => Promise<void>;
+  /** Comptes proposés dans la liste déroulante « Closé par ». */
+  users: ClosingUser[];
+  onConfirm: (entries: ClosingDateEntry[], closedBy: ClosingUser | null) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -38,10 +43,13 @@ const inputStyle: React.CSSProperties = {
   background: '#fff', color: '#0f172a', fontSize: 14, outline: 'none',
 };
 
-export default function ClosingDateModal({ storeName, targets, onConfirm, onCancel }: Props) {
+export default function ClosingDateModal({ storeName, targets, users, onConfirm, onCancel }: Props) {
   // Les champs partent TOUJOURS vides : ces abonnements n'ont pas de date, et
   // pré-remplir avec celle d'un autre abonnement était précisément le défaut.
   const [dates, setDates] = useState<string[]>(() => targets.map(() => ''));
+  // Volontairement vide au départ : le closeur n'est pas forcément celui qui
+  // déplace la carte, c'est tout l'intérêt de le demander.
+  const [closedById, setClosedById] = useState('');
   const [loading, setLoading] = useState(false);
 
   const setAt = (index: number, value: string) =>
@@ -50,7 +58,10 @@ export default function ClosingDateModal({ storeName, targets, onConfirm, onCanc
   const confirm = async () => {
     setLoading(true);
     try {
-      await onConfirm(targets.map((t, i) => ({ subscriptionId: t.subscriptionId, date: dates[i] })));
+      await onConfirm(
+        targets.map((t, i) => ({ subscriptionId: t.subscriptionId, date: dates[i] })),
+        users.find(u => u.id === closedById) ?? null,
+      );
     } catch {
       // Le parent affiche le toast d'erreur ; on réactive le bouton.
       setLoading(false);
@@ -98,6 +109,21 @@ export default function ClosingDateModal({ storeName, targets, onConfirm, onCanc
             />
           </div>
         ))}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#64748b', marginBottom: 5 }}>
+            Closé par
+          </label>
+          <select
+            value={closedById}
+            onChange={e => setClosedById(e.target.value)}
+            disabled={loading}
+            style={{ ...inputStyle, cursor: loading ? 'wait' : 'pointer' }}
+          >
+            <option value="">— Sélectionner —</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
           <button

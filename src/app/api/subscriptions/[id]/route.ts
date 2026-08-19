@@ -21,6 +21,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('subscriptionType' in body) data.subscriptionType = String(body.subscriptionType);
   if ('paymentMode' in body) data.paymentMode = body.paymentMode === 'virement' ? 'virement' : 'stripe';
   if ('paymentTiming' in body) data.paymentTiming = body.paymentTiming === 'mensuel' ? 'mensuel' : 'comptant';
+  // Closeur : le nom est figé côté serveur d'après le compte choisi, pour ne
+  // pas dépendre de ce qu'envoie le navigateur. Chaîne vide = on efface.
+  if ('closedByUserId' in body) {
+    const id = body.closedByUserId ? String(body.closedByUserId) : '';
+    const user = id ? await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } }) : null;
+    data.closedByUserId = user?.id ?? null;
+    data.closedByName = user?.name ?? '';
+  }
   if ('churned' in body) {
     data.churned = Boolean(body.churned);
     // Réactivation (décochage) : on efface la date de résiliation.

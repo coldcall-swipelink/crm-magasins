@@ -115,6 +115,9 @@ export interface Subscription {
   closingDate:         string | null;
   subscriptionMonths:  number;
   subscriptionEndDate: string | null;
+  // Qui a closé, choisi dans la pop-up de closing (ou corrigé sur la fiche).
+  closedByUserId?:     string | null;
+  closedByName?:       string;
 }
 
 // Un changement d'étape journalisé (table DealMove). Colonnes ET pipelines de

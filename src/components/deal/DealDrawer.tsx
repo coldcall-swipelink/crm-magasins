@@ -127,10 +127,11 @@ function fromDateInput(v: string) { return v ? new Date(v + 'T12:00:00Z').toISOS
 
 /** Carte d'édition d'un abonnement (onglet « Abonnement »). Gère son état local
  *  pour une saisie fluide et persiste via onPatch. */
-function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: {
+function SubscriptionCard({ sub, index, subscriptionTypes, users, onPatch, onDelete }: {
   sub: any;
   index: number;
   subscriptionTypes: { id: string; name: string }[];
+  users: { id: string; name: string }[];
   onPatch: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -274,6 +275,24 @@ function SubscriptionCard({ sub, index, subscriptionTypes, onPatch, onDelete }: 
             onChange={e => setClosing(e.target.value)}
             onBlur={() => { if (closing !== toDateInput(sub.closingDate)) onPatch(sub.id, { closingDate: fromDateInput(closing) }); }}
           />
+        </div>
+        <div>
+          {/* Closeur : renseigné par la pop-up au passage en SMARTLINKÉ,
+              corrigeable ici (une affaire closée depuis la fiche, sans pop-up,
+              se renseigne aussi d'ici). */}
+          <label style={labelStyle}>Closé par</label>
+          <select
+            style={inp}
+            value={sub.closedByUserId || ''}
+            onChange={e => onPatch(sub.id, { closedByUserId: e.target.value || null })}
+          >
+            <option value="">— Non renseigné —</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {/* Compte supprimé depuis : on garde le nom figé visible. */}
+            {sub.closedByName && !users.some(u => u.id === sub.closedByUserId) && (
+              <option value={sub.closedByUserId || ''}>{sub.closedByName}</option>
+            )}
+          </select>
         </div>
         <div>
           <label style={labelStyle}>Durée de l&apos;abonnement</label>
@@ -1971,7 +1990,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {subs.map((s, i) => (
-                      <SubscriptionCard key={s.id} sub={s} index={i} subscriptionTypes={subscriptionTypes} onPatch={patchSub} onDelete={deleteSub} />
+                      <SubscriptionCard key={s.id} sub={s} index={i} subscriptionTypes={subscriptionTypes} users={users} onPatch={patchSub} onDelete={deleteSub} />
                     ))}
                   </div>
                 )}
