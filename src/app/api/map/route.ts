@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildGeocodeQuery, geocodeQuery } from '@/lib/geocode';
+import { USE_MOCK_DATA, mockDeals, mockPipelines } from '@/lib/mockData';
 
 // Données dynamiques (lecture DB + géocodage) : jamais de cache statique.
 export const dynamic = 'force-dynamic';
@@ -31,12 +32,78 @@ interface MapDeal {
   city: string;
   postalCode: string;
   address: string;
+  phone: string;
   priority: string;
-  latitude: number;
-  longitude: number;
+  // Tag commercial de l'affaire (Prospection de Valeur / Classique), affiché
+  // en pastille dans la liste de la carte.
+  isPV: boolean;
+  // Affaire cliente : étape « SMARTLINKÉ » ou « LIEN DE PAIEMENT ENVOYÉ ».
+  // Alimente l'onglet « Clients » de la carte.
+  isClient: boolean;
+  // Null quand l'adresse est vide ou introuvable : le magasin apparaît alors
+  // dans la liste latérale en « non localisé », avec un bouton « Localiser ».
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Normalise un titre de colonne (minuscules, sans accents) pour comparaison. */
+function normTitle(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+/**
+ * Vrai si l'étape désigne un client : « SMARTLINKÉ » ou « LIEN DE PAIEMENT
+ * ENVOYÉ ». Comparaison sur le titre normalisé (minuscules, sans accents) et
+ * par inclusion, pour rester insensible aux variantes de libellé.
+ */
+function isClientColumn(title: string): boolean {
+  const t = normTitle(title);
+  return t.includes('smartlink') || t.includes('lien de paiement');
+}
+
+/** Payload carte construit depuis les données fictives (cf. src/lib/mockData). */
+function mockPayload(): { deals: MapDeal[]; unlocated: number } {
+  const pipelines = mockPipelines.filter((p) => PIPELINE_NAMES.includes(p.name as (typeof PIPELINE_NAMES)[number]));
+  const rankById = new Map(pipelines.map((p) => [p.id, Math.max(0, PIPELINE_NAMES.indexOf(p.name as (typeof PIPELINE_NAMES)[number]))] as const));
+  const nameById = new Map(pipelines.map((p) => [p.id, p.name] as const));
+
+  const deals: MapDeal[] = [];
+  let unlocated = 0;
+
+  for (const deal of mockDeals) {
+    if (!nameById.has(deal.pipelineId)) continue;
+    const store = deal.store;
+    if (store.latitude == null || store.longitude == null) unlocated += 1;
+    deals.push({
+      id: deal.id,
+      storeName: store.name,
+      brandName: store.brand?.name ?? null,
+      brandColor: store.brand?.color ?? null,
+      pipelineName: nameById.get(deal.pipelineId) ?? '',
+      columnTitle: deal.column?.title ?? '',
+      columnColor: deal.column?.color ?? '',
+      columnPosition: (rankById.get(deal.pipelineId) ?? 0) * 1000 + (deal.column?.position ?? 0),
+      city: store.city,
+      postalCode: store.postalCode,
+      address: store.address,
+      phone: store.phone,
+      priority: deal.priority,
+      // Les affaires fictives n'ont pas de tag PV explicite : on retient la
+      // valeur par défaut du schéma Prisma (isPV = true).
+      isPV: true,
+      isClient: isClientColumn(deal.column?.title ?? ''),
+      latitude: store.latitude,
+      longitude: store.longitude,
+    });
+  }
+
+  return { deals, unlocated };
 }
 
 export async function GET() {
+  // Mode données fictives (preview / démo) : mêmes champs, sans base ni BAN.
+  if (USE_MOCK_DATA) return NextResponse.json(mockPayload());
+
   try {
     const pipelines = await prisma.pipeline.findMany({
       where: { name: { in: [...PIPELINE_NAMES] } },
@@ -130,8 +197,9 @@ export async function GET() {
     }
 
     // 3. Construit le payload carte. Les magasins sans coordonnées (adresse
-    //    vide ou introuvable) sont comptés à part pour informer l'utilisateur.
-    const located: MapDeal[] = [];
+    //    vide ou introuvable) sont renvoyés AVEC latitude/longitude à null :
+    //    la carte les liste à part et propose de les localiser à la main.
+    const mapDeals: MapDeal[] = [];
     let unlocated = 0;
 
     for (const deal of deals) {
@@ -140,12 +208,9 @@ export async function GET() {
       const latitude = cached?.latitude ?? store.latitude ?? null;
       const longitude = cached?.longitude ?? store.longitude ?? null;
 
-      if (latitude == null || longitude == null) {
-        unlocated += 1;
-        continue;
-      }
+      if (latitude == null || longitude == null) unlocated += 1;
 
-      located.push({
+      mapDeals.push({
         id: deal.id,
         storeName: store.name,
         brandName: store.brand?.name ?? null,
@@ -157,13 +222,16 @@ export async function GET() {
         city: store.city,
         postalCode: store.postalCode,
         address: store.address,
+        phone: store.phone,
         priority: deal.priority,
+        isPV: deal.isPV,
+        isClient: isClientColumn(deal.column.title),
         latitude,
         longitude,
       });
     }
 
-    return NextResponse.json({ deals: located, unlocated });
+    return NextResponse.json({ deals: mapDeals, unlocated });
   } catch (err) {
     console.error('[GET /api/map]', err);
     // On expose le détail de l'erreur (message + code Prisma) pour faciliter

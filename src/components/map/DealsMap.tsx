@@ -1,6 +1,6 @@
 'use client';
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -16,13 +16,24 @@ export interface MapDeal {
   city: string;
   postalCode: string;
   address: string;
+  phone: string;
   priority: string;
-  latitude: number;
-  longitude: number;
+  isPV: boolean;
+  isClient: boolean;
+  // Null quand le magasin n'a pas (encore) pu être géocodé.
+  latitude: number | null;
+  longitude: number | null;
 }
 
-const DEFAULT_COLOR = '#94a3b8'; // slate, pour les deals sans enseigne
-const LIGHT_GREY = '#cbd5e1';    // substitut visible pour les enseignes « blanches » (ex. Leclerc)
+/** Magasin localisé : les coordonnées sont garanties non nulles. */
+export type LocatedDeal = MapDeal & { latitude: number; longitude: number };
+
+export function isLocated(deal: MapDeal): deal is LocatedDeal {
+  return deal.latitude != null && deal.longitude != null;
+}
+
+const DEFAULT_COLOR = '#8a8594'; // gris chaud, pour les magasins sans enseigne
+const LIGHT_GREY = '#cbc5bb';    // substitut visible pour les enseignes « blanches » (ex. Leclerc)
 
 /**
  * Couleur d'affichage d'une enseigne : sa couleur, sauf si elle est vide ou
@@ -41,75 +52,67 @@ export function displayColor(hex?: string | null): string {
   return lum > 0.9 ? LIGHT_GREY : '#' + h;
 }
 
-/** Normalise un titre de colonne (minuscules, sans accents) pour une comparaison robuste. */
-function normCol(s: string): string {
-  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+/** Couleur de l'étape (colonne de pipeline), avec repli neutre. */
+export function stageColor(hex?: string | null): string {
+  return (hex || '').trim() || '#a9a294';
 }
-
-export type DealStatus = 'demo' | 'lost' | 'sansoffres' | 'active';
 
 /**
- * Catégorise un deal d'après sa colonne :
- *  - « Démo prévue »   → 'demo'        (pastille + anneau vert)
- *  - « Pas intéressé »  → 'lost'        (pastille creuse, estompée)
- *  - « Sans offres »    → 'sansoffres'  (pastille pleine + contour pointillé blanc)
- *  - toute autre étape (À appeler, À rappeler, Mail à envoyer/envoyé,
- *    Laissé coordonnées…) → 'active' (pastille pleine)
+ * Goutte du marqueur : remplie à la couleur de l'ENSEIGNE, cerclée à la couleur
+ * de l'ÉTAPE du pipeline. On lit donc d'un coup d'œil « qui » et « où en est-on ».
  */
-export function dealStatus(columnTitle: string): DealStatus {
-  const t = normCol(columnTitle);
-  if (t === 'demo prevue') return 'demo';
-  if (t === 'pas interesse') return 'lost';
-  if (t === 'sans offres') return 'sansoffres';
-  return 'active';
+export function markerHtml(deal: Pick<MapDeal, 'brandColor' | 'columnColor'>, selected = false): string {
+  const fill = displayColor(deal.brandColor);
+  const ring = stageColor(deal.columnColor);
+  const shadow = selected
+    ? `0 0 0 3px ${ring}, 0 0 0 6px rgba(25,23,34,.16), 0 3px 8px rgba(0,0,0,.45)`
+    : `0 0 0 2px ${ring}, 0 3px 7px rgba(0,0,0,.3)`;
+  return `<div class="slm-marker${selected ? ' is-sel' : ''}" style="background:${fill};box-shadow:${shadow}"></div>`;
 }
 
-/** Pastille ronde colorée par enseigne ; l'état se lit à l'anneau vert / au creux. */
-export function dotHtml(deal: Pick<MapDeal, 'brandColor' | 'columnTitle'> & { pipelineName?: string }, size = 16): string {
-  const color = displayColor(deal.brandColor);
-  const status = dealStatus(deal.columnTitle);
-  const common = `box-sizing:border-box;width:${size}px;height:${size}px;border-radius:50%;`;
-  // Tous les deals du pipeline « Closing » (toutes étapes confondues) portent
-  // un anneau vert, pour les distinguer d'un coup d'œil de la Prospection.
-  if (deal.pipelineName === 'Closing') {
-    return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 0 0 2.5px #16a34a,0 1px 2px rgba(0,0,0,.4);"></div>`;
-  }
-  if (status === 'lost') {
-    return `<div style="${common}background:#fff;border:${Math.max(3, size / 5)}px solid ${color};opacity:.9;box-shadow:0 1px 2px rgba(0,0,0,.35);"></div>`;
-  }
-  if (status === 'demo') {
-    return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 0 0 2.5px #16a34a,0 1px 2px rgba(0,0,0,.4);"></div>`;
-  }
-  if (status === 'sansoffres') {
-    // Contour pointillé blanc ; fin liseré sombre extérieur pour que les
-    // pointillés blancs ressortent sur le fond de carte clair.
-    return `<div style="${common}background:${color};border:2px dashed #ffffff;box-shadow:0 0 0 1px rgba(15,23,42,.3),0 1px 2px rgba(0,0,0,.4);"></div>`;
-  }
-  return `<div style="${common}background:${color};border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.4);"></div>`;
-}
-
-function dotIcon(deal: MapDeal): L.DivIcon {
+function markerIcon(deal: LocatedDeal, selected: boolean): L.DivIcon {
   return L.divIcon({
-    html: dotHtml(deal, 16),
-    className: 'deal-dot',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
-    popupAnchor: [0, -10],
+    html: markerHtml(deal, selected),
+    className: '',
+    iconSize: [18, 18],
+    iconAnchor: [9, 18],
+    popupAnchor: [0, -16],
   });
 }
 
-/** Recadre la vue pour englober tous les deals visibles (au chargement / filtrage). */
-function FitBounds({ deals }: { deals: MapDeal[] }) {
+const zoneIcon = (): L.DivIcon =>
+  L.divIcon({
+    html: '<div class="slm-zonemarker"></div>',
+    className: '',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -28],
+  });
+
+/** Rayon (m) du cercle de prospection dessiné autour d'une zone recherchée. */
+export const ZONE_RADIUS_M = 100000;
+
+/**
+ * Recadre la vue pour englober les magasins affichés. Le recadrage n'est
+ * déclenché que lorsque l'ENSEMBLE affiché change réellement (chargement,
+ * onglet, filtre, recherche) — pas à chaque rendu — pour ne pas défaire une
+ * navigation manuelle de l'utilisateur.
+ */
+function FitBounds({ deals }: { deals: LocatedDeal[] }) {
   const map = useMap();
+  const signature = deals.map((d) => d.id).join(',');
   useEffect(() => {
     if (deals.length === 0) return;
     const bounds = L.latLngBounds(deals.map((d) => [d.latitude, d.longitude] as [number, number]));
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
-  }, [deals, map]);
+    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    // On ne dépend que de la signature : `deals` change d'identité à chaque
+    // rendu du parent alors que son contenu, lui, est souvent identique.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, map]);
   return null;
 }
 
-/** Recentre la carte sur un deal sélectionné dans la liste. */
+/** Recentre la carte sur un magasin sélectionné dans la liste. */
 function FlyTo({ focus }: { focus: { lat: number; lng: number; key: number } | null }) {
   const map = useMap();
   useEffect(() => {
@@ -118,56 +121,110 @@ function FlyTo({ focus }: { focus: { lat: number; lng: number; key: number } | n
   return null;
 }
 
+/** Cadre la vue sur la zone de prospection recherchée (rayon de 100 km). */
+function ZoneFocus({ zone }: { zone: Zone | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!zone) return;
+    map.fitBounds(L.latLng(zone.lat, zone.lng).toBounds(ZONE_RADIUS_M * 2), { padding: [40, 40] });
+  }, [zone, map]);
+  return null;
+}
+
+export interface Zone {
+  lat: number;
+  lng: number;
+  label: string;
+  key: number;
+}
+
 interface Props {
-  deals: MapDeal[];
+  deals: LocatedDeal[];
   focus: { lat: number; lng: number; key: number } | null;
+  zone: Zone | null;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   onOpenDeal: (id: string) => void;
 }
 
-export default function DealsMap({ deals, focus, onOpenDeal }: Props) {
+export default function DealsMap({ deals, focus, zone, selectedId, onSelect, onOpenDeal }: Props) {
+  const zIcon = useMemo(() => zoneIcon(), []);
+
   return (
     <MapContainer
       center={[46.6, 2.4]}
       zoom={6}
       minZoom={5}
       scrollWheelZoom
-      zoomControl
-      style={{ height: '100%', width: '100%', background: '#eef1f5' }}
+      zoomControl={false}
+      style={{ height: '100%', width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         subdomains="abcd"
+        maxZoom={19}
       />
+      <ZoomControl position="topright" />
       <FitBounds deals={deals} />
       <FlyTo focus={focus} />
+      <ZoneFocus zone={zone} />
+
+      {zone && (
+        <>
+          <Circle
+            center={[zone.lat, zone.lng]}
+            radius={ZONE_RADIUS_M}
+            pathOptions={{ color: '#7a5cff', weight: 2, dashArray: '6 7', fillColor: '#7a5cff', fillOpacity: 0.07 }}
+          />
+          <Marker position={[zone.lat, zone.lng]} icon={zIcon} zIndexOffset={2000}>
+            <Popup>
+              <div className="slm-pop">
+                <b>{zone.label}</b>
+                <span className="slm-pop-sub">Rayon de 100 km</span>
+              </div>
+            </Popup>
+          </Marker>
+        </>
+      )}
+
       {deals.map((deal) => (
-        <Marker key={deal.id} position={[deal.latitude, deal.longitude]} icon={dotIcon(deal)}>
+        <Marker
+          key={deal.id}
+          position={[deal.latitude, deal.longitude]}
+          icon={markerIcon(deal, deal.id === selectedId)}
+          eventHandlers={{ click: () => onSelect(deal.id) }}
+        >
           <Popup>
             <div
               role="button"
+              tabIndex={0}
               onClick={() => onOpenDeal(deal.id)}
-              title="Ouvrir la fiche du deal"
-              style={{ fontSize: 13, lineHeight: 1.5, minWidth: 180, cursor: 'pointer' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') onOpenDeal(deal.id); }}
+              title="Ouvrir la fiche de l'affaire"
+              className="slm-pop"
+              style={{ cursor: 'pointer' }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 2 }}>{deal.storeName}</div>
-              {deal.brandName && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: displayColor(deal.brandColor), display: 'inline-block' }} />
-                  <span style={{ color: '#475569' }}>{deal.brandName}</span>
-                </div>
-              )}
-              <div style={{ color: '#64748b' }}>
-                📍 {[deal.address, deal.postalCode, deal.city].filter(Boolean).join(', ')}
-              </div>
-              <div style={{ marginTop: 6 }}>
-                <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: '#f1f5f9', color: '#334155' }}>
+              <b>{deal.storeName}</b>
+              {(() => {
+                const place = [deal.address, [deal.postalCode, deal.city].filter(Boolean).join(' ')]
+                  .filter(Boolean)
+                  .join(', ');
+                return place ? <span className="slm-pop-sub">{place}</span> : null;
+              })()}
+              {deal.phone && <span className="slm-pop-sub">{deal.phone}</span>}
+              <div>
+                <span
+                  className="slm-pop-badge"
+                  style={{ background: stageColor(deal.columnColor) + '22', color: stageColor(deal.columnColor) }}
+                >
                   {deal.columnTitle}
+                </span>{' '}
+                <span className="slm-pop-badge" style={{ background: '#f3efe6', color: '#5b5766' }}>
+                  {deal.pipelineName}
                 </span>
               </div>
-              <div style={{ marginTop: 8, paddingTop: 7, borderTop: '1px solid #eef2f6', color: '#4f46e5', fontWeight: 600, fontSize: 12 }}>
-                Ouvrir la fiche →
-              </div>
+              <div className="slm-pop-open">Ouvrir la fiche →</div>
             </div>
           </Popup>
         </Marker>
