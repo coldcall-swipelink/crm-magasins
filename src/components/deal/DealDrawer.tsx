@@ -2383,6 +2383,8 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   // Saisie / modification de l'organisation principale (id figé sur le deal).
   const [newPrimaryId, setNewPrimaryId] = useState('');
   const [savingPrimary, setSavingPrimary] = useState(false);
+  // Création à la demande de l'Organization Supabase (bouton « Créer l'organisation »).
+  const [provisioning, setProvisioning] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -2465,6 +2467,27 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       toast(e instanceof Error ? e.message : 'Échec de l\'enregistrement', 'error');
     } finally {
       setSavingPrimary(false);
+    }
+  };
+
+  // Déclenche le provisioning Supabase (Organization + plan + Recruiter) sans
+  // passer l'affaire en « Démo prévue » : même paramétrage que l'automatisme,
+  // et idempotent (aucun doublon si l'organisation existe déjà).
+  const provisionOrg = async () => {
+    if (!window.confirm('Créer l\'Organization et le Recruiter dans Supabase pour cette affaire ?')) return;
+    setProvisioning(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/provision-organization`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      toast(body?.created
+        ? `✓ Organisation « ${body.organizationName} » créée dans Supabase`
+        : 'Organisation déjà créée pour cette affaire');
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec de la création', 'error');
+    } finally {
+      setProvisioning(false);
     }
   };
 
@@ -2556,9 +2579,19 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
             <button onClick={() => removeOrg(primaryId)} title="Retirer l'organisation principale" style={{ background: 'none', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, cursor: 'pointer', fontSize: 11, padding: '3px 7px', flexShrink: 0 }}>Retirer</button>
           </div>
         ) : (
-          <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
-            Rattachée automatiquement en « Démo prévue ». Vous pouvez la fixer / la corriger manuellement ci-dessous.
-          </p>
+          <>
+            <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
+              Rattachée automatiquement en « Démo prévue ». Vous pouvez la créer dès maintenant, ou la fixer / la corriger manuellement ci-dessous.
+            </p>
+            <button
+              onClick={provisionOrg}
+              disabled={provisioning}
+              title="Crée l'Organization, son plan et le Recruiter dans Supabase, sans passer l'affaire en « Démo prévue »"
+              style={{ ...btnPri, background: '#16a34a', opacity: provisioning ? .7 : 1, cursor: provisioning ? 'not-allowed' : 'pointer' }}
+            >
+              {provisioning ? '⟳ Création…' : '＋ Créer l\'organisation dans Supabase'}
+            </button>
+          </>
         )}
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
           <input
