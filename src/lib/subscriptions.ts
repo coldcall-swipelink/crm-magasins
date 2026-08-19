@@ -37,6 +37,29 @@ export function computeSubscriptionEnd(closingDate: Date | null, months: number)
   return closingDate && months > 0 ? addMonths(closingDate, months) : null;
 }
 
+/** Closeur choisi dans la pop-up : compte CRM et nom figé. */
+export interface Closer {
+  userId?: string | null;
+  userName?: string | null;
+}
+
+/**
+ * Prépare les colonnes closedBy* à écrire. Le compte est vérifié : l'identité
+ * vient du navigateur et peut désigner un utilisateur supprimé depuis — on
+ * garde alors le nom, sans le lien, plutôt que d'échouer sur la clé étrangère.
+ * Renvoie un objet vide si aucun closeur n'a été choisi : on n'écrase pas une
+ * attribution existante avec du vide.
+ */
+async function closerData(closer?: Closer) {
+  if (!closer || (!closer.userId && !closer.userName)) return {};
+  let closedByUserId: string | null = null;
+  if (closer.userId) {
+    const user = await prisma.user.findUnique({ where: { id: closer.userId }, select: { id: true } });
+    closedByUserId = user?.id ?? null;
+  }
+  return { closedByUserId, closedByName: closer.userName || '' };
+}
+
 /**
  * Renseigne la date de closing sur le premier abonnement QUI N'EN A PAS ENCORE,
  * et crée un abonnement si l'affaire n'en a aucun.
@@ -51,7 +74,9 @@ export function computeSubscriptionEnd(closingDate: Date | null, months: number)
 export async function setPendingClosingDate(
   dealId: string,
   closingDate: Date | null,
+  closer?: Closer,
 ): Promise<'created' | 'updated' | 'skipped'> {
+  const closedBy = await closerData(closer);
   const subs = await prisma.subscription.findMany({
     where: { dealId },
     orderBy: { position: 'asc' },
@@ -59,7 +84,7 @@ export async function setPendingClosingDate(
 
   if (subs.length === 0) {
     await prisma.subscription.create({
-      data: { dealId, position: 0, closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, 12) },
+      data: { dealId, position: 0, closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, 12), ...closedBy },
     });
     await recomputeDealFromSubscriptions(dealId);
     return 'created';
@@ -72,7 +97,7 @@ export async function setPendingClosingDate(
 
   await prisma.subscription.update({
     where: { id: pending.id },
-    data: { closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, pending.subscriptionMonths) },
+    data: { closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, pending.subscriptionMonths), ...closedBy },
   });
   await recomputeDealFromSubscriptions(dealId);
   return 'updated';
@@ -91,8 +116,10 @@ export async function setPendingClosingDate(
 export async function setSubscriptionClosingDates(
   dealId: string,
   entries: { subscriptionId: string; closingDate: Date }[],
+  closer?: Closer,
 ): Promise<number> {
   if (entries.length === 0) return 0;
+  const closedBy = await closerData(closer);
 
   const subs = await prisma.subscription.findMany({ where: { dealId } });
   const byId = new Map(subs.map(sub => [sub.id, sub]));
@@ -106,6 +133,7 @@ export async function setSubscriptionClosingDates(
       data: {
         closingDate: entry.closingDate,
         subscriptionEndDate: computeSubscriptionEnd(entry.closingDate, sub.subscriptionMonths),
+        ...closedBy,
       },
     });
     updated++;

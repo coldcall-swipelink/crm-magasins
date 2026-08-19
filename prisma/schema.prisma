@@ -102,6 +102,7 @@ model User {
   dealMoves       DealMove[]
   demoBookings    DemoBooking[] @relation("DemoBookedBy")
   demosDone       DemoBooking[] @relation("DemoDoneBy")
+  closedSubscriptions Subscription[]
 }
 
 model Pipeline {
@@ -246,6 +247,14 @@ model Subscription {
   closingDate         DateTime?
   subscriptionMonths  Int      @default(12)
   subscriptionEndDate DateTime?
+  // Qui a closé ce contrat. Choisi dans la liste déroulante de la pop-up
+  // « Date de closing » (déplacement vers SMARTLINKÉ) : le closeur n'est pas
+  // forcément celui qui déplace la carte, d'où le choix explicite. closedByName
+  // est figé, comme partout ailleurs, pour que la statistique reste lisible si
+  // le compte est renommé ou supprimé.
+  closedByUserId      String?
+  closedByUser        User?    @relation(fields: [closedByUserId], references: [id], onDelete: SetNull)
+  closedByName        String   @default("")
   // CHURN : abonnement résilié. Quand true, la valeur de l'abonnement est
   // exclue du MRR et de toutes les autres données du Dashboard (route de closing
   // et analyses de l'assistant IA).
