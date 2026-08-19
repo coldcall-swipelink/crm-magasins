@@ -706,10 +706,28 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     try {
       const res = await fetch(`/api/demo-bookings/${bookingId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ noShow }),
+        // L'auteur du déplacement automatique vers « ABSENT DEMO », c'est la
+        // personne qui coche la case.
+        body: JSON.stringify({ noShow, userId: currentUser?.id || null, userName: currentUser?.name || '' }),
       });
       if (!res.ok) throw new Error();
-      toast(noShow ? 'Démo marquée NO SHOW' : 'NO SHOW retiré');
+      const data = await res.json().catch(() => ({}));
+      if (!noShow) {
+        toast('NO SHOW retiré');
+      } else if (data.warning) {
+        // Colonne « ABSENT DEMO » absente du CRM : on le dit plutôt que de
+        // laisser croire à un déplacement.
+        toast(data.warning, 'error');
+      } else {
+        const bits = [
+          data.movedTo ? `déplacée dans « ${data.movedTo.title} »` : null,
+          data.action ? 'action « REPROGRAMMER DEMO » créée pour aujourd\'hui' : null,
+        ].filter(Boolean);
+        toast(bits.length ? `NO SHOW · affaire ${bits.join(' · ')}` : 'Démo marquée NO SHOW');
+      }
+      // Le déplacement et l'action doivent apparaître sans rechargement, dans
+      // la fiche comme dans le pipeline.
+      if (noShow) { fetchDeal(); onUpdated(); }
     } catch {
       apply(!noShow);
       toast('Impossible de mettre à jour le NO SHOW', 'error');
