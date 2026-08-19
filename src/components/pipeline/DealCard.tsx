@@ -58,7 +58,10 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
+  // /api/deals ne renvoie que les 2 premières offres ; le total vient du
+  // compteur (repli sur la longueur reçue pour les autres appelants).
   const offers = deal.jobOffers ?? [];
+  const offerCount = (deal as any)._count?.jobOffers ?? offers.length;
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;
@@ -170,7 +173,7 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
 
       {offers.length > 0 && (
         <div style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}{offers.length > 2 ? ` +${offers.length - 2}` : ''}
+          💼 {offers.slice(0, 2).map(o => o.jobTitle || o.title).filter(Boolean).join(' · ')}{offerCount > 2 ? ` +${offerCount - 2}` : ''}
         </div>
       )}
 

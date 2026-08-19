@@ -68,11 +68,30 @@ export async function GET(req: NextRequest) {
     const deals = await prisma.deal.findMany({
       where,
       include: {
-        store: { include: { brand: true } },
+        // Seuls les champs affichés sur la carte du pipeline (et exportés en
+        // CSV) sont remontés : le reste de la fiche magasin — adresse
+        // normalisée, clé de déduplication, candidats téléphone (JSON), SIRET,
+        // géocodage… — pesait un tiers de la réponse sans jamais être lu ici.
+        store: {
+          select: {
+            id: true, brandId: true, name: true, city: true,
+            department: true, postalCode: true,
+            brand: true,
+          },
+        },
         column: true,
         collaborator: true,
         assignedUser: true,
-        jobOffers: { orderBy: { firstSeenAt: 'desc' } },
+        // La carte du pipeline n'affiche que les DEUX premiers intitulés
+        // d'offres, puis « +N » d'après _count.jobOffers : inutile de
+        // télécharger toutes les offres de toutes les affaires (c'était le
+        // gros du poids de cette réponse). La fiche affaire, elle, charge la
+        // liste complète via GET /api/deals/[id].
+        jobOffers: {
+          select: { id: true, title: true, jobTitle: true },
+          orderBy: { firstSeenAt: 'desc' },
+          take: 2,
+        },
         actions: { where: { status: 'todo' }, orderBy: { dueDate: 'asc' }, take: 1 },
         // Sous-deals absorbés : on remonte leur valeur pour cumuler dans la
         // carte parente et afficher le nombre de magasins du groupe.

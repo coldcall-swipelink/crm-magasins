@@ -222,6 +222,12 @@ model Deal {
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
   // valeurs, pour les cartes, totaux de colonnes et le dashboard.
   subscriptions             Subscription[]
+
+  // Postgres n'indexe pas automatiquement les clés étrangères. Sans ces index,
+  // charger un pipeline (GET /api/deals?pipelineId=…) balaie toute la table
+  // des affaires puis la trie.
+  @@index([pipelineId])
+  @@index([columnId])
 }
 
 // Un abonnement vendu sur une affaire (jusqu'à 2 par deal). Chaque abonnement
@@ -273,6 +279,11 @@ model JobOffer {
   lastSeenAt      DateTime @default(now())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Les offres sont systématiquement lues par affaire (cartes du pipeline,
+  // fiche affaire) : sans index, chaque chargement balaie toute la table.
+  @@index([dealId])
+  @@index([storeId])
 }
 
 model ImportBatch {
@@ -321,6 +332,11 @@ model Action {
   assignedUser   User?   @relation(fields: [assignedUserId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // Lues par affaire (prochaine action sur la carte) et par échéance
+  // (page « Actions »).
+  @@index([dealId])
+  @@index([status, dueDate])
 }
 
 model Note {
