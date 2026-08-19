@@ -18,6 +18,44 @@ function buildMockDeal(id: string) {
   return { ...d, parentDeal, childDeals };
 }
 
+/** Normalise un titre de colonne (minuscules, sans accents) pour comparaison. */
+function normalizeTitle(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+interface DemoDoneSource { toColumnTitle: string; userName: string; movedAt: Date }
+interface BookingSource { bookedAt: Date }
+
+/**
+ * Qui a fait la démo ? Personne ne le saisit : c'est l'auteur du déplacement
+ * « DEMO FAITE ». On rattache chaque passage en DEMO FAITE au booking qui le
+ * précède — un rebooking ouvre une nouvelle fenêtre, donc chaque ligne du flux
+ * d'activité affiche bien SA démo et pas celle d'avant.
+ */
+function withDemoDone<B extends BookingSource>(bookings: B[], moves: DemoDoneSource[]) {
+  const done = moves
+    .filter((m) => normalizeTitle(m.toColumnTitle) === 'demo faite')
+    .sort((a, b) => a.movedAt.getTime() - b.movedAt.getTime());
+  if (done.length === 0) return bookings.map((b) => ({ ...b, doneByName: null, doneAt: null }));
+
+  // Bookings du plus ancien au plus récent : la fenêtre d'un booking s'arrête
+  // au booking suivant.
+  const chronological = [...bookings].sort((a, b) => a.bookedAt.getTime() - b.bookedAt.getTime());
+  const matched = new Map<number, DemoDoneSource>();
+  chronological.forEach((booking, i) => {
+    const from = booking.bookedAt.getTime();
+    const until = chronological[i + 1]?.bookedAt.getTime() ?? Number.POSITIVE_INFINITY;
+    const hit = done.find((m) => m.movedAt.getTime() >= from && m.movedAt.getTime() < until);
+    if (hit) matched.set(i, hit);
+  });
+
+  const byBooking = new Map(chronological.map((b, i) => [b, matched.get(i) ?? null] as const));
+  return bookings.map((b) => {
+    const hit = byBooking.get(b) ?? null;
+    return { ...b, doneByName: hit?.userName || null, doneAt: hit?.movedAt ?? null };
+  });
+}
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   if (USE_MOCK_DATA) {
     const deal = buildMockDeal(params.id);
@@ -51,7 +89,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       },
     });
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
-    return NextResponse.json(deal);
+    // « Faite par » : déduit des déplacements vers DEMO FAITE (cf. withDemoDone).
+    return NextResponse.json({ ...deal, demoBookings: withDemoDone(deal.demoBookings, deal.moves) });
   } catch (err) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

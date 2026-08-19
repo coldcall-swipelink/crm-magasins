@@ -74,6 +74,10 @@ interface DemoBooking {
   bookedAt: string;
   demoDate: string | null;
   noShow: boolean;
+  // Qui a fait la démo : personne ne le saisit, c'est l'auteur du déplacement
+  // vers « DEMO FAITE », rattaché à ce booking par GET /api/deals/[id].
+  doneByName?: string | null;
+  doneAt?: string | null;
 }
 // Numéro proposé par la recherche automatique quand elle n'a pas pu trancher
 // seule (cf. POST /api/deals/[id]/find-phone).
@@ -2152,6 +2156,11 @@ function DemoBookedItem({ booking, onToggleNoShow }: {
         </p>
         <p style={{ fontSize: 11.5, margin: '4px 0 0', color: '#a16207' }}>
           Bookée par <span style={{ fontWeight: 600 }}>{booking.userName || 'utilisateur inconnu'}</span>
+          {booking.doneByName && (
+            <span title={booking.doneAt ? `Démo faite le ${formatDate(booking.doneAt)}` : undefined}>
+              {' · '}Faite par <span style={{ fontWeight: 600 }}>{booking.doneByName}</span>
+            </span>
+          )}
           {booking.noShow && <span style={{ color: '#be123c', fontWeight: 700 }}> · NO SHOW</span>}
         </p>
       </div>
