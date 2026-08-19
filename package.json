@@ -14,7 +14,8 @@
     "phones:lookup": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/phone-lookup.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "demos:backfill": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/backfill-demo-done.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.9.1",
