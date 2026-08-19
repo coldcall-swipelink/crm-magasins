@@ -46,6 +46,33 @@ interface MapDeal {
   longitude: number | null;
 }
 
+// Boîtes géographiques de la France (métropole + outre-mer), en
+// [latMin, latMax, lngMin, lngMax]. Une coordonnée qui tombe hors de toutes ces
+// boîtes ne peut pas être un magasin français : c'est une donnée abîmée
+// (0,0 « null island », latitude et longitude inversées, adresse résolue à
+// l'étranger). On ne la place pas sur la carte — le magasin est compté « non
+// localisé » et repositionnable à la main — plutôt que de laisser un point
+// aberrant étirer le cadrage jusqu'à l'Afrique.
+const FRANCE_BOXES: ReadonlyArray<readonly [number, number, number, number]> = [
+  [41.0, 51.5, -5.8, 10.0],      // métropole + Corse
+  [14.0, 16.6, -61.9, -60.7],    // Guadeloupe, Martinique
+  [2.0, 6.0, -55.0, -51.0],      // Guyane
+  [-21.5, -20.8, 55.1, 55.9],    // La Réunion
+  [-13.2, -12.5, 44.9, 45.4],    // Mayotte
+  [46.7, 47.2, -56.6, -56.0],    // Saint-Pierre-et-Miquelon
+  [-22.9, -19.5, 163.5, 168.2],  // Nouvelle-Calédonie
+  [-28.0, -7.0, -155.0, -134.0], // Polynésie française
+];
+
+function isInFrance(latitude: number | null, longitude: number | null): boolean {
+  if (latitude == null || longitude == null) return false;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  return FRANCE_BOXES.some(
+    ([latMin, latMax, lngMin, lngMax]) =>
+      latitude >= latMin && latitude <= latMax && longitude >= lngMin && longitude <= lngMax,
+  );
+}
+
 /** Normalise un titre de colonne (minuscules, sans accents) pour comparaison. */
 function normTitle(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -73,7 +100,8 @@ function mockPayload(): { deals: MapDeal[]; unlocated: number } {
   for (const deal of mockDeals) {
     if (!nameById.has(deal.pipelineId)) continue;
     const store = deal.store;
-    if (store.latitude == null || store.longitude == null) unlocated += 1;
+    const placed = isInFrance(store.latitude, store.longitude);
+    if (!placed) unlocated += 1;
     deals.push({
       id: deal.id,
       storeName: store.name,
@@ -92,8 +120,8 @@ function mockPayload(): { deals: MapDeal[]; unlocated: number } {
       // valeur par défaut du schéma Prisma (isPV = true).
       isPV: true,
       isClient: isClientColumn(deal.column?.title ?? ''),
-      latitude: store.latitude,
-      longitude: store.longitude,
+      latitude: placed ? store.latitude : null,
+      longitude: placed ? store.longitude : null,
     });
   }
 
@@ -205,10 +233,13 @@ export async function GET() {
     for (const deal of deals) {
       const store = deal.store;
       const cached = coordsById.get(store.id);
-      const latitude = cached?.latitude ?? store.latitude ?? null;
-      const longitude = cached?.longitude ?? store.longitude ?? null;
+      const rawLatitude = cached?.latitude ?? store.latitude ?? null;
+      const rawLongitude = cached?.longitude ?? store.longitude ?? null;
+      const placed = isInFrance(rawLatitude, rawLongitude);
+      const latitude = placed ? rawLatitude : null;
+      const longitude = placed ? rawLongitude : null;
 
-      if (latitude == null || longitude == null) unlocated += 1;
+      if (!placed) unlocated += 1;
 
       mapDeals.push({
         id: deal.id,

@@ -92,19 +92,36 @@ const zoneIcon = (): L.DivIcon =>
 /** Rayon (m) du cercle de prospection dessiné autour d'une zone recherchée. */
 export const ZONE_RADIUS_M = 100000;
 
+/** Vue par défaut : la France métropolitaine entière. */
+const FRANCE_CENTER: [number, number] = [46.6, 2.4];
+const FRANCE_ZOOM = 6;
+
+/** Emprise de la France métropolitaine (Corse comprise). */
+const METROPOLE = L.latLngBounds([41.0, -5.8], [51.5, 10.0]);
+
 /**
  * Recadre la vue pour englober les magasins affichés. Le recadrage n'est
  * déclenché que lorsque l'ENSEMBLE affiché change réellement (chargement,
  * onglet, filtre, recherche) — pas à chaque rendu — pour ne pas défaire une
  * navigation manuelle de l'utilisateur.
+ *
+ * Le cadrage se limite aux magasins de métropole dès qu'il y en a : un magasin
+ * d'outre-mer suffirait sinon à étirer la vue de la Bretagne à l'océan Indien,
+ * et la carte s'ouvrirait centrée quelque part au-dessus de l'Afrique. Ce
+ * magasin reste bien sur la carte — un clic sur sa ligne y emmène.
  */
 function FitBounds({ deals }: { deals: LocatedDeal[] }) {
   const map = useMap();
   const signature = deals.map((d) => d.id).join(',');
   useEffect(() => {
-    if (deals.length === 0) return;
-    const bounds = L.latLngBounds(deals.map((d) => [d.latitude, d.longitude] as [number, number]));
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    const points = deals.map((d) => [d.latitude, d.longitude] as [number, number]);
+    const metropole = points.filter((p) => METROPOLE.contains(p));
+    const target = metropole.length ? metropole : points;
+    if (target.length === 0) {
+      map.setView(FRANCE_CENTER, FRANCE_ZOOM);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(target), { padding: [50, 50], maxZoom: 12 });
     // On ne dépend que de la signature : `deals` change d'identité à chaque
     // rendu du parent alors que son contenu, lui, est souvent identique.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,8 +169,8 @@ export default function DealsMap({ deals, focus, zone, selectedId, onSelect, onO
 
   return (
     <MapContainer
-      center={[46.6, 2.4]}
-      zoom={6}
+      center={FRANCE_CENTER}
+      zoom={FRANCE_ZOOM}
       minZoom={5}
       scrollWheelZoom
       zoomControl={false}
