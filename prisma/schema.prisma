@@ -100,7 +100,8 @@ model User {
   authoredNotes   Note[]
   callLogs        CallLog[]
   dealMoves       DealMove[]
-  demoBookings    DemoBooking[]
+  demoBookings    DemoBooking[] @relation("DemoBookedBy")
+  demosDone       DemoBooking[] @relation("DemoDoneBy")
 }
 
 model Pipeline {
@@ -441,7 +442,7 @@ model DemoBooking {
   // Auteur du booking = utilisateur qui a déplacé l'affaire dans la colonne.
   // Null pour un déplacement automatique ou un compte supprimé depuis.
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?    @relation("DemoBookedBy", fields: [userId], references: [id], onDelete: SetNull)
   // Nom figé à l'enregistrement : la statistique reste lisible même si le
   // compte est renommé ou supprimé.
   userName  String   @default("")
@@ -453,6 +454,16 @@ model DemoBooking {
   demoDate  DateTime?
   // Case « NO SHOW » de la fiche affaire : le contact n'est pas venu.
   noShow    Boolean  @default(false)
+  // Qui a FAIT la démo, et quand. Rempli au passage de l'affaire dans
+  // « DEMO FAITE » ou « ABSENT DEMO » : celui qui déplace la carte est celui
+  // qui était devant le client. Vide tant que la démo n'a pas eu lieu ; jamais
+  // écrasé ensuite (un rebooking crée une nouvelle ligne, qui a son propre
+  // dénouement). doneByName est figé, comme userName, pour que l'historique
+  // reste lisible si le compte est renommé ou supprimé.
+  doneByUserId String?
+  doneByUser   User?    @relation("DemoDoneBy", fields: [doneByUserId], references: [id], onDelete: SetNull)
+  doneByName   String   @default("")
+  doneAt       DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

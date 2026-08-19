@@ -6,7 +6,7 @@ import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
 import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
 import { recordDealMove } from '@/lib/dealMoves';
-import { markDemoBookedIfNeeded, syncLatestDemoBookingDate } from '@/lib/demoBooking';
+import { markDemoBookedIfNeeded, markDemoDoneIfNeeded, syncLatestDemoBookingDate } from '@/lib/demoBooking';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -24,34 +24,37 @@ function normalizeTitle(s: string): string {
 }
 
 interface DemoDoneSource { toColumnTitle: string; userName: string; movedAt: Date }
-interface BookingSource { bookedAt: Date }
+interface BookingSource { bookedAt: Date; doneByName: string; doneAt: Date | null }
 
 /**
- * Qui a fait la démo ? Personne ne le saisit : c'est l'auteur du déplacement
- * « DEMO FAITE ». On rattache chaque passage en DEMO FAITE au booking qui le
- * précède — un rebooking ouvre une nouvelle fenêtre, donc chaque ligne du flux
- * d'activité affiche bien SA démo et pas celle d'avant.
+ * Qui a fait la démo ? La colonne doneBy* de DemoBooking, remplie au passage en
+ * « DEMO FAITE » / « ABSENT DEMO » (cf. markDemoDoneIfNeeded).
+ *
+ * Pour les démos antérieures à cette colonne — et tant que le script de
+ * rattrapage n'a pas tourné — on retombe sur le journal des déplacements : on
+ * rattache chaque passage en DEMO FAITE au booking qui le précède, un rebooking
+ * ouvrant une nouvelle fenêtre. La fiche affiche ainsi le bon nom sur tout
+ * l'historique, sans rien réécrire en base.
  */
 function withDemoDone<B extends BookingSource>(bookings: B[], moves: DemoDoneSource[]) {
   const done = moves
     .filter((m) => normalizeTitle(m.toColumnTitle) === 'demo faite')
     .sort((a, b) => a.movedAt.getTime() - b.movedAt.getTime());
-  if (done.length === 0) return bookings.map((b) => ({ ...b, doneByName: null, doneAt: null }));
 
   // Bookings du plus ancien au plus récent : la fenêtre d'un booking s'arrête
   // au booking suivant.
   const chronological = [...bookings].sort((a, b) => a.bookedAt.getTime() - b.bookedAt.getTime());
-  const matched = new Map<number, DemoDoneSource>();
+  const fallback = new Map<B, DemoDoneSource | null>();
   chronological.forEach((booking, i) => {
     const from = booking.bookedAt.getTime();
     const until = chronological[i + 1]?.bookedAt.getTime() ?? Number.POSITIVE_INFINITY;
-    const hit = done.find((m) => m.movedAt.getTime() >= from && m.movedAt.getTime() < until);
-    if (hit) matched.set(i, hit);
+    fallback.set(booking, done.find((m) => m.movedAt.getTime() >= from && m.movedAt.getTime() < until) ?? null);
   });
 
-  const byBooking = new Map(chronological.map((b, i) => [b, matched.get(i) ?? null] as const));
   return bookings.map((b) => {
-    const hit = byBooking.get(b) ?? null;
+    // Valeur enregistrée : elle fait foi.
+    if (b.doneAt) return { ...b, doneByName: b.doneByName || null, doneAt: b.doneAt };
+    const hit = fallback.get(b) ?? null;
     return { ...b, doneByName: hit?.userName || null, doneAt: hit?.movedAt ?? null };
   });
 }
@@ -258,8 +261,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus.
+    // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
+    // l'auteur du changement d'étape.
     if (body.columnId) {
       await markDemoBookedIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName });
+      await markDemoDoneIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName });
     }
 
     // Date de démo saisie / modifiée sur la fiche → on la reporte sur le

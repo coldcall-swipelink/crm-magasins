@@ -8,7 +8,7 @@ import {
 } from '@/lib/supabaseProvisioning';
 import { setPendingClosingDate, setSubscriptionClosingDates } from '@/lib/subscriptions';
 import { recordDealMove } from '@/lib/dealMoves';
-import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
+import { markDemoBookedIfNeeded, markDemoDoneIfNeeded } from '@/lib/demoBooking';
 
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
@@ -69,6 +69,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus
     // (un rebooking s'ajoute à l'historique, il n'écrase rien).
     await markDemoBookedIfNeeded(params.id, columnId, { userId, userName });
+
+    // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
+    // celui qui déplace la carte, sur le booking encore ouvert.
+    await markDemoDoneIfNeeded(params.id, columnId, { userId, userName });
 
     // Date(s) de closing demandée(s) au passage en « SMARTLINKÉ ». Dans les deux
     // formes, un abonnement DÉJÀ daté n'est jamais écrasé (garde-fou dans

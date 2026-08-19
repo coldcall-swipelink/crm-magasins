@@ -22,6 +22,17 @@ export function isClosingDemoColumn(columnTitle?: string | null, pipelineName?: 
   return normalize(columnTitle) === 'demo prevue' && normalize(pipelineName) === CLOSING_PIPELINE;
 }
 
+/**
+ * Vrai si la colonne clôt une démo : « DEMO FAITE » (le rendez-vous a eu lieu)
+ * ou « ABSENT DEMO » (le contact n'est pas venu). Dans les deux cas, la
+ * personne qui déplace la carte est celle qui s'est présentée au rendez-vous —
+ * c'est elle qu'on crédite de la démo.
+ */
+export function isDemoOutcomeColumn(columnTitle?: string | null): boolean {
+  const t = normalize(columnTitle);
+  return t === 'demo faite' || t.includes('absent');
+}
+
 interface DemoBookingAuthor {
   userId?: string | null;
   userName?: string | null;
@@ -72,6 +83,51 @@ export async function markDemoBookedIfNeeded(dealId: string, columnId: string, a
     return booking;
   } catch (err) {
     console.error('[markDemoBookedIfNeeded]', err);
+    return null;
+  }
+}
+
+/**
+ * Crédite la démo à celui qui déplace l'affaire dans « DEMO FAITE » ou
+ * « ABSENT DEMO » : on remplit doneBy* sur le booking le plus récent qui n'a pas
+ * encore de dénouement.
+ *
+ * Un booking déjà clos n'est jamais réécrit — repasser une affaire par ces
+ * colonnes ne doit pas voler la démo à celui qui l'a réellement faite ; c'est le
+ * prochain booking (rebooking) qui recevra le crédit suivant. Une affaire qui
+ * arrive là sans aucun booking (jamais passée par DEMO PREVUE) ne produit rien :
+ * il n'y a pas de démo à créditer.
+ *
+ * Best-effort : une erreur ici ne doit pas faire échouer le déplacement.
+ */
+export async function markDemoDoneIfNeeded(dealId: string, columnId: string, author: DemoBookingAuthor = {}) {
+  try {
+    const column = await prisma.pipelineColumn.findUnique({
+      where: { id: columnId },
+      select: { title: true },
+    });
+    if (!isDemoOutcomeColumn(column?.title)) return null;
+
+    const pending = await prisma.demoBooking.findFirst({
+      where: { dealId, doneAt: null },
+      orderBy: { bookedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!pending) return null;
+
+    // L'identité vient du navigateur : le compte peut avoir disparu depuis.
+    let linkedUserId: string | null = null;
+    if (author.userId) {
+      const user = await prisma.user.findUnique({ where: { id: author.userId }, select: { id: true } });
+      linkedUserId = user?.id ?? null;
+    }
+
+    return await prisma.demoBooking.update({
+      where: { id: pending.id },
+      data: { doneByUserId: linkedUserId, doneByName: author.userName || '', doneAt: new Date() },
+    });
+  } catch (err) {
+    console.error('[markDemoDoneIfNeeded]', err);
     return null;
   }
 }

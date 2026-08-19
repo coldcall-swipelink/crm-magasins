@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { USE_MOCK_DATA } from '@/lib/mockData';
 import { recordDealMove } from '@/lib/dealMoves';
+import { markDemoDoneIfNeeded } from '@/lib/demoBooking';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         source: 'fiche',
       });
       movedTo = { id: target.id, title: target.title };
+      // Même crédit que pour un déplacement manuel : celui qui coche NO SHOW
+      // s'était présenté au rendez-vous.
+      await markDemoDoneIfNeeded(deal.id, target.id, { userId, userName });
     }
 
     // Action de reprogrammation, assignée à qui avait booké la démo (repli sur
