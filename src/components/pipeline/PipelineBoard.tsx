@@ -14,7 +14,8 @@ import { useCurrentUser } from '@/lib/currentUser';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
-interface Props { initialDeals: Deal[]; columns: PipelineColumn[]; }
+// Aucune donnée n'est passée par la page : les affaires, les pipelines et
+// leurs colonnes sont chargés ici, après le montage.
 
 /** Date saisie ("YYYY-MM-DD") → ISO à midi UTC, pour qu'aucun fuseau ne la
  *  fasse basculer d'un jour. */
@@ -42,10 +43,10 @@ function isSmartlinkColumn(title?: string | null): boolean {
   return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
 }
 
-export default function PipelineBoard({ initialDeals, columns }: Props) {
+export default function PipelineBoard() {
   // Auteur des déplacements : transmis à /move pour alimenter l'historique.
   const { user: currentUser } = useCurrentUser();
-  const [deals, setDeals] = useState<Deal[]>(initialDeals);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -55,6 +56,10 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
   const [filterBrand, setFilterBrand] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [loading, setLoading] = useState(false);
+  // Vrai tant que la première réponse de /api/deals n'est pas arrivée : évite
+  // d'afficher un tableau vide (qui se lit comme « aucune affaire ») pendant
+  // le chargement initial.
+  const [firstLoad, setFirstLoad] = useState(true);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [pv, setPv] = useState<{ dealId: string; targetColId: string; originColId: string } | null>(null);
@@ -148,7 +153,7 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
       if (selectedPipelineId) params.set('pipelineId', selectedPipelineId);
       const res = await fetch(`/api/deals?${params}`);
       if (res.ok) setDeals(await res.json());
-    } finally { setLoading(false); }
+    } finally { setLoading(false); setFirstLoad(false); }
   }, [filterBrand, filterUser, selectedPipelineId]);
 
   // Recharger les affaires quand le pipeline change
@@ -485,6 +490,10 @@ export default function PipelineBoard({ initialDeals, columns }: Props) {
           </div>
         </div>
       </div>
+
+      {firstLoad && (
+        <div style={{ padding: '18px 16px', color: '#94a3b8', fontSize: 13 }}>Chargement des affaires…</div>
+      )}
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {sortedCols.map(col => {
