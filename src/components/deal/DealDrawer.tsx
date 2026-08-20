@@ -1297,6 +1297,43 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </div>
           )}
 
+          {/* Suivi de l'appel : posée 20 s après le dévoilement du numéro (ou tout
+              de suite si le volet est fermé avant), la question renseigne
+              CallLog.connected.
+
+              Bannière EN LIGNE dans l'en-tête figé du volet, et non plus modale
+              plein écran : elle ne masque ni les coordonnées du contact ni le
+              fil d'activité, qui reste défilable pendant qu'on y répond. Elle
+              garde en revanche son absence d'échappatoire — pas de croix, pas
+              de fermeture au clic à côté : la réponse est le seul moyen de
+              savoir si l'accueil a passé l'appel au décisionnaire. */}
+          {callQuestion && (
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '9px 12px' }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#92400e' }}>
+                  📞 Est-ce que le décisionnaire a pu être contacté ?
+                </div>
+                <div style={{ fontSize: 11.5, color: '#a16207', marginTop: 2 }}>
+                  {callQuestion.store}{callQuestion.phone ? ` — ${callQuestion.phone}` : ''}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button
+                  type="button" onClick={() => answerCallQuestion(false)} disabled={savingCallAnswer}
+                  style={{ height: 34, padding: '0 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                >
+                  Non
+                </button>
+                <button
+                  type="button" onClick={() => answerCallQuestion(true)} disabled={savingCallAnswer}
+                  style={{ height: 34, padding: '0 18px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                >
+                  Oui
+                </button>
+              </div>
+            </div>
+          )}
+
           {movedBack && (
             <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', fontSize: 12 }}>
               <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 2 }}>⟳ Retournée en &quot;À appeler&quot;</div>
@@ -2015,38 +2052,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       </div>
     </div>
 
-    {/* Suivi de l'appel : posée 20 s après le dévoilement du numéro (ou tout de
-        suite si le volet est fermé avant), la question renseigne
-        CallLog.connected. Volontairement sans échappatoire (pas de fermeture au
-        clic sur le fond) : la réponse est le seul moyen de savoir si l'accueil
-        a passé l'appel au décisionnaire. */}
-    {callQuestion && (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-        <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 380, maxWidth: '100%', boxShadow: '0 12px 40px rgba(15,23,42,.3)', textAlign: 'center' }}>
-          <div style={{ fontSize: 26, marginBottom: 8 }}>📞</div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
-            Est-ce que le décisionnaire a pu être contacté ?
-          </div>
-          <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 20, lineHeight: 1.45 }}>
-            {callQuestion.store}{callQuestion.phone ? ` — ${callQuestion.phone}` : ''}
-          </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button
-              type="button" onClick={() => answerCallQuestion(false)} disabled={savingCallAnswer}
-              style={{ flex: 1, height: 40, borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
-            >
-              Non
-            </button>
-            <button
-              type="button" onClick={() => answerCallQuestion(true)} disabled={savingCallAnswer}
-              style={{ flex: 1, height: 40, borderRadius: 9, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
-            >
-              Oui
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     </>
   );
 }
