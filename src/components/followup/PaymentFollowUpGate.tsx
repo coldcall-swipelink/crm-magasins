@@ -95,7 +95,8 @@ export default function PaymentFollowUpGate() {
   const [pending, setPending] = useState<FollowUpItem[]>([]);
   const [decided, setDecided] = useState<FollowUpItem[]>([]);
   const [open, setOpen] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  // Décision en cours : l'id ET son sens, pour n'afficher « Envoi… » que sur un envoi.
+  const [busy, setBusy] = useState<{ id: string; decision: 'send' | 'skip' } | null>(null);
   // Personnalisation ponctuelle du message, par relance (id → sujet/corps).
   const [edits, setEdits] = useState<Record<string, { subject: string; body: string }>>({});
   // L'ouverture automatique n'a lieu qu'une fois par session de chargement.
@@ -134,13 +135,16 @@ export default function PaymentFollowUpGate() {
     if (dismissedOn !== todayKey()) setOpen(true);
   }, [allowed, pending.length]);
 
-  const closeForToday = () => {
+  // Fermer = « vu pour ce matin » : la pop-up ne se rouvrira pas d'elle-même
+  // aujourd'hui (ni en changeant de page), mais la pastille reste là tant qu'il
+  // y a des relances à valider.
+  const close = () => {
     try { localStorage.setItem(DISMISS_KEY, todayKey()); } catch { /* ignore */ }
     setOpen(false);
   };
 
   const decide = async (item: FollowUpItem, decision: 'send' | 'skip') => {
-    setBusyId(item.id);
+    setBusy({ id: item.id, decision });
     try {
       const edit = edits[item.id];
       const res = await fetch(`/api/payment-followups/${item.id}/decision`, {
@@ -162,11 +166,21 @@ export default function PaymentFollowUpGate() {
         toast(decision === 'send'
           ? `✓ Relance envoyée à ${item.to}`
           : 'Relance classée sans envoi');
+        // La carte disparaît tout de suite et bascule dans « Déjà traité » :
+        // le relevé qui suit ne fait que confirmer.
+        const done: FollowUpItem = {
+          ...item,
+          status: decision === 'send' ? 'sent' : 'skipped',
+          decidedByName: user?.name || '',
+          decidedAt: new Date().toISOString(),
+        };
+        setPending(p => p.filter(x => x.id !== item.id));
+        setDecided(d => [done, ...d.filter(x => x.id !== item.id)]);
       }
     } catch {
       toast('Erreur réseau lors de la relance', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
       load();
     }
   };
@@ -214,7 +228,8 @@ export default function PaymentFollowUpGate() {
 
         {pending.map(item => {
           const edit = edits[item.id];
-          const busy = busyId === item.id;
+          const pendingDecision = busy?.id === item.id ? busy.decision : null;
+          const locked = pendingDecision !== null;
           return (
             <div key={item.id} style={card}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -277,18 +292,20 @@ export default function PaymentFollowUpGate() {
 
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button
-                  style={{ ...btnSend, opacity: busy || !item.to ? 0.55 : 1, cursor: busy || !item.to ? 'not-allowed' : 'pointer' }}
-                  disabled={busy || !item.to}
+                  style={{ ...btnSend, opacity: locked || !item.to ? 0.55 : 1, cursor: locked || !item.to ? 'not-allowed' : 'pointer' }}
+                  disabled={locked || !item.to}
                   onClick={() => decide(item, 'send')}
                 >
-                  {busy ? '⟳ Envoi…' : item.status === 'error' ? '↻ Réessayer l\'envoi' : '✓ Relancer'}
+                  {pendingDecision === 'send' ? '⟳ Envoi…'
+                    : item.status === 'error' ? '↻ Réessayer l\'envoi'
+                    : '✓ Relancer'}
                 </button>
                 <button
-                  style={{ ...btnSkip, opacity: busy ? 0.55 : 1, cursor: busy ? 'not-allowed' : 'pointer' }}
-                  disabled={busy}
+                  style={{ ...btnSkip, opacity: locked ? 0.55 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}
+                  disabled={locked}
                   onClick={() => decide(item, 'skip')}
                 >
-                  ✕ Ne pas relancer
+                  {pendingDecision === 'skip' ? '⟳ …' : '✕ Ne pas relancer'}
                 </button>
               </div>
             </div>
@@ -324,13 +341,15 @@ export default function PaymentFollowUpGate() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-          <button style={{ ...btnSkip, flex: 1 }} onClick={() => setOpen(false)}>
-            Fermer
+        <div style={{ marginTop: 18 }}>
+          <button style={{ ...btnSkip, width: '100%' }} onClick={close}>
+            Fermer {pending.length > 0 ? '— je m\'en occupe plus tard' : ''}
           </button>
-          <button style={{ ...btnSkip, flex: 1 }} onClick={closeForToday}>
-            Ne plus afficher aujourd&apos;hui
-          </button>
+          {pending.length > 0 && (
+            <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginTop: 6 }}>
+              Les relances non traitées restent accessibles via la pastille, en bas à droite.
+            </div>
+          )}
         </div>
       </div>
     </div>
