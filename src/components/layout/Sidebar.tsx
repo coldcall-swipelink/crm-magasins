@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -22,7 +23,14 @@ export default function Sidebar() {
   return (
     <aside style={{ width: 192, flexShrink: 0, background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
       <div style={{ padding: '14px 12px 10px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 30, height: 30, background: '#4f46e5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>⚡</div>
+        <Image
+          src="/logo-mark.png"
+          alt="CRM Magasin"
+          width={34}
+          height={34}
+          priority
+          style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, display: 'block' }}
+        />
         <div>
           <div style={{ fontWeight: 700, fontSize: 13 }}>CRM Magasins</div>
           <div style={{ fontSize: 10, color: '#94a3b8' }}>v2 · Offres emploi</div>

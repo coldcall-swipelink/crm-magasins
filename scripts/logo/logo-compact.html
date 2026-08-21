@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;background:transparent}
+  .frame{
+    position:relative;
+    width:1024px;height:1024px;
+    border-radius:184px;
+    background:conic-gradient(from 0deg,
+      #4d5fec 0deg,
+      #00a3ff 45deg,
+      #ec008c 135deg,
+      #f5821f 225deg,
+      #a020f0 315deg,
+      #4d5fec 360deg);
+    box-sizing:border-box;
+  }
+  .inner{
+    position:absolute;inset:15px;
+    border-radius:170px;
+    background:#fbfbfd;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .s{
+    display:block;
+    width:383px;height:497px;
+  }
+  .crm{
+    font-family:"Liberation Sans","Arial",sans-serif;
+    font-weight:700;
+    font-size:138px;
+    line-height:1;
+    letter-spacing:5px;
+    color:#1b47db;
+    transform:scaleX(1.05);
+    margin-top:34px;
+  }
+  .mag{
+    display:flex;align-items:center;gap:26px;
+    margin-top:18px;
+  }
+  .mag .txt{
+    font-family:"Liberation Sans","Arial",sans-serif;
+    font-weight:700;
+    font-size:42px;
+    letter-spacing:12px;
+    text-indent:12px;
+    color:#1b47db;
+  }
+  .mag .bar{height:5px;width:70px;border-radius:3px}
+  .mag .bar.l{background:linear-gradient(90deg,#f5821f,#ec008c)}
+  .mag .bar.r{background:linear-gradient(90deg,#ec008c,#a020f0)}
+</style>
+<div class="frame">
+  <div class="inner">
+    <svg class="s" viewBox="0 0 470 610" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#1b47db" stroke-width="120" fill="none" stroke-linecap="butt">
+        <path d="M 397.1 142.3 A 172.5 121.25 0 1 0 235 305 A 172.5 121.25 0 1 1 72.9 467.7" />
+      </g>
+    </svg>
+  </div>
+</div>
