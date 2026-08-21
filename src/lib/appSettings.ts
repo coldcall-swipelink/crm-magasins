@@ -15,3 +15,15 @@ export const EMAIL_SIGNATURE_KEY = 'emailSignature';
 export function signatureKeyForSender(email: string): string {
   return `${EMAIL_SIGNATURE_KEY}:${email.trim().toLowerCase()}`;
 }
+
+/**
+ * Relance des affaires laissées dans « LIEN PAIEMENT ENVOYÉ » (cf.
+ * src/lib/paymentFollowUp.ts). Le contenu du mail, l'expéditeur et le délai
+ * avant relance se règlent dans Paramètres › Relance « lien de paiement ».
+ */
+export const PAYMENT_FOLLOWUP_KEYS = {
+  subject:   'paymentFollowUp:subject',
+  body:      'paymentFollowUp:body',
+  from:      'paymentFollowUp:from',
+  delayDays: 'paymentFollowUp:delayDays',
+} as const;

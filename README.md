@@ -172,6 +172,36 @@ Le séparateur est auto-détecté (virgule ou point-virgule).
 - **Filtres** : nouvelles affaires, nouvelles offres, recherche texte
 - **Badges** : ✦ Nouvelle · ⟳ Rappelée · ⚠ Absente
 
+### Relance « lien de paiement » (validée à la main)
+
+Quand une affaire est glissée dans la colonne **LIEN PAIEMENT ENVOYÉ**, une
+relance est programmée à **J+7** (délai réglable). À l'échéance, si l'affaire
+n'a **pas bougé** — elle est toujours dans la même colonne — la relance devient
+« à valider ».
+
+**Rien ne part tout seul.** Le matin, à la première ouverture du CRM, une
+pop-up liste les relances échues et propose, pour chacune :
+
+- **✓ Relancer** → le mail part vers le contact de l'affaire (adresse de
+  l'affaire, à défaut celle du magasin) et s'ajoute à l'historique des emails ;
+- **✕ Ne pas relancer** → la relance est classée, sans envoi.
+
+Le message proposé est visible avant de valider, et peut être ajusté pour un
+envoi donné.
+
+**Qui la voit** — uniquement **Hugo Abdelhadi** et **Bilal Yacouti**. Les deux
+partagent la même file : dès que l'un tranche, la relance bascule chez l'autre
+dans « Déjà traité », avec le nom de celui qui a décidé et l'heure. Si les deux
+valident au même instant, un seul mail part.
+
+**Paramétrage** — Paramètres › *Relance « lien de paiement »* : expéditeur,
+délai avant relance, sujet et corps du message (variables `{{enseigne}}`,
+`{{nom_magasin}}`, `{{nom_famille}}`… comme les templates). La signature de
+l'expéditeur est ajoutée automatiquement.
+
+Une affaire qui sort de la colonne annule sa relance en attente ; une affaire
+qui y revient en reprogramme une nouvelle.
+
 ### Numéros de téléphone des magasins (recherche automatique)
 
 Le champ **N° de Téléphone** d'une affaire peut être rempli automatiquement,

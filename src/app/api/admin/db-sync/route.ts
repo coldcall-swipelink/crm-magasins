@@ -283,6 +283,26 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "CREATE INDEX IF NOT EXISTS \"PaymentLinkSlot_stripeLinkId_idx\" ON \"PaymentLinkSlot\"(\"stripeLinkId\");",
+  // Relance des affaires laissées dans « LIEN PAIEMENT ENVOYÉ » : une ligne par
+  // entrée dans la colonne, validée à la main dans la pop-up du matin.
+  "CREATE TABLE IF NOT EXISTS \"PaymentFollowUp\" (\"id\" TEXT NOT NULL, CONSTRAINT \"PaymentFollowUp_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"columnId\" TEXT;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"columnTitle\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"enteredAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"dueAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"status\" TEXT NOT NULL DEFAULT 'pending';",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"decidedByUserId\" TEXT;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"decidedByName\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"decidedAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"sentTo\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"emailLogId\" TEXT;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"errorMessage\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "ALTER TABLE \"PaymentFollowUp\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"PaymentFollowUp_status_dueAt_idx\" ON \"PaymentFollowUp\"(\"status\",\"dueAt\");",
+  "CREATE INDEX IF NOT EXISTS \"PaymentFollowUp_dealId_idx\" ON \"PaymentFollowUp\"(\"dealId\");",
   // La table PaymentLinkConfig d'une version précédente n'est plus utilisée.
   // Elle n'est pas supprimée ici (cette route reste strictement additive) ; elle
   // peut être retirée à la main si elle existe.

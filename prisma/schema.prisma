@@ -219,6 +219,9 @@ model Deal {
   demoBookings              DemoBooking[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
+  // Relances programmées à l'entrée dans « LIEN PAIEMENT ENVOYÉ » (une ligne
+  // par entrée dans la colonne ; validées à la main dans la pop-up du matin).
+  paymentFollowUps          PaymentFollowUp[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
   // paymentMode / closingDate / dealValue ci-dessus sont conservés comme miroir
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
@@ -577,4 +580,48 @@ model PaymentLinkSlot {
   updatedAt    DateTime @updatedAt
 
   @@index([stripeLinkId])
+}
+
+// Relance automatique des affaires laissées dans « LIEN PAIEMENT ENVOYÉ ».
+//
+// Une ligne est créée à CHAQUE entrée d'une affaire dans cette colonne, avec la
+// date d'entrée et l'échéance (entrée + délai paramétré, 7 jours par défaut).
+// Passé ce délai, si l'affaire n'a pas bougé (elle est toujours dans la MÊME
+// colonne), la relance devient « à valider » : elle apparaît dans la pop-up du
+// matin de Hugo Abdelhadi et Bilal Yacouti. Rien ne part sans un clic humain.
+//
+// Cycle de vie de `status` :
+//   pending   → en attente (avant l'échéance, ou en attente de validation)
+//   sent      → relance validée : l'email est parti (emailLogId le trace)
+//   skipped   → relance refusée explicitement (« Ne pas relancer »)
+//   cancelled → l'affaire a bougé de colonne : plus rien à relancer
+//   error     → validée mais l'envoi a échoué (errorMessage) ; à rejouer
+//
+// Le nom du décideur est figé (decidedByName), comme partout ailleurs dans le
+// CRM, pour que l'historique reste lisible si le compte est renommé ou supprimé.
+model PaymentFollowUp {
+  id           String   @id @default(cuid())
+  dealId       String
+  deal         Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  // Colonne surveillée : l'affaire doit y être ENCORE au moment de l'échéance.
+  // Titre figé pour rester lisible si la colonne est renommée ou supprimée.
+  columnId     String
+  columnTitle  String   @default("")
+  enteredAt    DateTime @default(now())
+  // Échéance = enteredAt + délai paramétré (Paramètres › Relance lien de paiement).
+  dueAt        DateTime
+  status       String   @default("pending")
+  // Décision humaine (pop-up du matin) : qui a tranché, quand, et dans quel sens.
+  decidedByUserId String?
+  decidedByName   String   @default("")
+  decidedAt       DateTime?
+  // Envoi effectif : destinataire retenu et trace dans le journal des emails.
+  sentTo       String   @default("")
+  emailLogId   String?
+  errorMessage String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, dueAt])
+  @@index([dealId])
 }

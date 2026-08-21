@@ -9,6 +9,7 @@ import {
 import { setPendingClosingDate, setSubscriptionClosingDates } from '@/lib/subscriptions';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded, markDemoDoneIfNeeded } from '@/lib/demoBooking';
+import { syncPaymentFollowUpOnMove } from '@/lib/paymentFollowUp';
 
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
@@ -73,6 +74,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
     // celui qui déplace la carte, sur le booking encore ouvert.
     await markDemoDoneIfNeeded(params.id, columnId, { userId, userName });
+
+    // Entrée dans « LIEN PAIEMENT ENVOYÉ » → une relance est programmée à
+    // J+délai ; sortie de cette colonne → la relance en attente est annulée
+    // (l'affaire a bougé, il n'y a plus rien à relancer).
+    await syncPaymentFollowUpOnMove(params.id, columnId, before?.columnId ?? null);
 
     // Date(s) de closing demandée(s) au passage en « SMARTLINKÉ ». Dans les deux
     // formes, un abonnement DÉJÀ daté n'est jamais écrasé (garde-fou dans

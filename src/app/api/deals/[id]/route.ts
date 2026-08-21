@@ -7,6 +7,7 @@ import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded, markDemoDoneIfNeeded, syncLatestDemoBookingDate } from '@/lib/demoBooking';
+import { syncPaymentFollowUpOnMove } from '@/lib/paymentFollowUp';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -273,6 +274,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // déplacement dans « DEMO PREVUE »).
     if ('demoDate' in body) {
       await syncLatestDemoBookingDate(params.id, body.demoDate ? new Date(body.demoDate) : null);
+    }
+
+    // Entrée dans « LIEN PAIEMENT ENVOYÉ » → relance programmée à J+délai ;
+    // sortie de cette colonne → relance en attente annulée (l'affaire a bougé).
+    if (body.columnId) {
+      await syncPaymentFollowUpOnMove(params.id, body.columnId, columnBefore);
     }
 
     // Journal des déplacements (cf. /api/deals/[id]/move pour le drag & drop).
