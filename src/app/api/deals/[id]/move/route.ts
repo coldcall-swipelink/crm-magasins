@@ -23,10 +23,22 @@ function isSmartlinkColumn(title?: string | null): boolean {
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position, pvChoice, closingDate, closingDates, closedByUserId, closedByName, userId, userName, source } = await req.json();
+    const { columnId, position, pvChoice, closingDate, closingDates, closedByUserId, closedByName, userId, userName, source, sendMeetInvite, demoDate } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
+
+    // Date de la démo corrigée dans la pop-up « Invitation Google Meet ? » : on
+    // l'enregistre AVEC le déplacement, pour que l'invitation, la ligne
+    // DemoBooking et la fiche partent toutes de la même date. Une valeur
+    // ininterprétable est ignorée plutôt que d'effacer la date existante.
+    let demoDateUpdate: { demoDate: Date | null } | undefined;
+    if (demoDate === null) {
+      demoDateUpdate = { demoDate: null };
+    } else if (typeof demoDate === 'string' && demoDate) {
+      const parsed = new Date(demoDate);
+      if (!Number.isNaN(parsed.getTime())) demoDateUpdate = { demoDate: parsed };
+    }
 
     // Étape quittée : relevée AVANT la mise à jour, sinon elle est perdue.
     const before = await prisma.deal.findUnique({
@@ -47,6 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Réponse à la pop-up « Prospection de Valeur ? » au passage en « Démo
         // prévue » : NON → l'affaire bascule en PC (isPV = false), OUI → PV.
         ...(pvChoice === 'oui' || pvChoice === 'non' ? { isPV: pvChoice === 'oui' } : {}),
+        ...(demoDateUpdate ?? {}),
       },
       include: {
         store: { include: { brand: true } },
@@ -141,16 +154,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // + provisioning de la base produit Supabase (Organization, plan, Recruiter).
     // Couvre aussi le transfert du workflow « Prospection de Valeur » vers
     // Closing › DEMO PREVUE (pvChoice présent), dont le titre est en majuscules.
+    // L'invitation n'est plus automatique quand le client tranche lui-même
+    // (pop-up du drop dans DEMO PREVUE) : voir sendMeetInvite ci-dessous.
     // On remonte le résultat de la synchro Meet (meetSync) au client pour qu'il
     // puisse afficher un toast explicite en cas d'échec (pas de date, etc.).
+    const isDemoColumn = column.title === 'Démo prévue' || column.title === 'DEMO PREVUE';
+
+    // Entrée « historique » dans la démo : depuis Prospection (« Démo prévue »)
+    // ou via le transfert du workflow PV vers Closing (pvChoice présent).
+    const legacyDemoEntry = column.title === 'Démo prévue' || (!!pvChoice && column.title === 'DEMO PREVUE');
+
+    // Invitation Meet : le drop dans « DEMO PREVUE » ouvre une pop-up qui
+    // tranche explicitement (sendMeetInvite true/false) — un NON n'envoie rien.
+    // Sans réponse explicite (fiche affaire, onglet resté ouvert sur une
+    // version antérieure du front), on garde le déclenchement historique.
+    const shouldSyncMeet = typeof sendMeetInvite === 'boolean'
+      ? sendMeetInvite && isDemoColumn
+      : legacyDemoEntry;
+
     let meetSync: { ok: boolean; reason?: string; meetUrl?: string } | null = null;
-    if (column.title === 'Démo prévue' || (!!pvChoice && column.title === 'DEMO PREVUE')) {
+    if (shouldSyncMeet) {
       try {
-        meetSync = await syncDemoMeeting(deal.id, pvChoice);
+        // Sans réponse à la pop-up PV (drop direct dans DEMO PREVUE), le titre
+        // de l'invitation suit le tag PV/PC déjà porté par l'affaire.
+        meetSync = await syncDemoMeeting(deal.id, pvChoice ?? (deal.isPV ? 'oui' : 'non'));
       } catch (meetErr) {
         console.error('Google Meet (Démo prévue) error:', meetErr);
         meetSync = { ok: false, reason: String(meetErr) };
       }
+    }
+
+    // Provisioning Supabase : inchangé, il ne dépend pas du choix d'invitation.
+    if (legacyDemoEntry) {
       try {
         await provisionDemoOrganization(deal.id);
       } catch (provisionErr) {

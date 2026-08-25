@@ -8,6 +8,7 @@ import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
 import FlowWarningModal, { type FlowKey } from './FlowWarningModal';
+import MeetInviteModal from './MeetInviteModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
@@ -78,6 +79,8 @@ export default function PipelineBoard() {
   const [closing, setClosing] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; targets: ClosingTarget[] } | null>(null);
   // Confirmation avant de lancer une séquence automatique (DEMO FAITE / RELANCE 1).
   const [flowWarn, setFlowWarn] = useState<{ dealId: string; targetColId: string; originColId: string; flow: FlowKey; isPV: boolean; storeName?: string; dealEmail?: string | null } | null>(null);
+  // Confirmation de l'invitation Google Meet à l'arrivée dans « DEMO PREVUE ».
+  const [meetInvite, setMeetInvite] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; demoDate?: string | null; dealEmail?: string | null } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Notifications d'offres (offres créées par les organisations rattachées).
@@ -214,6 +217,19 @@ export default function PipelineBoard() {
       return;
     }
 
+    // Arrivée dans « DEMO PREVUE » (pipeline Closing) : on demande AVANT de
+    // persister si l'invitation Google Meet doit partir, en reprenant la date
+    // et l'heure du champ « Date de la démo » de l'affaire.
+    if (targetTitle === 'DEMO PREVUE') {
+      setMeetInvite({
+        dealId: deal.id, targetColId, originColId,
+        storeName: deal.store?.name,
+        demoDate: deal.demoDate ?? null,
+        dealEmail: deal.dealEmail ?? null,
+      });
+      return;
+    }
+
     // Arrivée dans « SMARTLINKÉ » : on demande la ou les dates de closing AVANT
     // de persister, pour pouvoir annuler proprement (cf. handleClosing*).
     if (isSmartlinkColumn(targetTitle)) {
@@ -269,22 +285,9 @@ export default function PipelineBoard() {
     if (!moveRes.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
     const moveData = await moveRes.json().catch(() => ({}));
 
-    // Diagnostic visio non ambigu : on affiche un toast dans TOUS les cas
-    // (succès, échec explicite, ou branche Meet non déclenchée = meetSync null).
-    const meet = moveData?.meetSync as { ok?: boolean; reason?: string } | null | undefined;
-    if (meet === null || meet === undefined) {
-      toast('⚠ Synchro visio non déclenchée (colonne/choix non reconnus)', 'error');
-    } else if (meet.ok) {
-      toast('✓ Invitation Google Meet créée');
-    } else {
-      const why =
-        meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
-        : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
-        : meet.reason === 'wrong_column' ? 'colonne inattendue'
-        : meet.reason === 'deal_not_found' ? 'affaire introuvable'
-        : `erreur Google (${meet.reason ?? 'inconnue'})`;
-      toast(`Visio non créée : ${why}`, 'error');
-    }
+    // Diagnostic visio non ambigu : un toast dans TOUS les cas (succès, échec
+    // explicite, ou branche Meet non déclenchée = meetSync null).
+    reportMeetSync(moveData?.meetSync);
 
     // OUI uniquement : duplication vers Recrutement › SOURCING A FAIRE.
     if (choice === 'oui') {
@@ -309,6 +312,67 @@ export default function PipelineBoard() {
       setDeals(prev => prev.map(d => d.id === pv.dealId ? { ...d, columnId: pv.originColId } : d));
     }
     setPv(null);
+  };
+
+  /**
+   * Toast de diagnostic de la synchro visio, d'après le `meetSync` renvoyé par
+   * /move. `null`/absent = la branche Meet n'a pas été déclenchée côté serveur,
+   * ce qui, quand on vient de demander l'invitation, est une anomalie à voir.
+   */
+  const reportMeetSync = (meetSync: unknown) => {
+    const meet = meetSync as { ok?: boolean; reason?: string } | null | undefined;
+    if (meet === null || meet === undefined) {
+      toast('⚠ Synchro visio non déclenchée (colonne/choix non reconnus)', 'error');
+    } else if (meet.ok) {
+      toast('✓ Invitation Google Meet créée');
+    } else {
+      const why =
+        meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
+        : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
+        : meet.reason === 'wrong_column' ? 'colonne inattendue'
+        : meet.reason === 'deal_not_found' ? 'affaire introuvable'
+        : `erreur Google (${meet.reason ?? 'inconnue'})`;
+      toast(`Visio non créée : ${why}`, 'error');
+    }
+  };
+
+  // Réponse à la pop-up « Invitation Google Meet ? » (drop dans DEMO PREVUE) :
+  //   - OUI  → le déplacement est persisté ET l'invitation part (sendMeetInvite).
+  //   - NON  → le déplacement est persisté, aucune invitation n'est envoyée.
+  // Une date modifiée dans la pop-up est enregistrée sur l'affaire au passage,
+  // pour que la visio et le champ « Date de la démo » ne divergent jamais.
+  const handleMeetConfirm = async (send: boolean, newDemoDate?: string | null) => {
+    if (!meetInvite) return;
+
+    const res = await fetch(`/api/deals/${meetInvite.dealId}/move`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        columnId: meetInvite.targetColId,
+        sendMeetInvite: send,
+        ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
+        userId: currentUser?.id || null,
+        userName: currentUser?.name || '',
+      }),
+    });
+    if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
+    const moveData = await res.json().catch(() => ({}));
+
+    if (send) {
+      reportMeetSync(moveData?.meetSync);
+    } else {
+      toast('Affaire déplacée dans DEMO PREVUE — aucune invitation envoyée');
+    }
+    setMeetInvite(null);
+    fetchDeals();
+  };
+
+  // Invitation annulée : rien n'a été persisté → on remet l'affaire dans sa
+  // colonne d'origine, et aucune invitation ne part.
+  const handleMeetCancel = () => {
+    if (meetInvite) {
+      setDeals(prev => prev.map(d => d.id === meetInvite.dealId ? { ...d, columnId: meetInvite.originColId } : d));
+    }
+    setMeetInvite(null);
   };
 
   // Séquence automatique confirmée : on persiste le déplacement, qui déclenche
@@ -603,6 +667,15 @@ export default function PipelineBoard() {
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}
       {pv && <PVModal onConfirm={handlePvConfirm} onCancel={handlePvCancel} />}
       {closing && <ClosingDateModal storeName={closing.storeName} targets={closing.targets} users={users} onConfirm={handleClosingConfirm} onCancel={handleClosingCancel} />}
+      {meetInvite && (
+        <MeetInviteModal
+          storeName={meetInvite.storeName}
+          demoDate={meetInvite.demoDate}
+          dealEmail={meetInvite.dealEmail}
+          onConfirm={handleMeetConfirm}
+          onCancel={handleMeetCancel}
+        />
+      )}
       {flowWarn && (
         <FlowWarningModal
           flow={flowWarn.flow}
