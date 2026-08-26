@@ -38,7 +38,7 @@ const DEFAULT_FOLDER = 'INBOX';
 // curseur avance quand même et le reste est pris au passage suivant.
 const MAX_PER_RUN = 200;
 
-/** Une boîte à relever : adresse + mot de passe applicatif. */
+/** Une boîte à relever : adresse + mot de passe de la boîte (celui du webmail). */
 interface Mailbox {
   email: string;
   label: string;
