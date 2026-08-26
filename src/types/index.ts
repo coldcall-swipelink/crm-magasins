@@ -183,6 +183,9 @@ export interface Deal {
   // récente). L'historique complet est dans demoBookings.
   demoBookedAt?:            string | null;
   candidateCallDate?:       string | null;
+  // Date de la dernière réponse reçue par email (Resend Inbound). Alimente la
+  // pastille « A répondu » de la carte du pipeline.
+  lastEmailReplyAt?:        string | null;
   closingDate?:             string | null;
   subscriptionType?:        string;
   paymentTiming?:           'comptant' | 'mensuel';

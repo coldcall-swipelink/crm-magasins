@@ -68,7 +68,7 @@ function SegToggle({ value, options, onChange }: {
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
-interface EmailLog { id: string; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
+interface EmailLog { id: string; direction?: 'outbound' | 'inbound'; fromAddress?: string | null; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
 /** Un changement d'étape journalisé (table DealMove). */
 interface DealMove {
   id: string;
@@ -1479,13 +1479,20 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     | { kind: 'note'; date: number; data: Note }
     | { kind: 'action'; date: number; data: any }
     | { kind: 'email'; date: number; data: EmailLog }
+    // Réponse reçue du contact (Resend Inbound) : même donnée, pastille et
+    // encadré distincts dans la frise.
+    | { kind: 'reply'; date: number; data: EmailLog }
     | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
     | { kind: 'move'; date: number; data: DealMove }
     | { kind: 'demo'; date: number; data: DemoBooking };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
-    ...emailLogs.map(l => ({ kind: 'email' as const, date: new Date(l.sentAt).getTime(), data: l })),
+    ...emailLogs.map(l => ({
+      kind: (l.direction === 'inbound' ? 'reply' : 'email') as 'reply' | 'email',
+      date: new Date(l.sentAt).getTime(),
+      data: l,
+    })),
     ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
     ...((deal.moves ?? []) as DealMove[]).map(m => ({ kind: 'move' as const, date: new Date(m.movedAt).getTime(), data: m })),
     // Démos bookées : une entrée par ligne DemoBooking, donc un rebooking
@@ -2270,8 +2277,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : item.kind === 'reply' ? '#e0e7ff' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : item.kind === 'reply' ? '💬' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
@@ -2282,10 +2289,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       // Ligne festive : encadré ambré, volontairement plus visible
                       // que les autres entrées du flux.
                       ? { flex: 1, minWidth: 0, background: 'linear-gradient(90deg, #fffbeb, #fff)', border: '1px solid #fcd34d', borderRadius: 9, padding: '11px 13px' }
+                      : item.kind === 'reply'
+                      // Réponse du contact : encadré indigo, pour la repérer
+                      // immédiatement au milieu des emails partis.
+                      ? { flex: 1, minWidth: 0, background: '#f8faff', border: '1px solid #c7d2fe', borderRadius: 9, padding: '11px 13px' }
                       : { flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
-                      {item.kind === 'email' && <EmailLogItem log={item.data as EmailLog} />}
+                      {(item.kind === 'email' || item.kind === 'reply') && <EmailLogItem log={item.data as EmailLog} />}
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
                       {item.kind === 'demo' && <DemoBookedItem booking={item.data as DemoBooking} onToggleNoShow={toggleNoShow} />}
@@ -2440,28 +2451,36 @@ function DoneActionItem({ action, onReopen, onDelete }: { action: any; onReopen:
   );
 }
 
+// Une entrée « email » de la frise, dans les deux sens : email parti du CRM
+// (direction « outbound ») ou réponse reçue du contact (« inbound », captée par
+// Resend Inbound — cf. src/lib/emailReplies.ts).
 function EmailLogItem({ log }: { log: EmailLog }) {
   const [expanded, setExpanded] = useState(false);
+  const isReply = log.direction === 'inbound';
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{log.subject}</span>
-        {log.status === 'opened'
+        {isReply
+          ? <span style={{ fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>💬 Réponse reçue</span>
+          : log.status === 'opened'
           ? <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>👁 Ouvert</span>
           : <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>✓ Envoyé</span>
         }
       </div>
-      <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
+      {isReply
+        ? <div style={{ fontSize: 11, color: '#64748b' }}>← {log.fromAddress || 'expéditeur inconnu'}</div>
+        : <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>}
       {log.cc && <div style={{ fontSize: 11, color: '#64748b' }}>Cc : {log.cc}</div>}
       {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}{log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
+      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}{!isReply && log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
       <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
-        {expanded ? 'Masquer' : 'Voir le contenu'}
+        {expanded ? 'Masquer' : isReply ? 'Voir la réponse' : 'Voir le contenu'}
       </button>
       {expanded && (
         isHtml(log.body)
-          ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: '3px solid #6366f1' }} dangerouslySetInnerHTML={{ __html: log.body }} />
-          : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: '3px solid #6366f1' }}>{log.body}</div>
+          ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: `3px solid ${isReply ? '#4338ca' : '#6366f1'}` }} dangerouslySetInnerHTML={{ __html: log.body }} />
+          : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: `3px solid ${isReply ? '#4338ca' : '#6366f1'}` }}>{log.body}</div>
       )}
     </div>
   );

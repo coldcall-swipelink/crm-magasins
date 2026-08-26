@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isProductSupabaseConfigured } from '@/lib/demoOrganization';
 import { syncOfferNotifications } from '@/lib/offerNotifications';
+import { syncRepliesIfDue } from '@/lib/emailInbox';
 
 // Centre de notifications : offres créées côté produit (Supabase) par les
 // Organizations rattachées aux affaires. À chaque GET on relève d'abord Supabase
@@ -12,6 +13,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const dealId = req.nextUrl.searchParams.get('dealId') || undefined;
+
+  // Relevé des réponses aux emails (IMAP). Placé AVANT le test Supabase pour
+  // rester actif même sans intégration produit, et espacé par son propre verrou
+  // (cf. syncRepliesIfDue) : la plupart des appels ne font rien. Tolérant, comme
+  // le relevé d'offres : il ne doit jamais empêcher la lecture.
+  try {
+    await syncRepliesIfDue();
+  } catch (err) {
+    console.error('syncRepliesIfDue error:', err);
+  }
 
   if (!isProductSupabaseConfigured()) {
     return NextResponse.json({ configured: false, notifications: [], unreadCount: 0, dealIdsWithUnread: [] });

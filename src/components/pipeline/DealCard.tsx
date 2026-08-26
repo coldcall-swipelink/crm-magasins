@@ -63,6 +63,8 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
   const offers = deal.jobOffers ?? [];
   const offerCount = (deal as any)._count?.jobOffers ?? offers.length;
   const movedBack = deal.hasNewOfferFromLastImport && !deal.isNewFromLastImport && deal.previousColumnId;
+  // Réponse du contact captée par Resend Inbound (cf. src/lib/emailReplies.ts).
+  const lastReply = deal.lastEmailReplyAt ? new Date(deal.lastEmailReplyAt) : null;
   const displayColor = borderColor === '#ffffff' ? '#2563eb' : borderColor;
   const collaborator = (deal as any).collaborator;
   const assignedUser = (deal as any).assignedUser;
@@ -165,9 +167,19 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
         <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 2, fontWeight: 500 }}>📞 {(deal as any).contactCalling}</div>
       )}
 
-      {movedBack && (
-        <div style={{ margin: '5px 0' }}>
-          <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⟳ Rappelée</span>
+      {(movedBack || lastReply) && (
+        <div style={{ margin: '5px 0', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {movedBack && (
+            <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3 }}>⟳ Rappelée</span>
+          )}
+          {lastReply && (
+            <span
+              title={`Dernière réponse par email le ${lastReply.toLocaleDateString('fr-FR')}`}
+              style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3 }}
+            >
+              💬 A répondu · {lastReply.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+            </span>
+          )}
         </div>
       )}
 
