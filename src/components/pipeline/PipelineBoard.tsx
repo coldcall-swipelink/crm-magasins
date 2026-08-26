@@ -7,54 +7,22 @@ import DealDrawer from '@/components/deal/DealDrawer';
 import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
-import FlowWarningModal, { type FlowKey } from './FlowWarningModal';
+import FlowWarningModal from './FlowWarningModal';
 import MeetInviteModal, { reportMeetSync } from './MeetInviteModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
 import { useCurrentUser } from '@/lib/currentUser';
+import {
+  CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
+  flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
+  type FlowKey,
+} from '@/lib/pipelineStages';
 
 interface User { id: string; name: string; color: string; }
 interface Pipeline { id: string; name: string; color?: string; columns: PipelineColumn[]; }
 // Aucune donnée n'est passée par la page : les affaires, les pipelines et
 // leurs colonnes sont chargés ici, après le montage.
-
-/** Date saisie ("YYYY-MM-DD") → ISO à midi UTC, pour qu'aucun fuseau ne la
- *  fasse basculer d'un jour. */
-function toIsoNoon(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toISOString();
-}
-
-/**
- * Intitulé d'un abonnement dans la pop-up de dates de closing. Son rang dans
- * l'affaire est ce qui compte pour s'y retrouver ; le type et la valeur, quand
- * ils sont renseignés, lèvent le doute restant.
- */
-function subscriptionLabel(sub: Subscription, all: Subscription[]): string {
-  const rank = all.findIndex(s => s.id === sub.id) + 1;
-  const details = [sub.subscriptionType, sub.value != null ? `${sub.value} €` : '']
-    .filter(Boolean)
-    .join(' · ');
-  return details ? `Abonnement ${rank} — ${details}` : `Abonnement ${rank}`;
-}
-
-/** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
- *  (insensible à la casse et aux accents). */
-function isSmartlinkColumn(title?: string | null): boolean {
-  if (!title) return false;
-  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('smartlink');
-}
-
-/**
- * Séquence automatique n8n déclenchée à l'arrivée dans la colonne, ou null.
- * Les titres sont comparés à l'identique de ce que teste /api/deals/[id]/move
- * pour envoyer le webhook : la pop-up prévient exactement quand ça part.
- */
-function flowForColumn(title?: string | null): FlowKey | null {
-  if (title === 'DEMO FAITE') return 'DEMO_FAITE';
-  if (title === 'RELANCE 1') return 'RELANCE_1';
-  return null;
-}
 
 export default function PipelineBoard() {
   // Auteur des déplacements : transmis à /move pour alimenter l'historique.
@@ -212,7 +180,7 @@ export default function PipelineBoard() {
     // pouvoir annuler proprement (Meet + Supabase + duplication ne partent
     // qu'après OUI/NON).
     const targetTitle = pipelineColumns.find(c => c.id === targetColId)?.title;
-    if (targetTitle === 'Démo prévue') {
+    if (targetTitle === PROSPECTION_DEMO_TITLE) {
       setPv({ dealId: deal.id, targetColId, originColId });
       return;
     }
@@ -220,7 +188,7 @@ export default function PipelineBoard() {
     // Arrivée dans « DEMO PREVUE » (pipeline Closing) : on demande AVANT de
     // persister si l'invitation Google Meet doit partir, en reprenant la date
     // et l'heure du champ « Date de la démo » de l'affaire.
-    if (targetTitle === 'DEMO PREVUE') {
+    if (targetTitle === CLOSING_DEMO_TITLE) {
       setMeetInvite({
         dealId: deal.id, targetColId, originColId,
         storeName: deal.store?.name,
@@ -271,8 +239,8 @@ export default function PipelineBoard() {
     if (!pv) return;
 
     // Cible commune : Closing › DEMO PREVUE (résolue depuis les pipelines chargés).
-    const closing = pipelines.find(p => p.name === 'Closing');
-    const closingDemoCol = closing?.columns.find(c => c.title === 'DEMO PREVUE');
+    const closing = pipelines.find(p => p.name === CLOSING_PIPELINE_NAME);
+    const closingDemoCol = closing?.columns.find(c => c.title === CLOSING_DEMO_TITLE);
     if (!closingDemoCol) {
       toast('Colonne « DEMO PREVUE » du pipeline Closing introuvable', 'error');
       throw new Error('closing-col');

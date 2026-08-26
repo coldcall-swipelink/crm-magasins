@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import type { FlowKey } from '@/lib/pipelineStages';
 
 // Pop-up d'avertissement affichée quand une affaire est déposée dans une
 // colonne qui déclenche une séquence automatique n8n (hors CRM) :
@@ -10,7 +11,9 @@ import { useEffect, useState } from 'react';
 // webhook n8n déclenché) qu'après confirmation. Annuler remet l'affaire dans sa
 // colonne d'origine, sans qu'aucun mail ne parte.
 
-export type FlowKey = 'DEMO_FAITE' | 'RELANCE_1';
+// Le vocabulaire des étapes est partagé (pipeline + frise de la fiche) ; on le
+// ré-exporte pour que l'import de la pop-up suffise à typer son `flow`.
+export type { FlowKey };
 
 interface FlowStep {
   /** Échéance, telle que la séquence n8n la programme (« J+1 à 9h »…). */
