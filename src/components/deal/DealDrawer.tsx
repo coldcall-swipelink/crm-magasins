@@ -6,7 +6,7 @@ import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
-import { PAYMENT_EMAIL_TEMPLATE } from '@/lib/paymentEmailTemplate';
+import { PAYMENT_EMAIL_TEMPLATE, paymentRecurrenceLabel } from '@/lib/paymentEmailTemplate';
 
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
@@ -960,8 +960,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     if (!selectedPayLink || !deal) return null;
     const slot = payTab === 'classique' ? paySelectedSlot : null;
     const offre = slot ? slot.offerLabel : selectedPayLink.name;
-    const mode = slot ? slot.modeLabel : '';
     const montant = selectedPayLink.amountLabel || '';
+    // Ligne « Paiement » du récapitulatif : la périodicité réelle du lien
+    // Stripe prime sur le libellé « Paiement mensuel » du plan — une offre
+    // annuelle facturée tous les 2/3/6 mois n'est pas mensuelle. Les modes
+    // comptant gardent leur libellé (réduction incluse).
+    const recurrence = paymentRecurrenceLabel(montant);
+    const mode = slot
+      ? (slot.modeKey === 'mensuel' && recurrence ? recurrence : slot.modeLabel)
+      : recurrence;
     const recap = ([['Offre', offre], ['Paiement', mode], ['Montant', montant]] as const)
       .filter(([, v]) => v)
       .map(([k, v]) => `<li>${k} : ${v}</li>`)
