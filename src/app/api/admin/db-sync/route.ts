@@ -183,6 +183,7 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"inReplyTo\" TEXT;",
   "CREATE INDEX IF NOT EXISTS \"EmailLog_dealId_sentAt_idx\" ON \"EmailLog\"(\"dealId\", \"sentAt\");",
   "CREATE INDEX IF NOT EXISTS \"EmailLog_resendId_idx\" ON \"EmailLog\"(\"resendId\");",
+  "CREATE INDEX IF NOT EXISTS \"EmailLog_messageId_idx\" ON \"EmailLog\"(\"messageId\");",
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"lastEmailReplyAt\" TIMESTAMP(3);",
   "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");",
   // Authentification : identifiants de connexion par utilisateur.

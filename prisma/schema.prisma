@@ -413,6 +413,9 @@ model EmailLog {
   // date : sans index, chaque ouverture balaie toute la table.
   @@index([dealId, sentAt])
   @@index([resendId])
+  // Recherché à chaque réponse reçue : rattachement au fil (In-Reply-To /
+  // References → messageId de l'envoi) et déduplication entre sources.
+  @@index([messageId])
 }
 
 // Suivi CRM des appels aux candidats affichés dans l'onglet « Recrutement ».
