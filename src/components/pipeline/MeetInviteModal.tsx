@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { toast } from '@/components/ui/Toast';
 
 // Pop-up « Envoyer l'invitation Google Meet ? » affichée quand une affaire est
 // déposée dans la colonne « DEMO PREVUE » (pipeline Closing).
@@ -13,6 +14,29 @@ import { useEffect, useState } from 'react';
 // La date affichée reste modifiable : sans date de démo, Google ne peut pas
 // créer l'événement. La corriger ici évite un aller-retour par la fiche.
 // La pop-up ne fait QUE l'UI ; le déplacement est géré par le parent.
+
+/**
+ * Toast de diagnostic de la synchro visio, d'après le `meetSync` renvoyé par
+ * /api/deals/[id]/move. `null`/absent = la branche Meet n'a pas été déclenchée
+ * côté serveur, ce qui, quand on vient de demander l'invitation, est une
+ * anomalie à voir. Partagé par le pipeline et la fiche affaire.
+ */
+export function reportMeetSync(meetSync: unknown) {
+  const meet = meetSync as { ok?: boolean; reason?: string } | null | undefined;
+  if (meet === null || meet === undefined) {
+    toast('⚠ Synchro visio non déclenchée (colonne/choix non reconnus)', 'error');
+  } else if (meet.ok) {
+    toast('✓ Invitation Google Meet créée');
+  } else {
+    const why =
+      meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
+      : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
+      : meet.reason === 'wrong_column' ? 'colonne inattendue'
+      : meet.reason === 'deal_not_found' ? 'affaire introuvable'
+      : `erreur Google (${meet.reason ?? 'inconnue'})`;
+    toast(`Visio non créée : ${why}`, 'error');
+  }
+}
 
 /** ISO → valeur d'un <input type="datetime-local"> ("YYYY-MM-DDTHH:mm"). */
 function toLocalInput(iso?: string | null): string {

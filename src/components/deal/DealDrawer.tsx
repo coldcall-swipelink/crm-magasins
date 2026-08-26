@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 import { PAYMENT_EMAIL_TEMPLATE, paymentRecurrenceLabel } from '@/lib/paymentEmailTemplate';
+import MeetInviteModal, { reportMeetSync } from '@/components/pipeline/MeetInviteModal';
 
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
@@ -390,6 +391,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
+  // Pop-up « Invitation Google Meet ? » : ouverte quand la frise fait entrer
+  // l'affaire dans « DEMO PREVUE », elle retient l'étape visée le temps du choix.
+  const [meetInvite, setMeetInvite] = useState<{ columnId: string; msg: string } | null>(null);
   const [subscriptionTypes, setSubscriptionTypes] = useState<{ id: string; name: string }[]>([]);
   // Abonnements de l'affaire (1 à 3). Source de vérité de l'onglet « Abonnement ».
   const [subs, setSubs] = useState<any[]>([]);
@@ -779,15 +783,19 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     if (res.ok) { fetchSubs(); onUpdated(); toast('Abonnement supprimé'); }
   };
 
-  const moveToColumn = async (columnId: string, msg = 'Étape mise à jour') => {
-    if (columnId === deal?.columnId) return;
+  /**
+   * Déplace l'affaire dans une étape depuis la fiche (frise chronologique ou
+   * changement de pipeline). `extra` transporte les réponses aux pop-ups —
+   * aujourd'hui le choix d'invitation Google Meet (cf. moveToColumn ci-dessous).
+   */
+  const runMove = async (columnId: string, msg: string, extra?: Record<string, unknown>) => {
     const prevColumnId = deal?.columnId;
     const prevPipelineId = deal?.pipelineId;
     const targetCol = columns.find(c => c.id === columnId);
     // Mise à jour optimiste : la frise (et le pipeline) reflètent le changement immédiatement.
     setDeal((d: any) => ({ ...d, columnId, pipelineId: targetCol?.pipelineId ?? d.pipelineId, column: targetCol || d.column }));
     try {
-      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId, userId: currentUser?.id || null, userName: currentUser?.name || '', source: 'fiche' }) });
+      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId, ...(extra ?? {}), userId: currentUser?.id || null, userName: currentUser?.name || '', source: 'fiche' }) });
       if (!res.ok) throw new Error();
       const data = await res.json().catch(() => null);
       // Persistance réelle : on recharge depuis le serveur. En mode démo (data.demo),
@@ -795,10 +803,41 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       if (data && !data.demo) fetchDeal();
       onUpdated();
       toast(msg);
+      // Invitation demandée : même diagnostic que depuis le pipeline.
+      if (extra?.sendMeetInvite === true) reportMeetSync(data?.meetSync);
     } catch {
       setDeal((d: any) => ({ ...d, columnId: prevColumnId, pipelineId: prevPipelineId }));
       toast('Erreur lors du changement d\'étape', 'error');
+      throw new Error('move');
     }
+  };
+
+  const moveToColumn = async (columnId: string, msg = 'Étape mise à jour') => {
+    if (columnId === deal?.columnId) return;
+
+    // Entrée dans « DEMO PREVUE » (Closing) : on demande AVANT de persister si
+    // l'invitation Google Meet doit partir, exactement comme au drop dans le
+    // pipeline. Rien ne bouge tant que la pop-up n'a pas de réponse.
+    const targetCol = columns.find(c => c.id === columnId);
+    if (targetCol?.title === 'DEMO PREVUE') {
+      setMeetInvite({ columnId, msg });
+      return;
+    }
+
+    await runMove(columnId, msg).catch(() => {});
+  };
+
+  // Réponse à la pop-up « Invitation Google Meet ? » ouverte depuis la frise :
+  //   - OUI → l'étape est enregistrée ET l'invitation part (sendMeetInvite).
+  //   - NON → l'étape est enregistrée, aucune invitation n'est envoyée.
+  // Une date corrigée dans la pop-up est enregistrée avec le déplacement.
+  const handleMeetConfirm = async (send: boolean, newDemoDate?: string | null) => {
+    if (!meetInvite) return;
+    await runMove(meetInvite.columnId, send ? meetInvite.msg : `${meetInvite.msg} — aucune invitation envoyée`, {
+      sendMeetInvite: send,
+      ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
+    });
+    setMeetInvite(null);
   };
 
   // Change le pipeline du deal : on le place dans la 1re étape du pipeline cible.
@@ -2121,6 +2160,18 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         </div>
       </div>
     </div>
+
+    {/* Invitation Google Meet : posée quand la frise fait entrer l'affaire dans
+        « DEMO PREVUE ». Tant qu'elle est ouverte, rien n'est enregistré. */}
+    {meetInvite && (
+      <MeetInviteModal
+        storeName={store?.name}
+        demoDate={deal.demoDate}
+        dealEmail={deal.dealEmail}
+        onConfirm={handleMeetConfirm}
+        onCancel={() => setMeetInvite(null)}
+      />
+    )}
 
     </>
   );
