@@ -26,7 +26,7 @@ export const PAYMENT_EMAIL_TEMPLATE = {
     '<p>Comme convenu, voici votre lien de paiement pour votre offre Smartlink — {{offre}}.</p>',
     '<p><b>Récapitulatif de votre offre :</b></p>',
     '<ul>{{recap_offre}}</ul>',
-    '<p>👉 <a href="{{lien_paiement}}">Cliquez ici pour procéder au paiement</a></p>',
+    '<p>👉 <a href="{{lien_paiement}}">{{lien_paiement}}</a></p>',
     '<p>Le paiement est 100&nbsp;% sécurisé via Stripe. Une fois le paiement effectué, vos crédits Smartlink sont débloqués.</p>',
     '<p>Je reste à votre disposition pour toute question.</p>',
     '<p>Bien à vous,</p>',
