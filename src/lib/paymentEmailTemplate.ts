@@ -56,7 +56,7 @@ export const PAYMENT_EMAIL_TEMPLATE = {
     '<li>Support 7j/7, de 7h à 23h</li>',
     '</ul>',
     '<p>👉 <a href="{{lien_paiement}}">{{lien_paiement}}</a></p>',
-    '<p>Le paiement est 100&nbsp;% sécurisé via Stripe. Une fois le paiement effectué, vos crédits Smartlink sont débloqués.</p>',
+    '<p>Le paiement est 100&nbsp;% sécurisé via Stripe. Une fois le paiement effectué, vos crédits Smartlink seront débloqués, et vous pourrez retrouver votre facture sous 24h sur votre espace, dans l\'onglet «&nbsp;Facture&nbsp;».</p>',
     '<p>Merci pour votre confiance !</p>',
     '<p>Je reste à votre disposition pour toute question.</p>',
     '<p>Bien à vous,</p>',
