@@ -8,7 +8,7 @@ import CreateDealModal from './CreateDealModal';
 import PVModal from './PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
 import FlowWarningModal, { type FlowKey } from './FlowWarningModal';
-import MeetInviteModal from './MeetInviteModal';
+import MeetInviteModal, { reportMeetSync } from './MeetInviteModal';
 import NotificationCenter, { type OfferNotification } from './NotificationCenter';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
@@ -312,28 +312,6 @@ export default function PipelineBoard() {
       setDeals(prev => prev.map(d => d.id === pv.dealId ? { ...d, columnId: pv.originColId } : d));
     }
     setPv(null);
-  };
-
-  /**
-   * Toast de diagnostic de la synchro visio, d'après le `meetSync` renvoyé par
-   * /move. `null`/absent = la branche Meet n'a pas été déclenchée côté serveur,
-   * ce qui, quand on vient de demander l'invitation, est une anomalie à voir.
-   */
-  const reportMeetSync = (meetSync: unknown) => {
-    const meet = meetSync as { ok?: boolean; reason?: string } | null | undefined;
-    if (meet === null || meet === undefined) {
-      toast('⚠ Synchro visio non déclenchée (colonne/choix non reconnus)', 'error');
-    } else if (meet.ok) {
-      toast('✓ Invitation Google Meet créée');
-    } else {
-      const why =
-        meet.reason === 'no_demo_date' ? 'aucune date de démo renseignée sur l\'affaire'
-        : meet.reason === 'not_configured' ? 'intégration Google Meet non configurée (variables d\'environnement)'
-        : meet.reason === 'wrong_column' ? 'colonne inattendue'
-        : meet.reason === 'deal_not_found' ? 'affaire introuvable'
-        : `erreur Google (${meet.reason ?? 'inconnue'})`;
-      toast(`Visio non créée : ${why}`, 'error');
-    }
   };
 
   // Réponse à la pop-up « Invitation Google Meet ? » (drop dans DEMO PREVUE) :
