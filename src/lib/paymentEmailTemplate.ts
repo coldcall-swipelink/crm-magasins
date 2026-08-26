@@ -19,6 +19,30 @@
 // Si une template CRM dont le nom contient « paiement » existe (Paramètres →
 // templates), elle est utilisée à la place de ce modèle — même jeu de variables.
 
+/**
+ * Libellé de périodicité déduit du montant Stripe (« 1 200,00 €/mois »,
+ * « 600,00 €/3 mois »…). Le plan tarifaire du CRM appelle « Paiement mensuel »
+ * tout paiement récurrent, y compris les offres annuelles facturées tous les
+ * 2/3/6 mois — source de confusion dans l'email. La périodicité réelle du lien
+ * Stripe fait foi. Chaîne vide si le montant n'en porte pas (paiement en une
+ * fois, ou montant inconnu).
+ */
+export function paymentRecurrenceLabel(amountLabel: string): string {
+  const idx = amountLabel.indexOf('/');
+  if (idx === -1) return '';
+  const suffix = amountLabel.slice(idx + 1).trim();
+  if (suffix === 'mois') return 'Paiement mensuel';
+  if (suffix === 'an') return 'Paiement annuel';
+  const months = suffix.match(/^(\d+)\s*mois$/);
+  if (months) {
+    const n = Number(months[1]);
+    if (n === 3) return 'Paiement trimestriel (tous les 3 mois)';
+    if (n === 6) return 'Paiement semestriel (tous les 6 mois)';
+    return `Paiement tous les ${n} mois`;
+  }
+  return `Paiement tous les ${suffix}`;
+}
+
 export const PAYMENT_EMAIL_TEMPLATE = {
   subject: 'Votre lien de paiement — Offre Smartlink {{offre}}',
   body: [
