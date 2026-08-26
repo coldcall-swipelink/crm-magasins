@@ -8,6 +8,14 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 import { PAYMENT_EMAIL_TEMPLATE, paymentRecurrenceLabel } from '@/lib/paymentEmailTemplate';
 import MeetInviteModal, { reportMeetSync } from '@/components/pipeline/MeetInviteModal';
+import PVModal from '@/components/pipeline/PVModal';
+import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry, type ClosingUser } from '@/components/pipeline/ClosingDateModal';
+import FlowWarningModal from '@/components/pipeline/FlowWarningModal';
+import {
+  CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
+  flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
+  type FlowKey,
+} from '@/lib/pipelineStages';
 
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
@@ -391,9 +399,17 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [brands, setBrands] = useState<{ id: string; name: string; color: string }[]>([]);
   const [columns, setColumns] = useState<any[]>([]);
   const [pipelines, setPipelines] = useState<any[]>([]);
-  // Pop-up « Invitation Google Meet ? » : ouverte quand la frise fait entrer
-  // l'affaire dans « DEMO PREVUE », elle retient l'étape visée le temps du choix.
+  // Pop-ups posées par la frise avant d'enregistrer l'étape. Chacune retient
+  // l'étape visée le temps du choix ; tant qu'elles sont ouvertes, rien n'est
+  // persisté. Ce sont exactement celles du drag & drop du pipeline.
   const [meetInvite, setMeetInvite] = useState<{ columnId: string; msg: string } | null>(null);
+  // « Démo prévue » (Prospection) : la réponse décide du tag PV/PC et de la
+  // duplication vers Recrutement › SOURCING A FAIRE.
+  const [pvPrompt, setPvPrompt] = useState(false);
+  // « SMARTLINKÉ » : dates de closing des abonnements restant à dater + closeur.
+  const [closingPrompt, setClosingPrompt] = useState<{ columnId: string; msg: string; targets: ClosingTarget[] } | null>(null);
+  // « DEMO FAITE » / « RELANCE 1 » : détail de la séquence n8n avant qu'elle parte.
+  const [flowWarn, setFlowWarn] = useState<{ columnId: string; msg: string; flow: FlowKey } | null>(null);
   const [subscriptionTypes, setSubscriptionTypes] = useState<{ id: string; name: string }[]>([]);
   // Abonnements de l'affaire (1 à 3). Source de vérité de l'onglet « Abonnement ».
   const [subs, setSubs] = useState<any[]>([]);
@@ -673,11 +689,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   }, [pendingCall, callQuestion, onClose]);
 
   // Fermeture au clavier (Échap)
+  // Une pop-up de changement d'étape ouverte garde la main : Échap la ferme
+  // elle (quand elle l'écoute), sans emporter la fiche avec.
+  const stagePromptOpen = !!meetInvite || pvPrompt || !!closingPrompt || !!flowWarn;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeDrawer(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !stagePromptOpen) closeDrawer(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeDrawer]);
+  }, [closeDrawer, stagePromptOpen]);
 
   // ---- Recherche automatique du numéro du magasin --------------------------
   // Reprend la cascade de la campagne de masse (cf. src/lib/phone/lookup.ts)
@@ -785,17 +804,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
   /**
    * Déplace l'affaire dans une étape depuis la fiche (frise chronologique ou
-   * changement de pipeline). `extra` transporte les réponses aux pop-ups —
-   * aujourd'hui le choix d'invitation Google Meet (cf. moveToColumn ci-dessous).
+   * changement de pipeline). `payload` transporte les réponses aux pop-ups
+   * (choix PV, invitation Meet, dates de closing) ; `reportMeet` affiche le
+   * diagnostic de synchro visio, comme le fait le pipeline.
    */
-  const runMove = async (columnId: string, msg: string, extra?: Record<string, unknown>) => {
+  const runMove = async (
+    columnId: string,
+    msg: string,
+    opts?: { payload?: Record<string, unknown>; reportMeet?: boolean },
+  ) => {
     const prevColumnId = deal?.columnId;
     const prevPipelineId = deal?.pipelineId;
     const targetCol = columns.find(c => c.id === columnId);
     // Mise à jour optimiste : la frise (et le pipeline) reflètent le changement immédiatement.
     setDeal((d: any) => ({ ...d, columnId, pipelineId: targetCol?.pipelineId ?? d.pipelineId, column: targetCol || d.column }));
     try {
-      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId, ...(extra ?? {}), userId: currentUser?.id || null, userName: currentUser?.name || '', source: 'fiche' }) });
+      const res = await fetch(`/api/deals/${dealId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnId, ...(opts?.payload ?? {}), userId: currentUser?.id || null, userName: currentUser?.name || '', source: 'fiche' }) });
       if (!res.ok) throw new Error();
       const data = await res.json().catch(() => null);
       // Persistance réelle : on recharge depuis le serveur. En mode démo (data.demo),
@@ -803,8 +827,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       if (data && !data.demo) fetchDeal();
       onUpdated();
       toast(msg);
-      // Invitation demandée : même diagnostic que depuis le pipeline.
-      if (extra?.sendMeetInvite === true) reportMeetSync(data?.meetSync);
+      // Invitation attendue : même diagnostic que depuis le pipeline.
+      if (opts?.reportMeet) reportMeetSync(data?.meetSync);
     } catch {
       setDeal((d: any) => ({ ...d, columnId: prevColumnId, pipelineId: prevPipelineId }));
       toast('Erreur lors du changement d\'étape', 'error');
@@ -812,32 +836,188 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     }
   };
 
+  /**
+   * Changement d'étape depuis la fiche. Les étapes qui déclenchent quelque
+   * chose (visio, duplication, dates de closing, séquence de mails) posent
+   * d'abord leur pop-up — les mêmes que le drag & drop du pipeline, pour que
+   * les deux chemins fassent exactement la même chose. Tant qu'une pop-up
+   * attend une réponse, rien n'est enregistré.
+   */
   const moveToColumn = async (columnId: string, msg = 'Étape mise à jour') => {
     if (columnId === deal?.columnId) return;
+    const targetTitle = columns.find(c => c.id === columnId)?.title;
 
-    // Entrée dans « DEMO PREVUE » (Closing) : on demande AVANT de persister si
-    // l'invitation Google Meet doit partir, exactement comme au drop dans le
-    // pipeline. Rien ne bouge tant que la pop-up n'a pas de réponse.
-    const targetCol = columns.find(c => c.id === columnId);
-    if (targetCol?.title === 'DEMO PREVUE') {
+    // « Démo prévue » (Prospection) : PV ou PC ? La réponse transfère l'affaire
+    // dans Closing › DEMO PREVUE et, si OUI, la duplique vers le sourcing.
+    if (targetTitle === PROSPECTION_DEMO_TITLE) {
+      setPvPrompt(true);
+      return;
+    }
+
+    // « DEMO PREVUE » (Closing) : envoyer l'invitation Google Meet ou non.
+    if (targetTitle === CLOSING_DEMO_TITLE) {
       setMeetInvite({ columnId, msg });
+      return;
+    }
+
+    // « SMARTLINKÉ » : dates de closing des abonnements restant à dater.
+    if (isSmartlinkColumn(targetTitle)) {
+      await promptClosingDates(columnId, msg);
+      return;
+    }
+
+    // « DEMO FAITE » / « RELANCE 1 » : la séquence de mails n8n part avec le
+    // déplacement — on la détaille avant, pour pouvoir renoncer.
+    const flow = flowForColumn(targetTitle);
+    if (flow) {
+      setFlowWarn({ columnId, msg, flow });
       return;
     }
 
     await runMove(columnId, msg).catch(() => {});
   };
 
-  // Réponse à la pop-up « Invitation Google Meet ? » ouverte depuis la frise :
+  // Réponse à la pop-up « Invitation Google Meet ? » :
   //   - OUI → l'étape est enregistrée ET l'invitation part (sendMeetInvite).
   //   - NON → l'étape est enregistrée, aucune invitation n'est envoyée.
   // Une date corrigée dans la pop-up est enregistrée avec le déplacement.
   const handleMeetConfirm = async (send: boolean, newDemoDate?: string | null) => {
     if (!meetInvite) return;
     await runMove(meetInvite.columnId, send ? meetInvite.msg : `${meetInvite.msg} — aucune invitation envoyée`, {
-      sendMeetInvite: send,
-      ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
+      payload: {
+        sendMeetInvite: send,
+        ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
+      },
+      reportMeet: send,
     });
     setMeetInvite(null);
+  };
+
+  // Réponse à la pop-up « Prospection de Valeur » :
+  //   - OUI → l'affaire est transférée dans Closing › DEMO PREVUE ET dupliquée
+  //           dans Recrutement › SOURCING A FAIRE (on lance le sourcing).
+  //   - NON → l'affaire est simplement transférée dans Closing › DEMO PREVUE.
+  // Le transfert (pvChoice) met aussi à jour le tag PV/PC et déclenche la visio
+  // et le provisioning Supabase, exactement comme depuis le pipeline.
+  const handlePvConfirm = async (choice: 'oui' | 'non') => {
+    const closingPipeline = pipelines.find((p: any) => p.name === CLOSING_PIPELINE_NAME);
+    const closingCols: any[] = closingPipeline?.columns?.length
+      ? closingPipeline.columns
+      : columns.filter((c: any) => c.pipelineId === closingPipeline?.id);
+    const target = closingCols.find((c: any) => c.title === CLOSING_DEMO_TITLE);
+    if (!target) {
+      toast('Colonne « DEMO PREVUE » du pipeline Closing introuvable', 'error');
+      throw new Error('closing-col');
+    }
+
+    await runMove(target.id, 'Affaire transférée dans Closing › DEMO PREVUE', {
+      payload: { pvChoice: choice },
+      reportMeet: true,
+    });
+
+    // OUI uniquement : duplication vers Recrutement › SOURCING A FAIRE.
+    if (choice === 'oui') {
+      const dupRes = await fetch(`/api/deals/${dealId}/duplicate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice: 'oui' }),
+      });
+      const data = await dupRes.json().catch(() => ({}));
+      if (!dupRes.ok || !data.ok) {
+        toast(data.error || 'Erreur lors de la duplication', 'error');
+        throw new Error('dup');
+      }
+      toast('Dupliquée dans Recrutement › SOURCING A FAIRE');
+    }
+
+    setPvPrompt(false);
+  };
+
+  /**
+   * Prépare la pop-up « Date de closing » pour un passage en SMARTLINKÉ.
+   *
+   * On ne demande une date que pour les abonnements QUI N'EN ONT PAS : une
+   * affaire qui décroche un second contrat garde la date de closing du premier.
+   * Si tous sont déjà datés, il n'y a rien à saisir — on déplace directement.
+   * La liste est relue au moment du passage pour ne pas travailler sur un état
+   * périmé ; si la lecture échoue, on retombe sur un champ unique plutôt que de
+   * bloquer le changement d'étape.
+   */
+  const promptClosingDates = async (columnId: string, msg: string) => {
+    let list: any[] | null = null;
+    try {
+      const res = await fetch(`/api/deals/${dealId}/subscriptions`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) list = data;
+      }
+    } catch { /* lecture impossible : repli sur un champ unique, ci-dessous */ }
+
+    if (list && list.length > 0) {
+      const pending = list.filter(sub => !sub.closingDate);
+
+      if (pending.length === 0) {
+        await runMove(columnId, `${msg} — tous les abonnements ont déjà une date de closing`).catch(() => {});
+        return;
+      }
+
+      setClosingPrompt({
+        columnId, msg,
+        targets: pending.map(sub => ({
+          subscriptionId: sub.id,
+          // On nomme l'abonnement seulement si l'affaire en compte plusieurs :
+          // c'est là que savoir lequel on date compte.
+          label: list!.length > 1 ? subscriptionLabel(sub, list!) : '',
+        })),
+      });
+      return;
+    }
+
+    // Aucun abonnement (ou lecture impossible) : un seul champ, dont la
+    // validation créera l'abonnement côté serveur.
+    setClosingPrompt({ columnId, msg, targets: [{ subscriptionId: null, label: '' }] });
+  };
+
+  // Réponse à la pop-up « Date de closing ». Les champs laissés vides ne sont
+  // pas transmis — l'abonnement reste simplement à dater.
+  const handleClosingConfirm = async (entries: ClosingDateEntry[], closedBy: ClosingUser | null) => {
+    if (!closingPrompt) return;
+    const filled = entries.filter(e => e.date);
+
+    // Une cible sans identifiant = l'affaire n'a aucun abonnement : on envoie la
+    // forme simple, que le serveur traduit par une création.
+    const isCreation = closingPrompt.targets.length === 1 && closingPrompt.targets[0].subscriptionId === null;
+    const payload = isCreation
+      ? { closingDate: filled[0] ? toIsoNoon(filled[0].date) : null }
+      : { closingDates: filled.map(e => ({ subscriptionId: e.subscriptionId, closingDate: toIsoNoon(e.date) })) };
+
+    const par = closedBy ? ` · closé par ${closedBy.name}` : '';
+    await runMove(
+      closingPrompt.columnId,
+      filled.length === 0 ? `${closingPrompt.msg}${par}`
+      : filled.length === 1 ? `Étape mise à jour — date de closing enregistrée${par}`
+      : `Étape mise à jour — ${filled.length} dates de closing enregistrées${par}`,
+      {
+        payload: {
+          ...payload,
+          // Closeur choisi dans la pop-up : distinct de l'auteur du déplacement.
+          closedByUserId: closedBy?.id || null,
+          closedByName: closedBy?.name || '',
+        },
+      },
+    );
+    fetchSubs();
+    setClosingPrompt(null);
+  };
+
+  // Séquence automatique confirmée : on enregistre l'étape, ce qui déclenche le
+  // webhook n8n côté serveur. Renoncer laisse l'affaire à son étape actuelle,
+  // donc aucun mail ne part.
+  const handleFlowConfirm = async () => {
+    if (!flowWarn) return;
+    await runMove(flowWarn.columnId, flowWarn.flow === 'DEMO_FAITE'
+      ? 'Affaire déplacée dans DEMO FAITE — séquence promotionnelle lancée'
+      : 'Affaire déplacée dans RELANCE 1 — séquence de relance lancée');
+    setFlowWarn(null);
   };
 
   // Change le pipeline du deal : on le place dans la 1re étape du pipeline cible.
@@ -2161,8 +2341,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       </div>
     </div>
 
-    {/* Invitation Google Meet : posée quand la frise fait entrer l'affaire dans
-        « DEMO PREVUE ». Tant qu'elle est ouverte, rien n'est enregistré. */}
+    {/* Pop-ups du changement d'étape depuis la frise — les mêmes que le drag &
+        drop du pipeline. Tant qu'elles sont ouvertes, rien n'est enregistré ;
+        renoncer laisse l'affaire à son étape actuelle. */}
     {meetInvite && (
       <MeetInviteModal
         storeName={store?.name}
@@ -2170,6 +2351,26 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         dealEmail={deal.dealEmail}
         onConfirm={handleMeetConfirm}
         onCancel={() => setMeetInvite(null)}
+      />
+    )}
+    {pvPrompt && <PVModal onConfirm={handlePvConfirm} onCancel={() => setPvPrompt(false)} />}
+    {closingPrompt && (
+      <ClosingDateModal
+        storeName={store?.name}
+        targets={closingPrompt.targets}
+        users={users}
+        onConfirm={handleClosingConfirm}
+        onCancel={() => setClosingPrompt(null)}
+      />
+    )}
+    {flowWarn && (
+      <FlowWarningModal
+        flow={flowWarn.flow}
+        isPV={!!deal.isPV}
+        storeName={store?.name}
+        dealEmail={deal.dealEmail}
+        onConfirm={handleFlowConfirm}
+        onCancel={() => setFlowWarn(null)}
       />
     )}
 
