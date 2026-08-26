@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
+import { PAYMENT_EMAIL_TEMPLATE } from '@/lib/paymentEmailTemplate';
 
 /** Détecte si une chaîne contient du HTML (balises ou entités, ex. &nbsp;). */
 function isHtml(s: string) { return /<[a-z][\s\S]*>|&[a-z#0-9]+;/i.test(s || ''); }
@@ -435,6 +436,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState('');
   const [payReference, setPayReference] = useState<{ referenceId: string; kind: 'group' | 'organization'; organizationName: string } | null>(null);
+  // Dernier sujet/corps écrits automatiquement par la template « lien de
+  // paiement » : tant que l'utilisateur n'y a pas touché, un changement d'offre
+  // les régénère ; dès qu'il les modifie, on ne touche plus à rien.
+  const [payAutoFill, setPayAutoFill] = useState<{ subject: string; body: string } | null>(null);
   // Variable {{2mag}} : les 2 magasins de la MÊME enseigne les plus proches
   // présents dans le pipeline « Closing » (toutes étapes confondues), sans
   // contrainte de rayon. Calculé à partir de l'endpoint « Magasins proches »
@@ -869,7 +874,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       });
       if (!res.ok) throw new Error((await res.json()).error);
       toast('✓ Email envoyé !');
-      setEmailCc(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setComposer(null);
+      setEmailCc(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setPayAutoFill(null); setComposer(null);
       fetchEmailLogs();
     } catch (e) {
       toast((e as Error).message || 'Erreur envoi', 'error');
@@ -945,6 +950,59 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         const l = paySpecials.find(x => x.id === paySpecialId);
         return l ? { ...l, context: 'Lien spécial' } : null;
       })();
+
+  // ---- Template automatique de l'email « lien de paiement » -----------------
+  // Construit le sujet et le corps de l'email à partir du lien sélectionné :
+  // une template CRM dont le nom contient « paiement » (Paramètres → templates)
+  // prime sur le modèle intégré. Pour un lien du plan, l'offre/le mode viennent
+  // de la case choisie ; pour un lien spécial, du nom du lien Stripe.
+  const buildPaymentEmail = () => {
+    if (!selectedPayLink || !deal) return null;
+    const slot = payTab === 'classique' ? paySelectedSlot : null;
+    const offre = slot ? slot.offerLabel : selectedPayLink.name;
+    const mode = slot ? slot.modeLabel : '';
+    const montant = selectedPayLink.amountLabel || '';
+    const recap = ([['Offre', offre], ['Paiement', mode], ['Montant', montant]] as const)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `<li>${k} : ${v}</li>`)
+      .join('');
+    const tplCrm = templates.find(t => /paiement/i.test(t.name));
+    const base = tplCrm ? { subject: tplCrm.subject, body: tplCrm.body } : PAYMENT_EMAIL_TEMPLATE;
+    const vars = {
+      ...getVars(deal),
+      offre,
+      mode_paiement: mode,
+      montant,
+      recap_offre: recap,
+      lien_paiement: selectedPayLink.url,
+    };
+    const subject = replaceVars(base.subject, vars);
+    let body = replaceVars(base.body, vars);
+    // Garde-fou : quel que soit le modèle utilisé, l'email doit porter le lien.
+    if (!body.includes(selectedPayLink.url)) {
+      body += `<p><a href="${selectedPayLink.url}">${selectedPayLink.url}</a></p>`;
+    }
+    return { subject, body };
+  };
+
+  // Remplit l'email dès qu'un lien est choisi, et le régénère à chaque
+  // changement d'offre — mais uniquement tant que le sujet/corps sont vides ou
+  // encore identiques au dernier remplissage automatique : un texte saisi ou
+  // retouché par l'utilisateur n'est jamais écrasé.
+  useEffect(() => {
+    if (composer !== 'payment' || !selectedPayLink || !deal) return;
+    const untouched = (!emailSubject && !emailBody)
+      || (payAutoFill !== null && emailSubject === payAutoFill.subject && emailBody === payAutoFill.body);
+    if (!untouched) return;
+    const generated = buildPaymentEmail();
+    if (!generated) return;
+    setEmailSubject(generated.subject);
+    setEmailBody(generated.body);
+    setPayAutoFill(generated);
+    // Volontairement limité aux entrées qui changent le contenu généré : le
+    // sujet/corps et payAutoFill sont lus mais ne doivent pas re-déclencher.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composer, selectedPayLink?.url, payTab, civilite, deal, templates]);
 
   /** Une ligne cliquable de la liste des liens spéciaux. */
   const renderSpecialRow = (l: PaymentLinkOption) => {
