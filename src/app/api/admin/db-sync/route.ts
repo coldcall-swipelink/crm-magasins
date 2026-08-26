@@ -175,6 +175,15 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"openedAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"sentAt\" TIMESTAMP(3);",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  // Suivi des RÉPONSES (Resend Inbound) : sens de l'email, expéditeur et
+  // en-têtes de threading. Défaut 'outbound' = tout l'historique existant.
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"direction\" TEXT NOT NULL DEFAULT 'outbound';",
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"fromAddress\" TEXT;",
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"messageId\" TEXT;",
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"inReplyTo\" TEXT;",
+  "CREATE INDEX IF NOT EXISTS \"EmailLog_dealId_sentAt_idx\" ON \"EmailLog\"(\"dealId\", \"sentAt\");",
+  "CREATE INDEX IF NOT EXISTS \"EmailLog_resendId_idx\" ON \"EmailLog\"(\"resendId\");",
+  "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"lastEmailReplyAt\" TIMESTAMP(3);",
   "CREATE UNIQUE INDEX IF NOT EXISTS \"User_name_key\" ON \"User\"(\"name\");",
   // Authentification : identifiants de connexion par utilisateur.
   "ALTER TABLE \"User\" ADD COLUMN IF NOT EXISTS \"email\" TEXT;",

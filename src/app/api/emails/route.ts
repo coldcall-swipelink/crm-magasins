@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import { EMAIL_SIGNATURE_KEY, signatureKeyForSender } from '@/lib/appSettings';
 import { resolveSender } from '@/lib/emailSenders';
+import { buildReplyTo, extractAddress } from '@/lib/emailReplies';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -81,6 +82,11 @@ export async function POST(req: NextRequest) {
     const signature = await getEmailSignature(from);
     const finalBody = signature ? `${toHtml(body)}<br><br>${toHtml(signature)}` : toHtml(body);
 
+    // Reply-To : adresse de réception taguée du CRM (pour journaliser la
+    // réponse dans l'affaire) + adresse de l'expéditeur (pour qu'il la reçoive
+    // aussi dans sa boîte). undefined si la réception n'est pas configurée.
+    const replyTo = buildReplyTo(dealId, fromAddress);
+
     // Instanciation paresseuse : évite de planter au chargement du module quand
     // la clé API est absente (build sans variables d'environnement).
     const resend = new Resend(process.env.RESEND_API_KEY);
@@ -88,6 +94,7 @@ export async function POST(req: NextRequest) {
       from: fromAddress,
       to,
       ...(ccList.length > 0 ? { cc: ccList } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
       subject,
       html: finalBody,
       attachments: attachments?.map((a: { name: string; content: string }) => ({
@@ -103,6 +110,8 @@ export async function POST(req: NextRequest) {
         id: `email-${Date.now()}`,
         dealId,
         templateId: templateId || null,
+        direction: 'outbound',
+        fromAddress: extractAddress(fromAddress),
         to,
         cc: ccList.length > 0 ? ccList.join(', ') : null,
         subject,

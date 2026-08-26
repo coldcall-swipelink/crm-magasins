@@ -202,6 +202,10 @@ model Deal {
   // sont marquées « lues » (pré-existantes) ; seules les offres créées ENSUITE
   // déclenchent point bleu + notification + trace d'activité. Null = jamais relevé.
   offersSyncedAt            DateTime?
+  // Date de la dernière réponse reçue par email (miroir dénormalisé du dernier
+  // EmailLog entrant). Alimente la pastille « A répondu » des cartes du
+  // pipeline sans avoir à compter les emails de chaque affaire.
+  lastEmailReplyAt          DateTime?
   collaboratorId            String?
   collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
@@ -371,22 +375,44 @@ model EmailTemplate {
   emailLogs EmailLog[]
 }
 
+// Journal des emails d'une affaire, dans les DEUX sens :
+//   direction = "outbound" → email parti du CRM (ou d'une automatisation) ;
+//   direction = "inbound"  → réponse reçue du contact, captée par Resend
+//                            Inbound (cf. src/lib/emailReplies.ts).
 model EmailLog {
   id         String         @id @default(cuid())
   dealId     String
   deal       Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
   templateId String?
   template   EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  // "outbound" (défaut, = tout l'historique existant) ou "inbound".
+  direction  String         @default("outbound")
+  // Expéditeur. Sur un email entrant, c'est le contact qui a répondu ; sur un
+  // email sortant, l'adresse @swipelink.fr utilisée. Null sur l'historique
+  // antérieur à ce champ.
+  fromAddress String?
   to         String
   // Adresses en copie (Cc), séparées par des virgules. Null si aucune.
   cc         String?
   subject    String
   body       String
+  // "sent" / "opened" pour un sortant, "received" pour un entrant.
   status     String         @default("sent")
+  // Id Resend de l'email (sortant ou entrant) — sert à la déduplication.
   resendId   String?
+  // Message-ID RFC 5322 de l'email et, pour une réponse, celui du message
+  // auquel elle répond. Permet de rattacher une réponse à son envoi.
+  messageId  String?
+  inReplyTo  String?
   openedAt   DateTime?
+  // Date de l'événement : envoi pour un sortant, réception pour un entrant.
   sentAt     DateTime       @default(now())
   createdAt  DateTime       @default(now())
+
+  // La frise de la fiche affaire lit tous les emails d'une affaire triés par
+  // date : sans index, chaque ouverture balaie toute la table.
+  @@index([dealId, sentAt])
+  @@index([resendId])
 }
 
 // Suivi CRM des appels aux candidats affichés dans l'onglet « Recrutement ».
