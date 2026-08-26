@@ -232,6 +232,61 @@ async function syncMailbox(mailbox: Mailbox, sinceDays?: number): Promise<Mailbo
   return report;
 }
 
+/** Clé AppSetting de l'horodatage du dernier relevé (sert de verrou). */
+const LAST_RUN_KEY = 'imapLastRun';
+
+/** Intervalle minimal entre deux relevés, en minutes. */
+const DEFAULT_INTERVAL_MIN = 5;
+
+/**
+ * Relève les boîtes SI le dernier relevé est assez ancien, sinon ne fait rien.
+ *
+ * C'est le point d'entrée normal : il est appelé par GET /api/notifications,
+ * que le pipeline interroge déjà toutes les 60 secondes. Pas d'ordonnanceur à
+ * installer, pas de jeton — le relevé se fait tant que quelqu'un a le CRM
+ * ouvert, ce qui est précisément le moment où les réponses servent à quelque
+ * chose. Après une période sans usage, le premier chargement rattrape tout ce
+ * qui est arrivé entre-temps (le curseur UID ne perd rien).
+ *
+ * Plusieurs onglets interrogent la même route en parallèle : l'horodatage est
+ * réservé par une écriture conditionnelle (« je ne modifie que si la valeur est
+ * toujours celle que j'ai lue »), donc un seul appel déclenche réellement le
+ * relevé. Renvoie null quand il n'y avait rien à faire.
+ */
+export async function syncRepliesIfDue(): Promise<MailboxReport[] | null> {
+  if (!isImapConfigured()) return null;
+
+  const intervalMin = Number(process.env.IMAP_SYNC_INTERVAL_MIN || DEFAULT_INTERVAL_MIN);
+  const intervalMs = Math.max(1, intervalMin) * 60 * 1000;
+  const now = new Date();
+  const nowValue = now.toISOString();
+
+  const existing = await prisma.appSetting.findUnique({ where: { key: LAST_RUN_KEY } });
+
+  if (!existing) {
+    try {
+      await prisma.appSetting.create({ data: { key: LAST_RUN_KEY, value: nowValue } });
+    } catch {
+      // Créée en parallèle par une autre requête : elle s'en charge.
+      return null;
+    }
+    return syncAllMailboxes();
+  }
+
+  const last = new Date(existing.value);
+  if (Number.isFinite(last.getTime()) && now.getTime() - last.getTime() < intervalMs) {
+    return null;
+  }
+
+  const claimed = await prisma.appSetting.updateMany({
+    where: { key: LAST_RUN_KEY, value: existing.value },
+    data: { value: nowValue },
+  });
+  if (claimed.count === 0) return null;
+
+  return syncAllMailboxes();
+}
+
 /**
  * Relève toutes les boîtes configurées. Une boîte en erreur (identifiants,
  * réseau) n'interrompt pas les autres : l'erreur est remontée dans son rapport.
