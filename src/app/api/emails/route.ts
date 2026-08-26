@@ -36,12 +36,32 @@ function toHtml(s: string): string {
   return /<[a-z][\s\S]*>/i.test(s) ? s : s.replace(/\n/g, '<br>');
 }
 
+/**
+ * Normalise le champ Cc reçu du client (chaîne « a@x.fr, b@y.fr » ou tableau)
+ * en liste d'adresses. Retourne null si une adresse est invalide (son texte est
+ * alors renvoyé dans l'erreur 400 côté appelant).
+ */
+function parseCc(cc: unknown): { list: string[] } | { invalid: string } {
+  const raw = Array.isArray(cc) ? cc.join(',') : typeof cc === 'string' ? cc : '';
+  const list = raw.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  const invalid = list.find(a => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
+  if (invalid) return { invalid };
+  return { list };
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { dealId, templateId, to, subject, body, attachments, from } = await req.json();
+    const { dealId, templateId, to, cc, subject, body, attachments, from } = await req.json();
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
+
+    // Adresses en copie (Cc), facultatives : « a@x.fr, b@y.fr ».
+    const parsedCc = parseCc(cc);
+    if ('invalid' in parsedCc) {
+      return NextResponse.json({ error: `Adresse en copie invalide : ${parsedCc.invalid}` }, { status: 400 });
+    }
+    const ccList = parsedCc.list;
 
     // Adresse d'expéditeur : par défaut SMTP_FROM (env). Si le client précise un
     // `from`, il doit correspondre à une adresse @swipelink.fr autorisée
@@ -67,6 +87,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await resend.emails.send({
       from: fromAddress,
       to,
+      ...(ccList.length > 0 ? { cc: ccList } : {}),
       subject,
       html: finalBody,
       attachments: attachments?.map((a: { name: string; content: string }) => ({
@@ -83,6 +104,7 @@ export async function POST(req: NextRequest) {
         dealId,
         templateId: templateId || null,
         to,
+        cc: ccList.length > 0 ? ccList.join(', ') : null,
         subject,
         // On journalise le corps réellement envoyé (signature incluse).
         body: finalBody,

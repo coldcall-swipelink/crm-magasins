@@ -58,7 +58,7 @@ function SegToggle({ value, options, onChange }: {
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
-interface EmailLog { id: string; to: string; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
+interface EmailLog { id: string; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
 /** Un changement d'étape journalisé (table DealMove). */
 interface DealMove {
   id: string;
@@ -410,6 +410,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // Adresse d'expéditeur choisie (parmi EMAIL_SENDERS, toutes @swipelink.fr).
   const [emailFrom, setEmailFrom] = useState(DEFAULT_EMAIL_SENDER.email);
   const [emailTo, setEmailTo] = useState('');
+  const [emailCc, setEmailCc] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -864,11 +865,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     try {
       const res = await fetch('/api/emails', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo, subject: emailSubject, body: emailBody, attachments }),
+        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo, cc: emailCc || null, subject: emailSubject, body: emailBody, attachments }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       toast('✓ Email envoyé !');
-      setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setComposer(null);
+      setEmailCc(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setComposer(null);
       fetchEmailLogs();
     } catch (e) {
       toast((e as Error).message || 'Erreur envoi', 'error');
@@ -1024,6 +1025,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       <div style={{ marginBottom: 10 }}>
         <label style={labelStyle}>Destinataire *</label>
         <input style={inp} type="email" placeholder="contact@magasin.fr" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Cc (copie)</label>
+        <input style={inp} type="text" placeholder="adresse@exemple.fr — plusieurs adresses : séparez par des virgules" value={emailCc} onChange={e => setEmailCc(e.target.value)} />
       </div>
       <div style={{ marginBottom: 10 }}>
         <label style={labelStyle}>Sujet *</label>
@@ -2130,6 +2135,7 @@ function EmailLogItem({ log }: { log: EmailLog }) {
         }
       </div>
       <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>
+      {log.cc && <div style={{ fontSize: 11, color: '#64748b' }}>Cc : {log.cc}</div>}
       {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}{log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
       <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>

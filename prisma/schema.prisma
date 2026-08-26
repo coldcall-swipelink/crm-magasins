@@ -378,6 +378,8 @@ model EmailLog {
   templateId String?
   template   EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   to         String
+  // Adresses en copie (Cc), séparées par des virgules. Null si aucune.
+  cc         String?
   subject    String
   body       String
   status     String         @default("sent")
