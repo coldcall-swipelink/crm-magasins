@@ -167,6 +167,7 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"templateId\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"to\" TEXT;",
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"cc\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"subject\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"body\" TEXT;",
   "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"status\" TEXT NOT NULL DEFAULT 'sent';",
