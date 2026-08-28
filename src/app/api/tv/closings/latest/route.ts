@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { searchKey } from '@/lib/searchText';
 
 // Dernier closing enregistré, pour l'écran d'accueil accroché au mur (dépôt
 // tv-swipelink). L'écran relève cette route en boucle et joue une animation
@@ -80,7 +81,19 @@ export async function GET(req: NextRequest) {
       .join(' · ');
 
     return NextResponse.json(
-      { id: event.id, title: titre, subtitle: sousTitre },
+      {
+        id: event.id,
+        title: titre,
+        subtitle: sousTitre,
+        // Le closeur est renvoyé à part, en plus du sous-titre : l'écran
+        // choisit un GIF et une bande sonore par personne, et lire cette
+        // information en découpant une phrase serait fragile. `closerKey` est
+        // la clé de recherche habituelle (minuscules, sans accents ni
+        // ponctuation) — « Jean-Marc » donne « jeanmarc », qui est aussi le nom
+        // du fichier attendu côté écran.
+        closer: closeur,
+        closerKey: searchKey(closeur),
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (err) {
