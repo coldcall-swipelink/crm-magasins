@@ -104,6 +104,10 @@ export async function GET(req: NextRequest) {
       const montant = closing.value != null ? euros.format(closing.value) : '';
       corps = {
         id: closing.id,
+        // Horodatage de l'évènement : l'écran interroge maintenant deux
+        // sources — ce CRM pour les closings et les démos, le dashboard CSM
+        // pour les messages clients — et les départage sur cette date.
+        at: closing.createdAt.toISOString(),
         kind: 'closing',
         kicker: '',
         title: libelleMagasin(closing.deal.store),
@@ -115,6 +119,7 @@ export async function GET(req: NextRequest) {
       const qui = auteur(demo.user, demo.userName);
       corps = {
         id: demo.id,
+        at: demo.createdAt.toISOString(),
         kind: 'demo',
         kicker: 'Nouvelle démo bookée',
         title: libelleMagasin(demo.deal.store),
