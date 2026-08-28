@@ -114,6 +114,7 @@ export async function GET(req: NextRequest) {
         subtitle: [qui && `Closé par ${qui}`, montant].filter(Boolean).join(' · '),
         closer: qui,
         closerKey: searchKey(qui),
+        brand: closing.deal.store.brand?.name ?? '',
       };
     } else if (demo) {
       const qui = auteur(demo.user, demo.userName);
@@ -126,6 +127,10 @@ export async function GET(req: NextRequest) {
         subtitle: qui ? `Bravo ${qui}` : '',
         closer: qui,
         closerKey: searchKey(qui),
+        // L'enseigne à part du titre : l'écran s'en sert pour choisir un logo,
+        // et la déduire en découpant « Enseigne — Magasin » serait fragile —
+        // un nom de magasin contenant un tiret cadratin suffirait à tromper.
+        brand: demo.deal.store.brand?.name ?? '',
       };
     }
 
