@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { addMonths } from '@/lib/utils';
+import { syncClosingEvent } from '@/lib/closingEvents';
 
 /**
  * Recalcule les champs dénormalisés du deal à partir de ses abonnements :
@@ -83,9 +84,12 @@ export async function setPendingClosingDate(
   });
 
   if (subs.length === 0) {
-    await prisma.subscription.create({
+    const created = await prisma.subscription.create({
       data: { dealId, position: 0, closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, 12), ...closedBy },
     });
+    // Trace du closing (affaire, abonnement, closeur, date) : une ligne de plus
+    // dans l'historique, au même titre qu'un appel ou une démo bookée.
+    await syncClosingEvent(created, 'pipeline');
     await recomputeDealFromSubscriptions(dealId);
     return 'created';
   }
@@ -95,10 +99,11 @@ export async function setPendingClosingDate(
   // surtout rien à écraser.
   if (!pending) return 'skipped';
 
-  await prisma.subscription.update({
+  const updated = await prisma.subscription.update({
     where: { id: pending.id },
     data: { closingDate, subscriptionEndDate: computeSubscriptionEnd(closingDate, pending.subscriptionMonths), ...closedBy },
   });
+  await syncClosingEvent(updated, 'pipeline');
   await recomputeDealFromSubscriptions(dealId);
   return 'updated';
 }
@@ -128,7 +133,7 @@ export async function setSubscriptionClosingDates(
   for (const entry of entries) {
     const sub = byId.get(entry.subscriptionId);
     if (!sub || sub.closingDate) continue;
-    await prisma.subscription.update({
+    const row = await prisma.subscription.update({
       where: { id: sub.id },
       data: {
         closingDate: entry.closingDate,
@@ -136,6 +141,8 @@ export async function setSubscriptionClosingDates(
         ...closedBy,
       },
     });
+    // Un abonnement daté = un closing : une ligne ClosingEvent par abonnement.
+    await syncClosingEvent(row, 'pipeline');
     updated++;
   }
 
