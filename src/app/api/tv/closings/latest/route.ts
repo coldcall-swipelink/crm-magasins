@@ -2,20 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchKey } from '@/lib/searchText';
 
-// Dernier closing enregistré, pour l'écran d'accueil accroché au mur (dépôt
+// Dernier évènement à célébrer sur l'écran d'accueil accroché au mur (dépôt
 // tv-swipelink). L'écran relève cette route en boucle et joue une animation
 // quand l'identifiant renvoyé change.
 //
-// Route en LECTURE SEULE, volontairement à l'écart du chemin d'écriture des
-// closings : brancher l'écran ne doit rien pouvoir casser dans l'enregistrement
-// d'un contrat.
+// Deux évènements y passent : un closing enregistré (ClosingEvent) et une démo
+// bookée (DemoBooking). On renvoie le plus récent des deux, avec un `kind` qui
+// dit à l'écran quel texte afficher et quelle bande sonore jouer.
+//
+// Route en LECTURE SEULE, volontairement à l'écart des chemins d'écriture :
+// brancher l'écran ne doit rien pouvoir casser dans l'enregistrement d'un
+// contrat ni dans celui d'un booking.
 //
 // Sans TV_FEED_TOKEN la route reste fermée, comme /api/emails/sync-replies.
 export const dynamic = 'force-dynamic';
 
-// Au-delà de ce délai, un closing n'est plus une nouvelle : il ne doit pas
-// s'afficher parce qu'un écran vient d'être rallumé, ni défiler en boucle si
-// plus personne ne close de la journée.
+// Au-delà de ce délai, un évènement n'est plus une nouvelle : il ne doit pas
+// s'afficher parce qu'un écran vient d'être rallumé, ni rester à l'affiche
+// toute une journée creuse.
 const FRAICHEUR_MIN = 10;
 
 const euros = new Intl.NumberFormat('fr-FR', {
@@ -23,6 +27,22 @@ const euros = new Intl.NumberFormat('fr-FR', {
   currency: 'EUR',
   maximumFractionDigits: 0,
 });
+
+// L'enseigne est facultative : sans elle on affiche le magasin seul plutôt
+// qu'un tiret orphelin.
+function libelleMagasin(store: { name: string; brand: { name: string } | null }) {
+  return store.brand?.name ? `${store.brand.name} — ${store.name}` : store.name;
+}
+
+// userId peut être nul (évènement sans auteur, ou compte supprimé depuis) :
+// userName est justement figé à l'enregistrement pour ce cas.
+function auteur(user: { name: string } | null, userName: string) {
+  return user?.name || userName || '';
+}
+
+const magasinSelect = {
+  deal: { select: { store: { select: { name: true, brand: { select: { name: true } } } } } },
+} as const;
 
 export async function GET(req: NextRequest) {
   const token = process.env.TV_FEED_TOKEN;
@@ -34,68 +54,77 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const event = await prisma.closingEvent.findFirst({
-      where: {
-        // On se repère sur createdAt, l'horodatage d'enregistrement : closingDate
-        // est la date COMMERCIALE du contrat et peut être antérieure, un closing
-        // saisi aujourd'hui pour un contrat du mois dernier doit quand même
-        // s'afficher. Une correction ultérieure passe par un update, qui ne
-        // touche pas à createdAt : elle ne rejoue donc pas à l'écran.
-        createdAt: { gte: new Date(Date.now() - FRAICHEUR_MIN * 60_000) },
-        // La reprise d'historique créerait des dizaines de lignes d'un coup.
-        source: { not: 'backfill' },
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        value: true,
-        userName: true,
-        user: { select: { name: true } },
-        deal: {
-          select: {
-            store: { select: { name: true, brand: { select: { name: true } } } },
-          },
-        },
-      },
-    });
+    // On se repère sur createdAt, l'horodatage d'enregistrement. Pour un
+    // closing, closingDate est la date COMMERCIALE du contrat et peut être
+    // antérieure. Pour un booking, demoDate, noShow et doneBy* sont renseignés
+    // APRÈS coup sur la même ligne : se repérer sur updatedAt ferait rejouer
+    // une démo à l'écran le jour où elle a lieu.
+    const depuis = new Date(Date.now() - FRAICHEUR_MIN * 60_000);
 
-    if (!event) {
+    const [closing, demo] = await Promise.all([
+      prisma.closingEvent.findFirst({
+        // La reprise d'historique créerait des dizaines de lignes d'un coup.
+        where: { createdAt: { gte: depuis }, source: { not: 'backfill' } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, createdAt: true, value: true, userName: true,
+          user: { select: { name: true } },
+          ...magasinSelect,
+        },
+      }),
+      prisma.demoBooking.findFirst({
+        where: { createdAt: { gte: depuis } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, createdAt: true, userName: true,
+          user: { select: { name: true } },
+          ...magasinSelect,
+        },
+      }),
+    ]);
+
+    // Le plus récent des deux l'emporte. Deux évènements à quelques secondes
+    // d'intervalle ne donnent donc qu'une célébration : c'est la limite d'un
+    // flux qui expose un état plutôt qu'une file, et elle est assumée.
+    const gagnant =
+      closing && demo ? (closing.createdAt >= demo.createdAt ? 'closing' : 'demo')
+      : closing ? 'closing'
+      : demo ? 'demo'
+      : null;
+
+    if (!gagnant) {
       return NextResponse.json({ id: null }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
-    // L'enseigne est facultative : sans elle on affiche le magasin seul plutôt
-    // qu'un tiret orphelin.
-    const marque = event.deal.store.brand?.name;
-    const magasin = event.deal.store.name;
-    const titre = marque ? `${marque} — ${magasin}` : magasin;
+    let corps;
+    if (gagnant === 'closing' && closing) {
+      const qui = auteur(closing.user, closing.userName);
+      // Un montant absent est omis : afficher « 0 € » sur un mur pour un
+      // contrat dont on ignore le montant serait pire que de ne rien afficher.
+      const montant = closing.value != null ? euros.format(closing.value) : '';
+      corps = {
+        id: closing.id,
+        kind: 'closing',
+        kicker: '',
+        title: libelleMagasin(closing.deal.store),
+        subtitle: [qui && `Closé par ${qui}`, montant].filter(Boolean).join(' · '),
+        closer: qui,
+        closerKey: searchKey(qui),
+      };
+    } else if (demo) {
+      const qui = auteur(demo.user, demo.userName);
+      corps = {
+        id: demo.id,
+        kind: 'demo',
+        kicker: 'Nouvelle démo bookée',
+        title: libelleMagasin(demo.deal.store),
+        subtitle: qui ? `Bravo ${qui}` : '',
+        closer: qui,
+        closerKey: searchKey(qui),
+      };
+    }
 
-    // userId peut être nul (closing sans closeur, ou compte supprimé depuis) :
-    // userName est justement figé à l'enregistrement pour ce cas.
-    const closeur = event.user?.name || event.userName || '';
-    // Un montant absent est omis : afficher « 0 € » sur un mur pour un contrat
-    // dont on ignore le montant serait pire que de ne rien afficher.
-    const montant = event.value != null ? euros.format(event.value) : '';
-
-    const sousTitre = [closeur && `Closé par ${closeur}`, montant]
-      .filter(Boolean)
-      .join(' · ');
-
-    return NextResponse.json(
-      {
-        id: event.id,
-        title: titre,
-        subtitle: sousTitre,
-        // Le closeur est renvoyé à part, en plus du sous-titre : l'écran
-        // choisit un GIF et une bande sonore par personne, et lire cette
-        // information en découpant une phrase serait fragile. `closerKey` est
-        // la clé de recherche habituelle (minuscules, sans accents ni
-        // ponctuation) — « Jean-Marc » donne « jeanmarc », qui est aussi le nom
-        // du fichier attendu côté écran.
-        closer: closeur,
-        closerKey: searchKey(closeur),
-      },
-      { headers: { 'Cache-Control': 'no-store' } },
-    );
+    return NextResponse.json(corps, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[GET /api/tv/closings/latest]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
