@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { recomputeDealFromSubscriptions, computeSubscriptionEnd } from '@/lib/subscriptions';
+import { syncClosingEvent } from '@/lib/closingEvents';
 import { USE_MOCK_DATA, mockUpdateSubscription, mockDeleteSubscription } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const sub = await prisma.subscription.update({ where: { id: params.id }, data });
+  // Trace du closing (table ClosingEvent). Un abonnement daté depuis la fiche
+  // vaut closing au même titre que la pop-up du pipeline ; corriger ensuite la
+  // date, le closeur ou le montant met à jour la ligne existante, et effacer la
+  // date la supprime. Rejoué pour toute modification qu'elle photographie.
+  if (['closingDate', 'closedByUserId', 'value', 'subscriptionType'].some(k => k in body)) {
+    await syncClosingEvent(sub, 'fiche');
+  }
   await recomputeDealFromSubscriptions(sub.dealId);
   return NextResponse.json(sub);
 }

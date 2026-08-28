@@ -151,6 +151,22 @@ export interface DemoBooking {
   noShow:   boolean;
 }
 
+// Un closing enregistré (table ClosingEvent) : une ligne par abonnement validé
+// avec une date de closing. Le closeur, la date et l'abonnement concerné y sont
+// figés, sans avoir à les reconstituer depuis les colonnes de l'abonnement.
+export interface ClosingEvent {
+  id:               string;
+  dealId:           string;
+  subscriptionId:   string;
+  userId:           string | null;
+  userName:         string;
+  closingDate:      string;
+  value:            number | null;
+  subscriptionType: string;
+  source:           'pipeline' | 'fiche' | 'backfill';
+  recordedAt:       string;
+}
+
 export interface Deal {
   id:                       string;
   storeId:                  string;
@@ -201,6 +217,7 @@ export interface Deal {
   notes:                    Note[];
   moves?:                   DealMove[];
   demoBookings?:            DemoBooking[];
+  closingEvents?:           ClosingEvent[];
   _count?: {
     jobOffers: number;
     actions:   number;

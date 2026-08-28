@@ -89,6 +89,18 @@ interface DemoBooking {
   doneByName?: string | null;
   doneAt?: string | null;
 }
+/** Un closing enregistré (table ClosingEvent) : une ligne par abonnement validé
+ *  avec une date de closing. Le closeur est celui choisi dans la pop-up, pas
+ *  l'auteur du déplacement. */
+interface ClosingEvent {
+  id: string;
+  subscriptionId: string;
+  userName: string;
+  closingDate: string;
+  value: number | null;
+  subscriptionType: string;
+  recordedAt: string;
+}
 // Numéro proposé par la recherche automatique quand elle n'a pas pu trancher
 // seule (cf. POST /api/deals/[id]/find-phone).
 interface PhoneSuggestion { phone: string; name: string; address: string; source: string; url: string; }
@@ -1484,7 +1496,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     | { kind: 'reply'; date: number; data: EmailLog }
     | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
     | { kind: 'move'; date: number; data: DealMove }
-    | { kind: 'demo'; date: number; data: DemoBooking };
+    | { kind: 'demo'; date: number; data: DemoBooking }
+    | { kind: 'closing'; date: number; data: ClosingEvent };
   const feed: Feed[] = [
     ...(deal.notes ?? []).map((n: Note) => ({ kind: 'note' as const, date: new Date(n.createdAt).getTime(), data: n })),
     ...allActions.filter(a => a.status === 'done').map(a => ({ kind: 'action' as const, date: new Date(a.completedAt || a.updatedAt || a.dueDate).getTime(), data: a })),
@@ -1498,6 +1511,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     // Démos bookées : une entrée par ligne DemoBooking, donc un rebooking
     // s'ajoute au flux au lieu de remplacer le booking précédent.
     ...((deal.demoBookings ?? []) as DemoBooking[]).map(b => ({ kind: 'demo' as const, date: new Date(b.bookedAt).getTime(), data: b })),
+    // Closings enregistrés : une entrée par abonnement validé avec une date de
+    // closing. Placée à la date d'ENREGISTREMENT (recordedAt), comme la démo est
+    // placée à sa date de booking ; la date de closing elle-même est affichée
+    // dans la ligne.
+    ...((deal.closingEvents ?? []) as ClosingEvent[]).map(c => ({ kind: 'closing' as const, date: new Date(c.recordedAt).getTime(), data: c })),
   ].sort((a, b) => b.date - a.date);
 
   const currentAssignedUser = deal.assignedUser as User | null;
@@ -2277,8 +2295,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : item.kind === 'reply' ? '#e0e7ff' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : item.kind === 'reply' ? '💬' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : item.kind === 'closing' ? '#bbf7d0' : item.kind === 'reply' ? '#e0e7ff' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : item.kind === 'closing' ? '🤝' : item.kind === 'reply' ? '💬' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
@@ -2289,6 +2307,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       // Ligne festive : encadré ambré, volontairement plus visible
                       // que les autres entrées du flux.
                       ? { flex: 1, minWidth: 0, background: 'linear-gradient(90deg, #fffbeb, #fff)', border: '1px solid #fcd34d', borderRadius: 9, padding: '11px 13px' }
+                      : item.kind === 'closing'
+                      // Closing : encadré vert, l'entrée la plus marquante du
+                      // fil — c'est le contrat signé.
+                      ? { flex: 1, minWidth: 0, background: 'linear-gradient(90deg, #f0fdf4, #fff)', border: '1px solid #86efac', borderRadius: 9, padding: '11px 13px' }
                       : item.kind === 'reply'
                       // Réponse du contact : encadré indigo, pour la repérer
                       // immédiatement au milieu des emails partis.
@@ -2300,6 +2322,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
                       {item.kind === 'demo' && <DemoBookedItem booking={item.data as DemoBooking} onToggleNoShow={toggleNoShow} />}
+                      {item.kind === 'closing' && <ClosingItem closing={item.data as ClosingEvent} subscriptions={subs} />}
                     </div>
                   </div>
                 ))}
@@ -2549,6 +2572,40 @@ function DemoBookedItem({ booking, onToggleNoShow }: {
         />
         NO SHOW
       </label>
+    </div>
+  );
+}
+
+/** Ligne d'un closing enregistré (une ligne ClosingEvent) : quel abonnement a
+ *  été validé, pour quelle date de closing, par qui — et quand l'évènement a
+ *  été enregistré, qui peut différer de la date de closing saisie.
+ *
+ *  Le rang de l'abonnement (« Abonnement 2 ») est retrouvé dans la liste des
+ *  abonnements de l'affaire ; l'évènement garde de son côté le type et le
+ *  montant photographiés au closing, qui restent lisibles si l'abonnement a été
+ *  modifié ou supprimé depuis. */
+function ClosingItem({ closing, subscriptions }: {
+  closing: ClosingEvent;
+  subscriptions: { id: string }[];
+}) {
+  const rank = subscriptions.findIndex(s => s.id === closing.subscriptionId) + 1;
+  const details = [closing.subscriptionType, closing.value != null ? formatCurrency(closing.value) : '']
+    .filter(Boolean)
+    .join(' · ');
+  // Le closing est presque toujours enregistré le jour même : on ne rappelle la
+  // date d'enregistrement que lorsqu'elle diffère de la date de closing saisie.
+  const sameDay = formatDate(closing.recordedAt) === formatDate(closing.closingDate);
+  return (
+    <div>
+      <p style={{ fontSize: 13.5, margin: 0, fontWeight: 700, color: '#166534' }}>
+        🤝 Closing du <span style={{ color: '#15803d' }}>{formatDate(closing.closingDate)}</span>
+        {rank > 0 && <> — abonnement {rank}</>}
+      </p>
+      <p style={{ fontSize: 11.5, margin: '4px 0 0', color: '#15803d' }}>
+        Closé par <span style={{ fontWeight: 600 }}>{closing.userName || 'closeur non renseigné'}</span>
+        {details && <span style={{ color: '#16a34a' }}> · {details}</span>}
+        {!sameDay && <span style={{ color: '#16a34a' }}> · enregistré le {formatDate(closing.recordedAt)}</span>}
+      </p>
     </div>
   );
 }

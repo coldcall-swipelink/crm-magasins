@@ -82,6 +82,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         // Démos bookées : une ligne par passage dans « DEMO PREVUE » (Closing),
         // rebookings compris. Alimente le flux d'activité et sa case NO SHOW.
         demoBookings: { orderBy: { bookedAt: 'desc' }, take: 100 },
+        // Closings enregistrés : une ligne par abonnement validé avec une date
+        // de closing (cf. src/lib/closingEvents.ts). Alimente le flux d'activité.
+        closingEvents: { orderBy: { recordedAt: 'desc' }, take: 100 },
         // Regroupement d'affaires : le deal parent (s'il est lui-même absorbé)
         // et les sous-deals qu'il absorbe (autres magasins du groupe).
         parentDeal: { include: { store: { include: { brand: true } } } },

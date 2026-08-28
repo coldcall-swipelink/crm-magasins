@@ -103,6 +103,7 @@ model User {
   demoBookings    DemoBooking[] @relation("DemoBookedBy")
   demosDone       DemoBooking[] @relation("DemoDoneBy")
   closedSubscriptions Subscription[]
+  closingEvents   ClosingEvent[]
 }
 
 model Pipeline {
@@ -221,6 +222,7 @@ model Deal {
   callLogs                  CallLog[]
   moves                     DealMove[]
   demoBookings              DemoBooking[]
+  closingEvents             ClosingEvent[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
@@ -268,6 +270,9 @@ model Subscription {
   churnedAt           DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  // Trace du closing (table ClosingEvent) : au plus une ligne par abonnement,
+  // créée quand sa date de closing est renseignée pour la première fois.
+  closingEvent        ClosingEvent?
 
   @@index([dealId])
 }
@@ -510,6 +515,56 @@ model DemoBooking {
   @@index([dealId, bookedAt])
   @@index([bookedAt])
   @@index([userId, bookedAt])
+}
+
+// Historique des closings : une ligne est créée quand un abonnement est VALIDÉ
+// avec une date de closing — que ce soit par la pop-up « Date de closing » au
+// passage en « SMARTLINKÉ » ou par l'onglet Abonnement de la fiche. Même esprit
+// que CallLog (appels) et DemoBooking (démos) : l'évènement est enregistré tel
+// quel, avec son auteur et sa date, sans avoir à le reconstituer depuis les
+// colonnes de Subscription.
+//
+// Une différence assumée avec les deux autres : au plus UNE ligne par
+// abonnement (contrainte d'unicité). Un closing n'est pas un geste répétable
+// comme un appel ou un rebooking — un second contrat est un second abonnement,
+// donc une seconde ligne. Corriger après coup la date ou le closeur met à jour
+// la ligne existante au lieu d'en ajouter une (sinon le même contrat compterait
+// deux fois) ; effacer la date de closing supprime la ligne.
+model ClosingEvent {
+  id             String   @id @default(cuid())
+  dealId         String
+  deal           Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  // Abonnement closé. Obligatoire : c'est lui qui porte le contrat, et la ligne
+  // n'a pas de sens sans lui — supprimer l'abonnement supprime donc l'évènement.
+  subscriptionId String   @unique
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  // Qui a closé : le closeur choisi dans la pop-up (ou corrigé sur la fiche),
+  // pas l'utilisateur qui a déplacé la carte. Null pour un closing enregistré
+  // sans closeur, ou dont le compte a été supprimé depuis. userName est figé à
+  // l'enregistrement pour que la statistique reste lisible dans ces deux cas.
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName       String   @default("")
+  // Date du closing telle qu'elle a été saisie (date commerciale du contrat).
+  closingDate    DateTime
+  // Photographie de l'abonnement au moment du closing : évite de rejouer une
+  // jointure pour lire un montant, et garde la trace de ce qui a été signé même
+  // si l'abonnement est modifié ensuite.
+  value          Float?
+  subscriptionType String @default("")
+  // D'où vient l'enregistrement : "pipeline" (pop-up au passage en SMARTLINKÉ),
+  // "fiche" (onglet Abonnement) ou "backfill" (reprise de l'historique).
+  source         String   @default("pipeline")
+  // Quand le closing a été enregistré dans le CRM. Distinct de closingDate, qui
+  // est la date commerciale : c'est cet horodatage qui situe l'évènement dans
+  // le fil d'activité de la fiche.
+  recordedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([dealId, closingDate])
+  @@index([closingDate])
+  @@index([userId, closingDate])
 }
 
 // Compteur d'appels : une ligne est créée à CHAQUE clic sur « Afficher le
