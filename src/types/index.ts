@@ -250,6 +250,63 @@ export interface ImportRow {
   store?:       { name: string } | null;
 }
 
+// ─── Offres reçues automatiquement (N8N → CRM) ──────────────────────────────
+// Une offre poussée par l'automatisation, en attente de tri dans le CRM.
+export interface InboxOffer {
+  id:              string;
+  brand:           string;
+  storeName:       string;
+  city:            string;
+  postalCode:      string;
+  department:      string;
+  address:         string;
+  jobTitle:        string;
+  offerTitle:      string;
+  contractType:    string;
+  salary:          string;
+  source:          string;
+  url:             string;
+  publishedAt:     string;
+  /** Le magasin est déjà suivi dans le CRM. */
+  knownStore:      boolean;
+  /** Cette offre précise a déjà été importée (doublon). */
+  knownOffer:      boolean;
+  existingDealId:  string | null;
+  status:          'pending' | 'imported' | 'rejected';
+  createdAt:       string;
+}
+
+// Un envoi de l'automatisation : le lot d'offres à trier.
+export interface OfferInbox {
+  id:            string;
+  label:         string;
+  source:        string;
+  receivedAt:    string;
+  totalRows:     number;
+  newRows:       number;
+  duplicateRows: number;
+  status:        'pending' | 'processed';
+  processedAt?:  string | null;
+  processedBy?:  string;
+  importBatchId?: string | null;
+  offers:        InboxOffer[];
+}
+
+// Lot déjà tranché, tel que renvoyé par /api/offer-inbox?history=1.
+export interface OfferInboxHistoryEntry {
+  id:            string;
+  label:         string;
+  source:        string;
+  receivedAt:    string;
+  totalRows:     number;
+  newRows:       number;
+  duplicateRows: number;
+  processedAt:   string | null;
+  processedBy:   string;
+  importBatchId: string | null;
+  _count?:       { offers: number };
+}
+
 export interface DashboardStats {
   totalDeals:          number;
   totalStores:         number;

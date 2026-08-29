@@ -91,7 +91,7 @@ function pickBestStore<T extends { city: string; createdAt: Date; deal: { id: st
  * l'import de notes et la correspondance tolérante en général.
  * Renvoie null si aucun magasin trouvé.
  */
-async function findStoreForRow(mapped: MappedRow) {
+export async function findStoreForRow(mapped: MappedRow) {
   const exact = await prisma.store.findUnique({ where: { deduplicationKey: buildDeduplicationKey(mapped) } });
   if (exact) return exact;
 
@@ -135,15 +135,59 @@ export type ImportResult = {
   errors:          Array<{ row: number; message: string }>;
 };
 
+/** Une ligne à importer : les champs métier déjà mappés, et la charge utile
+ *  d'origine conservée telle quelle dans ImportRow.rawData (traçabilité). */
+export type ImportEntry = {
+  mapped: MappedRow;
+  raw:    Record<string, unknown>;
+};
+
 export async function runCsvImport(
   csvText: string,
   fileName: string
 ): Promise<ImportResult> {
-  // ── 1. Parsing CSV ────────────────────────────────────────────────────────
   const rows = parseCsv(csvText);
   if (rows.length === 0) throw new Error('Le fichier CSV est vide ou non lisible.');
 
-  // ── 2. Récupérer le pipeline Prospection et la colonne "À appeler" ────────
+  return runMappedImport(
+    rows.map(row => ({ mapped: mapCsvRow(row), raw: row as Record<string, unknown> })),
+    fileName,
+  );
+}
+
+export type MappedImportOptions = {
+  /**
+   * Remettre à zéro les drapeaux « dernier import » de TOUTES les affaires
+   * avant de traiter les lignes (défaut : true).
+   *
+   * Vrai pour un fichier CSV, qui est un relevé COMPLET : une affaire absente
+   * du fichier est bien absente du dernier relevé (badge « ⚠ Absente »).
+   *
+   * Faux pour les offres reçues par webhook et triées dans le CRM : chaque lot
+   * est un envoi PARTIEL de quelques offres. Réinitialiser marquerait tout le
+   * reste du pipeline « absent » à chaque tri, ce qui viderait le badge de son
+   * sens. Les drapeaux des affaires non concernées sont alors laissés tels
+   * quels (ils se nettoient au fil du travail : un déplacement manuel d'affaire
+   * efface son drapeau « nouvelle offre »).
+   */
+  resetLastImportFlags?: boolean;
+};
+
+/**
+ * Cœur de l'import normal, indépendant du CSV : applique les règles métier à
+ * des lignes DÉJÀ mappées. Sert à l'import de fichier (runCsvImport) comme à
+ * l'import des offres reçues par webhook et triées dans le CRM
+ * (cf. src/lib/import/offerInbox.ts) — les deux chemins appliquent donc
+ * exactement les mêmes règles métier.
+ */
+export async function runMappedImport(
+  entries: ImportEntry[],
+  fileName: string,
+  { resetLastImportFlags = true }: MappedImportOptions = {},
+): Promise<ImportResult> {
+  if (entries.length === 0) throw new Error('Aucune ligne à importer.');
+
+  // ── 1. Récupérer le pipeline Prospection et la colonne "À appeler" ────────
   const prospectionPipeline = await prisma.pipeline.findFirst({ 
     where: { name: 'Prospection' } 
   });
@@ -157,21 +201,24 @@ export async function runCsvImport(
   });
   if (!defaultColumn) throw new Error('Colonne "À appeler" non trouvée dans le pipeline Prospection');
 
-  // ── 3. Créer le batch d'import ────────────────────────────────────────────
+  // ── 2. Créer le batch d'import ────────────────────────────────────────────
   const batch = await prisma.importBatch.create({
-    data: { fileName, totalRows: rows.length },
+    data: { fileName, totalRows: entries.length },
   });
 
-  // ── 4. Réinitialiser les flags des affaires existantes ────────────────────
-  await prisma.deal.updateMany({
-    data: {
-      isNewFromLastImport:      false,
-      hasNewOfferFromLastImport: false,
-      isPresentInLastImport:    false,
-    },
-  });
+  // ── 3. Réinitialiser les flags des affaires existantes ────────────────────
+  // Seulement pour un relevé complet (cf. resetLastImportFlags).
+  if (resetLastImportFlags) {
+    await prisma.deal.updateMany({
+      data: {
+        isNewFromLastImport:      false,
+        hasNewOfferFromLastImport: false,
+        isPresentInLastImport:    false,
+      },
+    });
+  }
 
-  // ── 5. Traiter chaque ligne ───────────────────────────────────────────────
+  // ── 4. Traiter chaque ligne ───────────────────────────────────────────────
   let createdDeals    = 0;
   let updatedDeals    = 0;
   let newOffers       = 0;
@@ -180,11 +227,10 @@ export async function runCsvImport(
   const errors: Array<{ row: number; message: string }> = [];
   const dealsToMove = new Set<string>(); // Track deals à basculer
 
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 0; i < entries.length; i++) {
     const rowNum = i + 1;
     try {
-      const mapped: MappedRow = mapCsvRow(rows[i]);
-      console.log(`[ROW ${rowNum}] directeur="${mapped.directeur}" contactCalling="${mapped.contactCalling}" dealEmail="${mapped.dealEmail}"`);
+      const mapped: MappedRow = entries[i].mapped;
 
       // Validation minimale
       if (!mapped.brand && !mapped.storeName && !mapped.city) {
@@ -344,7 +390,7 @@ export async function runCsvImport(
         data: {
           importBatchId: batch.id,
           rowNumber:     rowNum,
-          rawData:       rows[i] as object,
+          rawData:       entries[i].raw as object,
           status:        'ok',
           storeId:       store.id,
           dealId:        deal.id,
@@ -358,7 +404,7 @@ export async function runCsvImport(
         data: {
           importBatchId: batch.id,
           rowNumber:     rowNum,
-          rawData:       rows[i] as object,
+          rawData:       entries[i].raw as object,
           status:        'error',
           errorMessage:  msg,
         },
@@ -366,7 +412,7 @@ export async function runCsvImport(
     }
   }
 
-  // ── 6. Basculer TOUS les deals traités en "À appeler" ─────────────────────
+  // ── 5. Basculer TOUS les deals traités en "À appeler" ─────────────────────
   for (const dealId of Array.from(dealsToMove)) {
     const deal = await prisma.deal.findUnique({ where: { id: dealId } });
     if (deal && deal.columnId !== defaultColumn.id) {
@@ -390,7 +436,7 @@ export async function runCsvImport(
     }
   }
 
-  // ── 7. Mettre à jour le résumé du batch ──────────────────────────────────
+  // ── 6. Mettre à jour le résumé du batch ──────────────────────────────────
   await prisma.importBatch.update({
     where: { id: batch.id },
     data: {
@@ -404,7 +450,7 @@ export async function runCsvImport(
 
   return {
     batchId: batch.id, fileName,
-    totalRows: rows.length,
+    totalRows: entries.length,
     createdDeals, updatedDeals, newOffers, movedToCall, createdNotes,
     errorCount: errors.length, errors,
   };
