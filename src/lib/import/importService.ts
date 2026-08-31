@@ -14,6 +14,7 @@ import { canonicalBrand, generateBrandColor, normalizeText } from '@/lib/utils';
 import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParser';
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
+import { cleanJobTitle } from './jobTitle';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
@@ -365,8 +366,13 @@ export async function runMappedImport(
             storeId:        store.id,
             importBatchId:  batch.id,
             externalOfferId: mapped.externalOfferId || '',
-            title:          mapped.offerTitle || mapped.jobTitle || '',
-            jobTitle:       mapped.jobTitle   || '',
+            // Intitulé débarrassé du H/F, du contrat et des horaires, pour
+            // pouvoir être recopié tel quel dans un email (cf. cleanJobTitle).
+            // Le fingerprint, lui, est calculé plus haut sur le titre BRUT :
+            // le nettoyage ne doit jamais transformer une offre connue en
+            // nouveauté.
+            title:          cleanJobTitle(mapped.offerTitle || mapped.jobTitle || ''),
+            jobTitle:       cleanJobTitle(mapped.jobTitle   || ''),
             contractType:   mapped.contractType || '',
             salary:         mapped.salary     || '',
             source:         mapped.source     || '',

@@ -20,6 +20,7 @@ import { generateBrandColor, simpleHash, normalizeText } from '@/lib/utils';
 import { mapCsvRow, parseCsv, type CsvRow, type MappedRow } from './csvParser';
 import { buildDeduplicationKey } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
+import { cleanJobTitle } from './jobTitle';
 import { findStoreForRow, runMappedImport, type ImportResult } from './importService';
 
 /** Charge utile acceptée par le webhook : des lignes (objets libres) ou du CSV. */
@@ -224,8 +225,10 @@ export async function receiveOffers(payload: InboundPayload): Promise<ReceiveRes
           postalCode:      mapped.postalCode,
           department:      mapped.department,
           address:         mapped.address,
-          jobTitle:        mapped.jobTitle,
-          offerTitle:      mapped.offerTitle,
+          // Colonnes d'affichage : intitulé nettoyé (le brut reste dans rawData,
+          // et la clé de réception a déjà été calculée dessus).
+          jobTitle:        cleanJobTitle(mapped.jobTitle),
+          offerTitle:      cleanJobTitle(mapped.offerTitle),
           contractType:    mapped.contractType,
           salary:          mapped.salary,
           source:          mapped.source || source,
