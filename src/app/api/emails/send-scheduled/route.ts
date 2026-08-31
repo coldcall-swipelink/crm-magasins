@@ -8,29 +8,35 @@ import { sendDueEmails } from '@/lib/scheduledEmails';
  *   POST /api/emails/send-scheduled?token=<EMAIL_SYNC_TOKEN>
  *   (jeton aussi accepté en « Authorization: Bearer … »)
  *
- * À brancher sur le planificateur (N8N, cron de l'hébergeur) toutes les 5 à
- * 15 minutes : c'est lui qui garantit le départ quand personne n'est devant le
- * CRM. L'ouverture d'une fiche affaire relève également la file, mais on ne
- * peut pas compter dessus à 9h du matin.
+ * Appelée automatiquement par le cron Vercel déclaré dans vercel.json, toutes
+ * les dix minutes : c'est lui qui garantit le départ quand personne n'est
+ * devant le CRM. L'ouverture d'une fiche affaire relève également la file,
+ * mais on ne peut pas compter dessus à 9 h du matin. Rien à configurer côté
+ * N8N — la route reste néanmoins appelable par n'importe quel planificateur.
  *
  * Rejouable : chaque email est réservé avant envoi, un passage concurrent ne
  * peut pas le faire partir deux fois.
  *
- * Sans jeton configuré, la route reste fermée (elle envoie des emails).
- * À défaut d'EMAIL_SYNC_TOKEN, OFFERS_WEBHOOK_TOKEN est accepté : les deux
- * servent au même planificateur.
+ * Sans jeton configuré, la route reste fermée (elle envoie des emails). Sont
+ * acceptés, dans cet ordre : CRON_SECRET (que Vercel envoie de lui-même en
+ * « Authorization: Bearer … » à ses crons), EMAIL_SYNC_TOKEN, puis
+ * OFFERS_WEBHOOK_TOKEN — tous servent le même planificateur.
  */
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function unauthorized(req: NextRequest): boolean {
-  const expected = (process.env.EMAIL_SYNC_TOKEN || process.env.OFFERS_WEBHOOK_TOKEN || '').trim();
-  if (!expected) return true;
-  const provided = req.nextUrl.searchParams.get('token')
+  const provided = (req.nextUrl.searchParams.get('token')
     || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
     || req.headers.get('x-webhook-token')
-    || '';
-  return provided !== expected;
+    || '').trim();
+  if (!provided) return true;
+  // Plusieurs jetons valides : celui du cron Vercel et ceux du planificateur
+  // externe. Comparaison à chacun, aucun ne l'emportant sur l'autre.
+  const accepted = [process.env.CRON_SECRET, process.env.EMAIL_SYNC_TOKEN, process.env.OFFERS_WEBHOOK_TOKEN]
+    .map(v => (v || '').trim())
+    .filter(Boolean);
+  return !accepted.includes(provided);
 }
 
 async function run(req: NextRequest) {

@@ -234,11 +234,16 @@ Un email programmé apparaît aussitôt dans la frise de l'affaire avec le badge
 **🕘 Programmé** et sa date de départ, et reste **annulable** d'un clic tant
 qu'il n'est pas parti.
 
-> **Le planificateur est indispensable.** Le départ effectif est assuré par
-> `POST /api/emails/send-scheduled?token=$EMAIL_SYNC_TOKEN`, à brancher sur N8N
-> ou le cron de l'hébergeur toutes les 5 à 15 minutes — la même cadence que le
-> relevé des réponses. Sans lui, un email programmé ne part qu'à l'ouverture
-> d'une fiche affaire postérieure à l'heure prévue.
+Rien à configurer : le départ est assuré par le **cron Vercel** déclaré dans
+`vercel.json`, qui appelle `/api/emails/send-scheduled` toutes les dix minutes.
+Renseignez simplement `CRON_SECRET` dans les variables d'environnement — Vercel
+le présente de lui-même à ses crons. L'ouverture d'une fiche affaire relève
+aussi la file, mais on ne peut pas compter dessus à 9 h du matin.
+
+> Sur le plan **Hobby**, Vercel limite les crons à un par jour : la précision
+> tomberait à 24 h. Dans ce cas, appelez la même route depuis N8N ou tout autre
+> planificateur, toutes les 5 à 15 minutes :
+> `POST /api/emails/send-scheduled?token=$EMAIL_SYNC_TOKEN`
 
 Une pièce jointe ne peut pas accompagner un envoi programmé (rien ne la
 conserve entre la rédaction et le départ) : le composeur le signale et refuse
