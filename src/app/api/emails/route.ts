@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { EMAIL_SIGNATURE_KEY, signatureKeyForSender } from '@/lib/appSettings';
 import { resolveSender } from '@/lib/emailSenders';
 import { buildReplyTo, extractAddress } from '@/lib/emailReplies';
+import { sendDueEmailsIfDue } from '@/lib/scheduledEmails';
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -52,7 +53,7 @@ function parseCc(cc: unknown): { list: string[] } | { invalid: string } {
 
 export async function POST(req: NextRequest) {
   try {
-    const { dealId, templateId, to, cc, subject, body, attachments, from } = await req.json();
+    const { dealId, templateId, to, cc, subject, body, attachments, from, scheduledAt } = await req.json();
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
@@ -81,6 +82,48 @@ export async function POST(req: NextRequest) {
     // celle de l'expéditeur choisi, sinon la signature globale (repli).
     const signature = await getEmailSignature(from);
     const finalBody = signature ? `${toHtml(body)}<br><br>${toHtml(signature)}` : toHtml(body);
+
+    // ── Envoi programmé ────────────────────────────────────────────────────
+    // L'email est écrit en base tel qu'il partira (signature comprise) et
+    // attend son heure. Il apparaît aussitôt dans la frise de l'affaire, où il
+    // reste annulable. Le départ est assuré par /api/emails/send-scheduled.
+    if (scheduledAt) {
+      const quand = new Date(scheduledAt);
+      if (!Number.isFinite(quand.getTime())) {
+        return NextResponse.json({ error: "Date d'envoi invalide" }, { status: 400 });
+      }
+      if (quand.getTime() <= Date.now()) {
+        return NextResponse.json({ error: "L'heure d'envoi doit être dans le futur" }, { status: 400 });
+      }
+      // Les pièces jointes ne sont pas conservées : rien ne les stocke entre la
+      // rédaction et le départ. Autant le dire plutôt que les perdre en route.
+      if (attachments?.length) {
+        return NextResponse.json(
+          { error: 'Un envoi programmé ne peut pas porter de pièce jointe. Retirez-la, ou envoyez tout de suite.' },
+          { status: 400 },
+        );
+      }
+
+      const programme = await prisma.emailLog.create({
+        data: {
+          id: `email-${Date.now()}`,
+          dealId,
+          templateId: templateId || null,
+          direction: 'outbound',
+          fromAddress: extractAddress(fromAddress),
+          to,
+          cc: ccList.length > 0 ? ccList.join(', ') : null,
+          subject,
+          body: finalBody,
+          status: 'scheduled',
+          scheduledAt: quand,
+          // La frise se lit par sentAt : un envoi programmé s'y range à
+          // l'heure prévue, et non à celle de sa rédaction.
+          sentAt: quand,
+        },
+      });
+      return NextResponse.json(programme, { status: 201 });
+    }
 
     // Reply-To : adresse de réception taguée du CRM (pour journaliser la
     // réponse dans l'affaire) + adresse de l'expéditeur (pour qu'il la reçoive
@@ -130,6 +173,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  // Occasion de faire partir les emails dont l'heure est venue pendant qu'on
+  // travaille dans le CRM. Espacé par son propre verrou, tolérant : la lecture
+  // de la frise ne doit jamais en dépendre. Le planificateur reste le garant
+  // du départ quand personne n'est là (cf. /api/emails/send-scheduled).
+  await sendDueEmailsIfDue();
+
   const { searchParams } = new URL(req.url);
   const dealId = searchParams.get('dealId');
   const where = dealId ? { dealId } : {};

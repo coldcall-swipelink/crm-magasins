@@ -401,8 +401,14 @@ model EmailLog {
   cc         String?
   subject    String
   body       String
-  // "sent" / "opened" pour un sortant, "received" pour un entrant.
+  // Sortant  : "scheduled" (programmé, pas encore parti) → "sending" (en cours
+  //            d'envoi) → "sent" → "opened" ; "failed" si Resend a refusé.
+  // Entrant  : "received".
   status     String         @default("sent")
+  // Envoi programmé : heure visée. L'email est écrit en base dès la rédaction
+  // et part au premier passage de /api/emails/send-scheduled postérieur à
+  // cette date. Null pour un envoi immédiat.
+  scheduledAt DateTime?
   // Id Resend de l'email (sortant ou entrant) — sert à la déduplication.
   resendId   String?
   // Message-ID RFC 5322 de l'email et, pour une réponse, celui du message
@@ -421,6 +427,8 @@ model EmailLog {
   // Recherché à chaque réponse reçue : rattachement au fil (In-Reply-To /
   // References → messageId de l'envoi) et déduplication entre sources.
   @@index([messageId])
+  // File des envois programmés, relevée à chaque passage du planificateur.
+  @@index([status, scheduledAt])
 }
 
 // Suivi CRM des appels aux candidats affichés dans l'onglet « Recrutement ».

@@ -220,6 +220,30 @@ réponse JSON).
 | Magasin existant + **nouvelle offre** | → **Retour automatique en « À appeler »** |
 | Magasin existant + offre déjà connue | → `lastSeenAt` mis à jour, colonne inchangée |
 
+### Programmer l'envoi d'un email
+
+Dans la fiche affaire, le composeur d'email propose une ligne **Départ** :
+
+| Choix | Effet |
+|---|---|
+| **Tout de suite** | comportement habituel, l'email part immédiatement |
+| **Dans 1 h · Demain 9 h · Lundi 9 h** | raccourcis |
+| Champ date/heure | n'importe quel moment futur |
+
+Un email programmé apparaît aussitôt dans la frise de l'affaire avec le badge
+**🕘 Programmé** et sa date de départ, et reste **annulable** d'un clic tant
+qu'il n'est pas parti.
+
+> **Le planificateur est indispensable.** Le départ effectif est assuré par
+> `POST /api/emails/send-scheduled?token=$EMAIL_SYNC_TOKEN`, à brancher sur N8N
+> ou le cron de l'hébergeur toutes les 5 à 15 minutes — la même cadence que le
+> relevé des réponses. Sans lui, un email programmé ne part qu'à l'ouverture
+> d'une fiche affaire postérieure à l'heure prévue.
+
+Une pièce jointe ne peut pas accompagner un envoi programmé (rien ne la
+conserve entre la rédaction et le départ) : le composeur le signale et refuse
+l'envoi plutôt que de la perdre en route.
+
 ### Pipeline Kanban
 
 - **Glisser-déposer** les cartes entre les colonnes

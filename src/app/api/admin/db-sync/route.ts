@@ -294,6 +294,9 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "ALTER TABLE \"PaymentLinkSlot\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
   "CREATE INDEX IF NOT EXISTS \"PaymentLinkSlot_stripeLinkId_idx\" ON \"PaymentLinkSlot\"(\"stripeLinkId\");",
+  // ── Envois d'emails programmés ──
+  "ALTER TABLE \"EmailLog\" ADD COLUMN IF NOT EXISTS \"scheduledAt\" TIMESTAMP(3);",
+  "CREATE INDEX IF NOT EXISTS \"EmailLog_status_scheduledAt_idx\" ON \"EmailLog\"(\"status\",\"scheduledAt\");",
   // ── Boîte de réception des offres poussées par l'automatisation (N8N) ──
   "CREATE TABLE IF NOT EXISTS \"OfferInbox\" (\"id\" TEXT NOT NULL, CONSTRAINT \"OfferInbox_pkey\" PRIMARY KEY (\"id\"));",
   "ALTER TABLE \"OfferInbox\" ADD COLUMN IF NOT EXISTS \"label\" TEXT NOT NULL DEFAULT '';",
