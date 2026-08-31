@@ -8,7 +8,8 @@ import { sendDueEmails } from '@/lib/scheduledEmails';
  *   POST /api/emails/send-scheduled?token=<EMAIL_SYNC_TOKEN>
  *   (jeton aussi accepté en « Authorization: Bearer … »)
  *
- * Appelée automatiquement par le cron Vercel déclaré dans vercel.json, toutes
+ * Appelée automatiquement par le cron Vercel déclaré dans vercel.json (schéma
+ * strict : path et schedule uniquement, aucune clé de commentaire), toutes
  * les dix minutes : c'est lui qui garantit le départ quand personne n'est
  * devant le CRM. L'ouverture d'une fiche affaire relève également la file,
  * mais on ne peut pas compter dessus à 9 h du matin. Rien à configurer côté

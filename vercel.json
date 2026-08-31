@@ -1,7 +1,6 @@
 {
   "crons": [
     {
-      "comment": "Départ des emails programmés depuis la fiche affaire (« demain 9 h »). Toutes les 10 minutes : c'est la précision de l'heure d'envoi.",
       "path": "/api/emails/send-scheduled",
       "schedule": "*/10 * * * *"
     }
