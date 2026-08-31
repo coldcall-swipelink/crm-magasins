@@ -200,32 +200,42 @@ export async function receiveOffers(payload: InboundPayload): Promise<ReceiveRes
     if (store) knownStores++;
     if (knownOffer) knownOffers++;
 
-    await prisma.inboxOffer.create({
-      data: {
-        inboxId:         inbox.id,
-        rawData:         raw as object,
-        brand:           mapped.brand,
-        storeName:       mapped.storeName,
-        city:            mapped.city,
-        postalCode:      mapped.postalCode,
-        department:      mapped.department,
-        address:         mapped.address,
-        jobTitle:        mapped.jobTitle,
-        offerTitle:      mapped.offerTitle,
-        contractType:    mapped.contractType,
-        salary:          mapped.salary,
-        source:          mapped.source || source,
-        url:             mapped.url,
-        publishedAt:     mapped.publishedAt,
-        externalOfferId: mapped.externalOfferId,
-        receptionKey,
-        storeKey:        buildDeduplicationKey(mapped),
-        knownStore:      !!store,
-        knownOffer,
-        existingDealId:  deal?.id ?? null,
-      },
-    });
-    newRows++;
+    try {
+      await prisma.inboxOffer.create({
+        data: {
+          inboxId:         inbox.id,
+          rawData:         raw as object,
+          brand:           mapped.brand,
+          storeName:       mapped.storeName,
+          city:            mapped.city,
+          postalCode:      mapped.postalCode,
+          department:      mapped.department,
+          address:         mapped.address,
+          jobTitle:        mapped.jobTitle,
+          offerTitle:      mapped.offerTitle,
+          contractType:    mapped.contractType,
+          salary:          mapped.salary,
+          source:          mapped.source || source,
+          url:             mapped.url,
+          publishedAt:     mapped.publishedAt,
+          externalOfferId: mapped.externalOfferId,
+          receptionKey,
+          storeKey:        buildDeduplicationKey(mapped),
+          knownStore:      !!store,
+          knownOffer,
+          existingDealId:  deal?.id ?? null,
+        },
+      });
+      newRows++;
+    } catch (err) {
+      // Deux envois simultanés portant la même offre : le test d'existence
+      // ci-dessus a pu passer dans les deux, et c'est la contrainte d'unicité
+      // sur receptionKey qui tranche. Le perdant compte simplement un doublon
+      // de plus — sans quoi tout l'envoi échouerait pour une offre déjà rangée
+      // par l'autre.
+      if ((err as { code?: string })?.code !== 'P2002') throw err;
+      duplicates++;
+    }
   }
 
   // Lot entièrement composé de doublons/lignes vides : rien à trier, on le
