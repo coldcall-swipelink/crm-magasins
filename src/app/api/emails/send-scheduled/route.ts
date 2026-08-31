@@ -1,0 +1,63 @@
+// src/app/api/emails/send-scheduled/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { sendDueEmails } from '@/lib/scheduledEmails';
+
+/**
+ * Départ des emails programmés depuis le CRM (« envoyer demain à 9h »).
+ *
+ *   POST /api/emails/send-scheduled?token=<EMAIL_SYNC_TOKEN>
+ *   (jeton aussi accepté en « Authorization: Bearer … »)
+ *
+ * Appelée automatiquement par le cron Vercel déclaré dans vercel.json (schéma
+ * strict : path et schedule uniquement, aucune clé de commentaire), toutes
+ * les dix minutes : c'est lui qui garantit le départ quand personne n'est
+ * devant le CRM. L'ouverture d'une fiche affaire relève également la file,
+ * mais on ne peut pas compter dessus à 9 h du matin. Rien à configurer côté
+ * N8N — la route reste néanmoins appelable par n'importe quel planificateur.
+ *
+ * Rejouable : chaque email est réservé avant envoi, un passage concurrent ne
+ * peut pas le faire partir deux fois.
+ *
+ * Sans jeton configuré, la route reste fermée (elle envoie des emails). Sont
+ * acceptés, dans cet ordre : CRON_SECRET (que Vercel envoie de lui-même en
+ * « Authorization: Bearer … » à ses crons), EMAIL_SYNC_TOKEN, puis
+ * OFFERS_WEBHOOK_TOKEN — tous servent le même planificateur.
+ */
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+function unauthorized(req: NextRequest): boolean {
+  const provided = (req.nextUrl.searchParams.get('token')
+    || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+    || req.headers.get('x-webhook-token')
+    || '').trim();
+  if (!provided) return true;
+  // Plusieurs jetons valides : celui du cron Vercel et ceux du planificateur
+  // externe. Comparaison à chacun, aucun ne l'emportant sur l'autre.
+  const accepted = [process.env.CRON_SECRET, process.env.EMAIL_SYNC_TOKEN, process.env.OFFERS_WEBHOOK_TOKEN]
+    .map(v => (v || '').trim())
+    .filter(Boolean);
+  return !accepted.includes(provided);
+}
+
+async function run(req: NextRequest) {
+  if (unauthorized(req)) {
+    return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
+  }
+  try {
+    const result = await sendDueEmails();
+    // 503 quand rien n'a pu être tenté : le planificateur doit pouvoir le voir
+    // passer plutôt que de croire la file vide.
+    return NextResponse.json(
+      { ok: !result.blocked && result.failed === 0, ...result },
+      { status: result.blocked ? 503 : 200 },
+    );
+  } catch (err) {
+    console.error('[POST /api/emails/send-scheduled]', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) { return run(req); }
+// GET accepté pour les ordonnanceurs qui ne savent pas faire de POST.
+export async function GET(req: NextRequest) { return run(req); }

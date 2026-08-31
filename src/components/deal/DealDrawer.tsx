@@ -68,7 +68,7 @@ function SegToggle({ value, options, onChange }: {
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
 interface EmailTemplate { id: string; name: string; subject: string; body: string; }
-interface EmailLog { id: string; direction?: 'outbound' | 'inbound'; fromAddress?: string | null; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; openedAt?: string; resendId?: string; template?: { name: string }; }
+interface EmailLog { id: string; direction?: 'outbound' | 'inbound'; fromAddress?: string | null; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; scheduledAt?: string | null; openedAt?: string; resendId?: string; template?: { name: string }; }
 /** Un changement d'étape journalisé (table DealMove). */
 interface DealMove {
   id: string;
@@ -449,6 +449,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [sendingEmail, setSendingEmail] = useState(false);
   const [civilite, setCivilite] = useState('Monsieur');
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
+  // Envoi programmé : '' = tout de suite, sinon une date locale « YYYY-MM-DDTHH:mm ».
+  const [emailWhen, setEmailWhen] = useState('');
   // Formulaire « lien de paiement » : liens Stripe actifs résolus pour ce deal,
   // chacun avec son URL finale (client_reference_id = group_id ou organization_id).
   // Le plan tarifaire fixe (42 cases, vides comprises) et les liens spéciaux,
@@ -1101,15 +1103,33 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     try {
       const res = await fetch('/api/emails', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo, cc: emailCc || null, subject: emailSubject, body: emailBody, attachments }),
+        body: JSON.stringify({
+          dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo,
+          cc: emailCc || null, subject: emailSubject, body: emailBody, attachments,
+          // Une valeur de <input type="datetime-local"> est une heure LOCALE :
+          // on la convertit en instant absolu pour le serveur.
+          scheduledAt: emailWhen ? new Date(emailWhen).toISOString() : null,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      toast('✓ Email envoyé !');
-      setEmailCc(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setPayAutoFill(null); setComposer(null);
+      toast(emailWhen ? `🕘 Email programmé pour le ${formatDate(new Date(emailWhen))}` : '✓ Email envoyé !');
+      setEmailCc(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); setAttachments([]); setPayAutoFill(null); setComposer(null); setEmailWhen('');
       fetchEmailLogs();
     } catch (e) {
       toast((e as Error).message || 'Erreur envoi', 'error');
     } finally { setSendingEmail(false); }
+  };
+
+  const cancelScheduledEmail = async (id: string) => {
+    if (!window.confirm("Annuler cet envoi programmé ? L'email ne partira pas.")) return;
+    try {
+      const res = await fetch(`/api/emails/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast('Envoi annulé');
+      fetchEmailLogs();
+    } catch (e) {
+      toast((e as Error).message || 'Erreur', 'error');
+    }
   };
 
   // ---- Lien de paiement Stripe --------------------------------------------
@@ -1357,8 +1377,51 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
           </div>
         )}
       </div>
+      {/* Quand partir : tout de suite, ou à une heure choisie. */}
+      <div style={{ marginBottom: 12, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Départ</span>
+          {([
+            ['Tout de suite', ''],
+            ['Dans 1 h', dansUneHeure()],
+            ['Demain 9 h', demainA(9)],
+            ['Lundi 9 h', lundiA(9)],
+          ] as const).map(([libelle, valeur]) => (
+            <button
+              key={libelle}
+              onClick={() => setEmailWhen(valeur)}
+              style={{
+                padding: '4px 10px', fontSize: 12, borderRadius: 999, cursor: 'pointer',
+                border: `1px solid ${emailWhen === valeur ? '#6366f1' : '#e2e8f0'}`,
+                background: emailWhen === valeur ? '#eef2ff' : '#fff',
+                color: emailWhen === valeur ? '#4338ca' : '#475569',
+                fontWeight: emailWhen === valeur ? 600 : 400,
+              }}
+            >
+              {libelle}
+            </button>
+          ))}
+          <input
+            type="datetime-local"
+            value={emailWhen}
+            min={dansUneMinute()}
+            onChange={e => setEmailWhen(e.target.value)}
+            style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#0f172a' }}
+          />
+        </div>
+        {emailWhen && (
+          <div style={{ fontSize: 11.5, color: '#4338ca', marginTop: 6 }}>
+            Programmé pour le {formatDate(new Date(emailWhen))} — annulable jusque-là depuis la frise.
+            {attachments.length > 0 && (
+              <span style={{ color: '#b45309' }}> Les pièces jointes ne suivent pas un envoi programmé : retirez-les, ou envoyez tout de suite.</span>
+            )}
+          </div>
+        )}
+      </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>{sendingEmail ? '⟳ Envoi…' : '📧 Envoyer'}</button>
+        <button onClick={sendEmail} disabled={sendingEmail} style={{ ...btnPri, opacity: sendingEmail ? .7 : 1, cursor: sendingEmail ? 'not-allowed' : 'pointer' }}>
+          {sendingEmail ? '⟳ Envoi…' : emailWhen ? '🕘 Programmer l\'envoi' : '📧 Envoyer'}
+        </button>
         <button style={btnDef} onClick={() => setComposer(null)}>Annuler</button>
       </div>
     </>
@@ -2318,7 +2381,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       : { flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 13px' }}>
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
-                      {(item.kind === 'email' || item.kind === 'reply') && <EmailLogItem log={item.data as EmailLog} />}
+                      {(item.kind === 'email' || item.kind === 'reply') && <EmailLogItem log={item.data as EmailLog} onCancel={cancelScheduledEmail} />}
                       {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
                       {item.kind === 'demo' && <DemoBookedItem booking={item.data as DemoBooking} onToggleNoShow={toggleNoShow} />}
@@ -2474,18 +2537,54 @@ function DoneActionItem({ action, onReopen, onDelete }: { action: any; onReopen:
   );
 }
 
+// ── Raccourcis de programmation d'envoi ─────────────────────────────────────
+// <input type="datetime-local"> attend une heure LOCALE « YYYY-MM-DDTHH:mm ».
+// toISOString() donnerait de l'UTC : décalé d'une ou deux heures en France.
+function versChampLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function dansUneMinute(): string {
+  return versChampLocal(new Date(Date.now() + 60 * 1000));
+}
+function dansUneHeure(): string {
+  return versChampLocal(new Date(Date.now() + 60 * 60 * 1000));
+}
+/** Demain à l'heure dite. */
+function demainA(heure: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(heure, 0, 0, 0);
+  return versChampLocal(d);
+}
+/** Le prochain lundi à l'heure dite (jamais aujourd'hui). */
+function lundiA(heure: number): string {
+  const d = new Date();
+  const versLundi = (8 - d.getDay()) % 7 || 7;   // 1 = lundi
+  d.setDate(d.getDate() + versLundi);
+  d.setHours(heure, 0, 0, 0);
+  return versChampLocal(d);
+}
+
 // Une entrée « email » de la frise, dans les deux sens : email parti du CRM
 // (direction « outbound ») ou réponse reçue du contact (« inbound », captée par
 // Resend Inbound — cf. src/lib/emailReplies.ts).
-function EmailLogItem({ log }: { log: EmailLog }) {
+function EmailLogItem({ log, onCancel }: { log: EmailLog; onCancel?: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const isReply = log.direction === 'inbound';
+  // Programmé : pas encore parti, donc encore annulable.
+  const isScheduled = log.status === 'scheduled';
+  const hasFailed = log.status === 'failed';
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{log.subject}</span>
         {isReply
           ? <span style={{ fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>💬 Réponse reçue</span>
+          : isScheduled
+          ? <span style={{ fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>🕘 Programmé</span>
+          : hasFailed
+          ? <span style={{ fontSize: 10, background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>⚠ Échec d'envoi</span>
           : log.status === 'opened'
           ? <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>👁 Ouvert</span>
           : <span style={{ fontSize: 10, background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: 3, flexShrink: 0, fontWeight: 600 }}>✓ Envoyé</span>
@@ -2496,10 +2595,18 @@ function EmailLogItem({ log }: { log: EmailLog }) {
         : <div style={{ fontSize: 11, color: '#64748b' }}>→ {log.to}</div>}
       {log.cc && <div style={{ fontSize: 11, color: '#64748b' }}>Cc : {log.cc}</div>}
       {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{formatDate(log.sentAt)}{!isReply && log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}</div>
+      <div style={{ fontSize: 10, color: isScheduled ? '#92400e' : '#94a3b8', marginTop: 2 }}>
+        {isScheduled ? `Départ prévu le ${formatDate(log.scheduledAt || log.sentAt)}` : formatDate(log.sentAt)}
+        {!isReply && log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}
+      </div>
       <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
         {expanded ? 'Masquer' : isReply ? 'Voir la réponse' : 'Voir le contenu'}
       </button>
+      {isScheduled && onCancel && (
+        <button onClick={() => onCancel(log.id)} style={{ fontSize: 11, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 4px 10px', textDecoration: 'underline' }}>
+          Annuler l&apos;envoi
+        </button>
+      )}
       {expanded && (
         isHtml(log.body)
           ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: `3px solid ${isReply ? '#4338ca' : '#6366f1'}` }} dangerouslySetInnerHTML={{ __html: log.body }} />

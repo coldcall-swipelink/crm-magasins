@@ -220,6 +220,35 @@ réponse JSON).
 | Magasin existant + **nouvelle offre** | → **Retour automatique en « À appeler »** |
 | Magasin existant + offre déjà connue | → `lastSeenAt` mis à jour, colonne inchangée |
 
+### Programmer l'envoi d'un email
+
+Dans la fiche affaire, le composeur d'email propose une ligne **Départ** :
+
+| Choix | Effet |
+|---|---|
+| **Tout de suite** | comportement habituel, l'email part immédiatement |
+| **Dans 1 h · Demain 9 h · Lundi 9 h** | raccourcis |
+| Champ date/heure | n'importe quel moment futur |
+
+Un email programmé apparaît aussitôt dans la frise de l'affaire avec le badge
+**🕘 Programmé** et sa date de départ, et reste **annulable** d'un clic tant
+qu'il n'est pas parti.
+
+Rien à configurer : le départ est assuré par le **cron Vercel** déclaré dans
+`vercel.json`, qui appelle `/api/emails/send-scheduled` toutes les dix minutes.
+Renseignez simplement `CRON_SECRET` dans les variables d'environnement — Vercel
+le présente de lui-même à ses crons. L'ouverture d'une fiche affaire relève
+aussi la file, mais on ne peut pas compter dessus à 9 h du matin.
+
+> Sur le plan **Hobby**, Vercel limite les crons à un par jour : la précision
+> tomberait à 24 h. Dans ce cas, appelez la même route depuis N8N ou tout autre
+> planificateur, toutes les 5 à 15 minutes :
+> `POST /api/emails/send-scheduled?token=$EMAIL_SYNC_TOKEN`
+
+Une pièce jointe ne peut pas accompagner un envoi programmé (rien ne la
+conserve entre la rédaction et le départ) : le composeur le signale et refuse
+l'envoi plutôt que de la perdre en route.
+
 ### Pipeline Kanban
 
 - **Glisser-déposer** les cartes entre les colonnes
