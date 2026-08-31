@@ -150,6 +150,8 @@ export function cleanJobTitle(raw: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!propre) return '';
-  return propre.charAt(0).toUpperCase() + propre.slice(1);
+  // Tout en minuscules : l'intitulé est destiné à être recopié au fil d'une
+  // phrase d'email (« vous recherchez un employé vendeur poissonnerie »), pas
+  // à ouvrir une phrase. Les sigles gardent leurs capitales (cf. ACCENTS).
+  return propre;
 }
