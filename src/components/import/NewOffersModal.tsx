@@ -36,19 +36,20 @@ export default function NewOffersModal() {
 
   useEffect(() => { setDismissed(readDismissed()); }, []);
 
-  // Lots jamais repoussés : c'est ce qui déclenche l'ouverture. Le composant
-  // n'est monté que dans AppLayout, donc uniquement une fois l'écran de
-  // connexion franchi : rien à vérifier de plus côté identité.
-  const fresh = inboxes.filter(i => !dismissed.includes(i.id));
+  // Un lot repoussé ne DÉCLENCHE plus l'ouverture — mais il reste affiché quand
+  // la popup s'ouvre pour un autre lot. Sans quoi les offres d'un lot repoussé
+  // (« Plus tard », croix, ou simple clic à côté) devenaient invisibles ici,
+  // alors que le badge de la barre latérale continuait de les compter.
+  const jamaisVus = inboxes.filter(i => !dismissed.includes(i.id));
 
   // Un nouveau lot arrive (y compris après un « Plus tard ») : la popup s'ouvre.
   useEffect(() => {
-    if (fresh.length > 0) { setOpened(true); setClosed(false); }
-  }, [fresh.length]);
+    if (jamaisVus.length > 0) { setOpened(true); setClosed(false); }
+  }, [jamaisVus.length]);
 
   // Nombre affiché en titre : figé pendant le tri, sinon il tomberait à zéro
   // dès que les offres quittent la boîte de réception.
-  const liveCount = fresh.reduce((n, i) => n + i.offers.length, 0);
+  const liveCount = inboxes.reduce((n, i) => n + i.offers.length, 0);
   const shownCount = useRef(0);
   if (liveCount > 0) shownCount.current = liveCount;
 
@@ -58,8 +59,11 @@ export default function NewOffersModal() {
 
   const offerCount = shownCount.current;
 
+  // « Plus tard » : tout ce qui était sous les yeux est considéré comme vu, et
+  // ne rouvrira donc pas la popup. Le tri reste accessible depuis
+  // « Offres reçues », dont le badge compte toujours ces offres.
   const dismiss = () => {
-    const next = Array.from(new Set([...dismissed, ...fresh.map(i => i.id)]));
+    const next = Array.from(new Set([...dismissed, ...inboxes.map(i => i.id)]));
     setDismissed(next);
     close();
     try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
@@ -101,7 +105,7 @@ export default function NewOffersModal() {
         </div>
 
         <OfferInboxPanel
-          inboxes={fresh}
+          inboxes={inboxes}
           onDone={() => {
             close();
             // Les écrans du CRM (pipeline, dashboard…) chargent leurs données
