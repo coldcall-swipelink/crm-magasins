@@ -43,6 +43,9 @@ const BRUIT = [
   'journée', 'matin', 'soir', 'nuit', 'saisonnier', 'saisonnière', 'mois',
   'an', 'ans', 'heures', 'heure', 'h', 'ref', 'poste', 'recrute', 'recrutement',
   'urgent', 'nouveau', 'nouvelle',
+  // « MODELE INTERMARCHE » : une fois l'enseigne retirée, « modèle » ne
+  // désigne plus rien. Sans risque pour « modéliste », qui est un autre mot.
+  'modele', 'modèle', 'modeles', 'modèles',
 ];
 
 /** Accents perdus par les sites qui titrent en capitales. Restreint au
@@ -64,6 +67,29 @@ const ACCENTS: Record<string, string> = {
   developpement: 'développement', decoupe: 'découpe', desosse: 'désossé',
   eldph: 'ELDPH', bvp: 'BVP', ls: 'LS', pcg: 'PCG', sav: 'SAV', rh: 'RH',
 };
+
+/**
+ * Enseignes et libellés de réseau qui traînent dans les intitulés
+ * (« MODELE INTERMARCHE », « CHEF DE RAYON PCG E LECLERC Val De Moder ») :
+ * l'enseigne est déjà portée par le magasin, elle n'a rien à faire dans le
+ * métier qu'on recopie dans un email. Les variantes accentuées ou en plusieurs
+ * mots sont couvertes ; « modèle » ne tombe que collé à une enseigne, pour ne
+ * pas amputer un intitulé où le mot aurait un sens.
+ */
+// Les bornes ne peuvent pas être des \b : en JavaScript, « é » n'est pas un
+// caractère de mot, si bien que \b ne trouve aucune limite après
+// « Intermarché ». On encadre donc par des caractères non alphabétiques.
+const MARQUES = new RegExp(
+  '(^|[^0-9a-zà-ÿ])(?:' + [
+    'intermarch[ée]s?', 'itm', 'mousquetaires',
+    'e\\.?\\s*leclerc', 'leclerc',
+    'super\\s*u', 'hyper\\s*u', 'u\\s*express', 'syst[èe]me\\s*u', 'coop[ée]rative\\s*u',
+    'carrefour', 'auchan', 'casino', 'monoprix', 'franprix', 'lidl', 'aldi',
+    'netto', 'cora', 'colruyt', 'biocoop', 'picard', 'grand\\s*frais',
+    'bricomarch[ée]', 'roady',
+  ].join('|') + ')(?![0-9a-zà-ÿ])',
+  'gi',
+);
 
 /** Un mot est-il du bruit ? Les nombres et les durées (« 36h75 », « 10h »,
  *  « 39h ») en font partie, comme les codes postaux et les dates. */
@@ -122,6 +148,9 @@ export function cleanJobTitle(raw: string): string {
 
   t = t.replace(GENRE_COLLE, '$1');
   t = t.replace(GENRE, ' ');
+  // L'enseigne d'abord : « MODELE INTERMARCHE » doit tomber en entier (le mot
+  // « modèle » est traité comme du bruit, cf. BRUIT).
+  t = t.replace(MARQUES, '$1 ').replace(/\s+/g, ' ');
   t = t.replace(INCLUSIF, '');
   // Contenu entre parenthèses : précision de contrat ou d'horaire neuf fois
   // sur dix (« (le dimanche 3h) », « (CDI - 36h75 hebdo) », « (76) »).
