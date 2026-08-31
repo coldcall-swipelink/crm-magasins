@@ -60,6 +60,20 @@ export async function GET(req: NextRequest) {
         })
       : [];
 
+    // Où en est l'affaire d'un magasin déjà suivi ? Un magasin en « DEMO PREVUE »
+    // ne se traite pas comme un « À appeler ». L'étape est relue MAINTENANT et
+    // non figée à la réception : l'affaire a pu bouger entre-temps.
+    const dealIds = Array.from(new Set(
+      pending.flatMap(i => i.offers.map(o => o.existingDealId).filter((x): x is string => !!x)),
+    ));
+    const deals = dealIds.length
+      ? await prisma.deal.findMany({
+          where: { id: { in: dealIds } },
+          select: { id: true, column: { select: { title: true } }, pipeline: { select: { name: true } } },
+        })
+      : [];
+    const etape = new Map(deals.map(d => [d.id, { stage: d.column?.title || '', pipeline: d.pipeline?.name || '' }]));
+
     // L'email du contact aide à trancher dans l'écran de tri (une adresse
     // « hyperu.… » ou « uexpress.… » dit l'enseigne réelle du magasin). Il vit
     // dans la charge utile d'origine, pas en colonne : on le relit ici.
@@ -70,6 +84,8 @@ export async function GET(req: NextRequest) {
         offers: inbox.offers.map(({ rawData, ...offer }) => ({
           ...offer,
           ...readInboxContact(rawData),
+          dealStage: (offer.existingDealId && etape.get(offer.existingDealId)?.stage) || '',
+          dealPipeline: (offer.existingDealId && etape.get(offer.existingDealId)?.pipeline) || '',
         })),
       }));
 

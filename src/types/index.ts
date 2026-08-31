@@ -278,6 +278,9 @@ export interface InboxOffer {
   /** Cette offre précise a déjà été importée (doublon). */
   knownOffer:      boolean;
   existingDealId:  string | null;
+  /** Étape actuelle de l'affaire d'un magasin déjà suivi (relevée à la lecture). */
+  dealStage:       string;
+  dealPipeline:    string;
   status:          'pending' | 'imported' | 'rejected';
   createdAt:       string;
 }

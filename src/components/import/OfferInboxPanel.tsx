@@ -317,10 +317,16 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
                                 : offer.knownStore
                                   ? <Badge text="Magasin déjà suivi" color="#1e40af" bg="#dbeafe" />
                                   : <Badge text="Nouveau magasin" color="#166534" bg="#dcfce7" />}
+                              {offer.dealStage && (
+                                <Badge text={offer.dealStage} color="#3730a3" bg="#e0e7ff" />
+                              )}
                               {offer.url && (
                                 <a href={offer.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: '#4f46e5', textDecoration: 'none' }}>↗</a>
                               )}
                             </div>
+                            {offer.dealPipeline && (
+                              <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{offer.dealPipeline}</div>
+                            )}
                           </td>
                         </tr>
                       );
