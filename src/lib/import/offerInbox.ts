@@ -16,7 +16,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { simpleHash, normalizeText } from '@/lib/utils';
+import { generateBrandColor, simpleHash, normalizeText } from '@/lib/utils';
 import { mapCsvRow, parseCsv, type CsvRow, type MappedRow } from './csvParser';
 import { buildDeduplicationKey } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
@@ -91,6 +91,19 @@ function toCsvRow(row: Record<string, unknown>): CsvRow {
     out[key.trim().toLowerCase()] = toText(value);
   }
   return out;
+}
+
+/** Contacts d'une offre reçue, relus depuis la charge utile d'origine.
+ *  Ils ne sont pas stockés en colonnes sur InboxOffer : `rawData` reste la
+ *  source de vérité, et l'écran de tri a besoin de l'email pour arbitrer
+ *  (une adresse « hyperu.… » ou « uexpress.… » dit l'enseigne réelle). */
+export function readInboxContact(raw: unknown): { dealEmail: string; directeur: string; contactCalling: string } {
+  const mapped = mapCsvRow(toCsvRow((raw || {}) as Record<string, unknown>));
+  return {
+    dealEmail: mapped.dealEmail || '',
+    directeur: mapped.directeur || '',
+    contactCalling: mapped.contactCalling || '',
+  };
 }
 
 /** Extrait les lignes d'une charge utile, quelle que soit sa forme :
@@ -282,6 +295,12 @@ export async function decideInboxOffers(
   importIds: string[],
   rejectIds: string[],
   decidedBy: string,
+  /** Enseignes corrigées depuis l'écran de tri : { idOffre: « Hyper U » }.
+   *  Un relevé U remonte tout en « Super U » alors que le magasin est parfois
+   *  un Hyper U ou un U Express — l'email du contact le dit, et c'est au CRM
+   *  qu'on tranche. La bannière U étant canonicalisée pour la déduplication
+   *  (cf. canonicalBrand), corriger le libellé ne change pas de magasin. */
+  brands: Record<string, string> = {},
 ): Promise<DecideResult> {
   const wanted = Array.from(new Set(importIds.filter(Boolean)));
   const unwanted = Array.from(new Set(rejectIds.filter(Boolean))).filter(id => !wanted.includes(id));
@@ -305,13 +324,15 @@ export async function decideInboxOffers(
       : `Offres reçues — ${toImport.length} offre(s)`;
 
     result = await runMappedImport(
-      toImport.map(offer => ({
+      toImport.map(offer => {
         // La charge utile d'origine est re-mappée : les colonnes de l'InboxOffer
         // sont un extrait d'affichage, `rawData` reste la source de vérité (elle
         // peut porter des champs supplémentaires : contact, note, SIRET…).
-        mapped: mapCsvRow(toCsvRow(offer.rawData as Record<string, unknown>)),
-        raw: offer.rawData as Record<string, unknown>,
-      })),
+        const mapped = mapCsvRow(toCsvRow(offer.rawData as Record<string, unknown>));
+        const correction = (brands[offer.id] || '').trim();
+        if (correction) mapped.brand = correction;
+        return { mapped, raw: offer.rawData as Record<string, unknown> };
+      }),
       fileName,
       // Un lot trié est un envoi PARTIEL : ne pas marquer « absentes du dernier
       // import » toutes les affaires qui n'y figurent pas (cf. l'option).
@@ -322,6 +343,33 @@ export async function decideInboxOffers(
       where: { id: { in: toImport.map(o => o.id) } },
       data: { status: 'imported', decidedAt: new Date(), decidedBy },
     });
+
+    // Enseigne corrigée à la main : l'import ne touche pas à celle d'un magasin
+    // déjà connu (il ne renseigne que la manquante), or ici la correction est
+    // un choix explicite — on l'applique. La clé de déduplication n'est pas
+    // recalculée : dans la bannière U, seul cas visé, elle est identique.
+    for (const offer of toImport) {
+      const correction = (brands[offer.id] || '').trim();
+      if (!correction) continue;
+
+      const mapped = mapCsvRow(toCsvRow(offer.rawData as Record<string, unknown>));
+      mapped.brand = correction;
+      const store = await findStoreForRow(mapped);
+      if (!store) continue;
+
+      let brand = await prisma.brand.findFirst({
+        where: { name: { equals: correction, mode: 'insensitive' } },
+      });
+      if (!brand) {
+        brand = await prisma.brand.create({
+          data: { name: correction, color: generateBrandColor(correction) },
+        });
+      }
+      if (store.brandId !== brand.id) {
+        await prisma.store.update({ where: { id: store.id }, data: { brandId: brand.id } });
+      }
+      await prisma.inboxOffer.update({ where: { id: offer.id }, data: { brand: correction } });
+    }
     await prisma.offerInbox.updateMany({
       where: { id: { in: inboxes.map(i => i.id) } },
       data: { importBatchId: result.batchId },
