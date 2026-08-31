@@ -1,6 +1,7 @@
 // src/app/api/offer-inbox/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { readInboxContact } from '@/lib/import/offerInbox';
 
 /**
  * Boîte de réception des offres poussées par l'automatisation (cf.
@@ -19,6 +20,9 @@ const offerSelect = {
   address: true, jobTitle: true, offerTitle: true, contractType: true, salary: true,
   source: true, url: true, publishedAt: true, knownStore: true, knownOffer: true,
   existingDealId: true, status: true, createdAt: true,
+  // storeKey regroupe les offres d'un même magasin (une correction d'enseigne
+  // s'applique à tout le groupe) ; rawData porte les contacts, relus ci-dessous.
+  storeKey: true, rawData: true,
 } as const;
 
 export async function GET(req: NextRequest) {
@@ -56,13 +60,22 @@ export async function GET(req: NextRequest) {
         })
       : [];
 
+    // L'email du contact aide à trancher dans l'écran de tri (une adresse
+    // « hyperu.… » ou « uexpress.… » dit l'enseigne réelle du magasin). Il vit
+    // dans la charge utile d'origine, pas en colonne : on le relit ici.
+    const inboxes = pending
+      .filter(i => i.offers.length > 0)
+      .map(inbox => ({
+        ...inbox,
+        offers: inbox.offers.map(({ rawData, ...offer }) => ({
+          ...offer,
+          ...readInboxContact(rawData),
+        })),
+      }));
+
     // Un lot dont toutes les offres ont été tranchées ailleurs (autre onglet)
     // n'a plus rien à afficher : on ne le renvoie pas.
-    return NextResponse.json({
-      pendingCount,
-      inboxes: pending.filter(i => i.offers.length > 0),
-      history,
-    });
+    return NextResponse.json({ pendingCount, inboxes, history });
   } catch (err) {
     // Tables absentes (base pas encore synchronisée) : état vide exploitable,
     // la popup reste simplement silencieuse.

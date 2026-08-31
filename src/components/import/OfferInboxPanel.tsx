@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { InboxOffer, OfferInbox } from '@/types';
+import type { OfferInbox } from '@/types';
 import { formatDate } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -51,13 +51,6 @@ function Badge({ text, color, bg }: { text: string; color: string; bg: string })
   );
 }
 
-/** Libellé du magasin : « Enseigne — Magasin », ou l'un des deux si l'autre manque. */
-function storeLabel(offer: InboxOffer): string {
-  const parts = [offer.brand, offer.storeName].map(s => (s || '').trim()).filter(Boolean);
-  if (parts.length === 2 && parts[1].toLowerCase().includes(parts[0].toLowerCase())) return parts[1];
-  return parts.join(' — ') || '(magasin non renseigné)';
-}
-
 /** Sélection par défaut : tout ce qui n'est pas déjà connu du CRM. Une offre
  *  déjà importée est décochée — on la garde visible pour pouvoir la forcer. */
 function defaultSelection(inboxes: OfferInbox[]): Set<string> {
@@ -74,6 +67,20 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
   const [busy, setBusy] = useState(false);
   // Récapitulatif affiché à la place de la liste une fois le tri appliqué.
   const [result, setResult] = useState<DecideResponse | null>(null);
+  // Enseignes corrigées à la main, par clé de magasin : un relevé U remonte
+  // tout en « Super U » alors que le point de vente est parfois un Hyper U ou
+  // un U Express — l'email du contact le dit. La correction porte sur le
+  // MAGASIN, donc sur toutes ses offres du lot à la fois.
+  const [brandByStore, setBrandByStore] = useState<Record<string, string>>({});
+  // Enseignes déjà connues du CRM, proposées en autocomplétion.
+  const [knownBrands, setKnownBrands] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/brands')
+      .then(r => r.json())
+      .then((bs: { name: string }[]) => setKnownBrands(bs.map(b => b.name).filter(Boolean)))
+      .catch(() => {});
+  }, []);
 
   const allOffers = useMemo(() => inboxes.flatMap(i => i.offers), [inboxes]);
   const allIds = useMemo(() => allOffers.map(o => o.id), [allOffers]);
@@ -118,7 +125,17 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
       const res = await fetch('/api/offer-inbox/decide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ importIds, rejectIds, decidedBy: user?.name || 'CRM' }),
+        body: JSON.stringify({
+          importIds,
+          rejectIds,
+          decidedBy: user?.name || 'CRM',
+          // Corrections d'enseigne ramenées du magasin vers chaque offre.
+          brands: Object.fromEntries(
+            allOffers
+              .map(o => [o.id, brandByStore[o.storeKey]] as const)
+              .filter(([, b]) => !!b),
+          ),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
@@ -207,6 +224,13 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
         <button style={{ ...btnDef, fontSize: 12, padding: '6px 12px' }} onClick={() => setSelected(defaultSelection(inboxes))} disabled={busy}>Nouvelles seulement</button>
       </div>
 
+      {/* Enseignes proposées : celles du CRM, plus celles reçues dans le lot. */}
+      <datalist id="crm-enseignes">
+        {Array.from(new Set([...knownBrands, ...allOffers.map(o => o.brand)]))
+          .filter(Boolean).sort()
+          .map(name => <option key={name} value={name} />)}
+      </datalist>
+
       {/* Liste des lots reçus */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {inboxes.map((inbox) => {
@@ -230,10 +254,11 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
                   <thead>
                     <tr>
                       <th style={{ ...th, width: 32 }} />
+                      <th style={th}>Enseigne</th>
                       <th style={th}>Magasin</th>
                       <th style={th}>Ville</th>
                       <th style={th}>Poste</th>
-                      <th style={th}>Contrat</th>
+                      <th style={th}>Contact</th>
                       <th style={th}>Publiée</th>
                       <th style={th}>Statut</th>
                     </tr>
@@ -246,8 +271,21 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
                           <td style={td}>
                             <input type="checkbox" checked={checked} onChange={() => toggle(offer.id)} onClick={e => e.stopPropagation()} style={{ cursor: 'pointer' }} />
                           </td>
+                          <td style={td} onClick={e => e.stopPropagation()}>
+                            <input
+                              value={brandByStore[offer.storeKey] ?? offer.brand}
+                              list="crm-enseignes"
+                              onChange={e => setBrandByStore(prev => ({ ...prev, [offer.storeKey]: e.target.value }))}
+                              title="Enseigne du magasin — modifiable avant import"
+                              style={{
+                                width: 96, padding: '3px 6px', fontSize: 11.5, borderRadius: 5,
+                                border: `1px solid ${brandByStore[offer.storeKey] ? '#a5b4fc' : '#e2e8f0'}`,
+                                background: brandByStore[offer.storeKey] ? '#eef2ff' : '#fff', color: '#0f172a',
+                              }}
+                            />
+                          </td>
                           <td style={{ ...td, fontWeight: 500 }}>
-                            {storeLabel(offer)}
+                            {offer.storeName || '(magasin non renseigné)'}
                             {offer.address && <div style={{ fontSize: 10.5, color: '#94a3b8' }}>{offer.address}</div>}
                           </td>
                           <td style={td}>
@@ -260,7 +298,14 @@ export default function OfferInboxPanel({ inboxes, onDone, onDismiss, dismissLab
                             {offer.jobTitle || offer.offerTitle || '—'}
                             {offer.salary && <div style={{ fontSize: 10.5, color: '#94a3b8' }}>{offer.salary}</div>}
                           </td>
-                          <td style={td}>{offer.contractType || '—'}</td>
+                          <td style={td}>
+                            {offer.dealEmail
+                              ? <span style={{ fontSize: 11.5 }}>{offer.dealEmail}</span>
+                              : <span style={{ color: '#cbd5e1' }}>—</span>}
+                            {offer.contactCalling && (
+                              <div style={{ fontSize: 10.5, color: '#94a3b8' }}>{offer.contactCalling}</div>
+                            )}
+                          </td>
                           <td style={td}>
                             {offer.publishedAt || '—'}
                             {offer.source && <div style={{ fontSize: 10.5, color: '#94a3b8' }}>{offer.source}</div>}

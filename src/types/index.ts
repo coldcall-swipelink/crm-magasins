@@ -267,6 +267,12 @@ export interface InboxOffer {
   source:          string;
   url:             string;
   publishedAt:     string;
+  /** Email de contact lu dans la charge utile reçue (aide au tri). */
+  dealEmail:       string;
+  directeur:       string;
+  contactCalling:  string;
+  /** Clé du magasin : regroupe les offres d'un même point de vente. */
+  storeKey:        string;
   /** Le magasin est déjà suivi dans le CRM. */
   knownStore:      boolean;
   /** Cette offre précise a déjà été importée (doublon). */

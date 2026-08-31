@@ -37,7 +37,15 @@ export async function POST(req: NextRequest) {
       ? body.decidedBy.trim()
       : 'CRM';
 
-    const result = await decideInboxOffers(importIds, rejectIds, decidedBy);
+    // Enseignes corrigées dans l'écran de tri : { idOffre: « Hyper U » }.
+    const brands: Record<string, string> = {};
+    if (body?.brands && typeof body.brands === 'object') {
+      for (const [id, value] of Object.entries(body.brands as Record<string, unknown>)) {
+        if (typeof value === 'string' && value.trim()) brands[id] = value.trim();
+      }
+    }
+
+    const result = await decideInboxOffers(importIds, rejectIds, decidedBy, brands);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erreur inconnue';
