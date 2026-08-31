@@ -664,3 +664,85 @@ model PaymentLinkSlot {
 
   @@index([stripeLinkId])
 }
+
+// ─── Réception automatique des offres (N8N → CRM) ────────────────────────────
+//
+// Une automatisation externe (N8N) pousse ses offres sur
+// POST /api/webhooks/job-offers?token=…  Elles n'entrent PAS directement dans
+// le pipeline : elles atterrissent dans cette « boîte de réception », et c'est
+// depuis le CRM qu'on choisit lesquelles importer (popup « Nouvelles offres
+// reçues »). Les offres cochées passent ensuite par l'import normal — mêmes
+// règles que le CSV (dédup magasin, nouvelle offre → retour en « À appeler ») ;
+// les autres sont écartées et ne réapparaissent plus.
+//
+// Un lot = un envoi de l'automatisation.
+model OfferInbox {
+  id            String       @id @default(cuid())
+  // Libellé lisible du lot, affiché dans la popup (ex. « Indeed — 12/03 »).
+  label         String       @default("")
+  // Origine annoncée par l'automatisation (ex. « n8n-indeed »).
+  source        String       @default("")
+  receivedAt    DateTime     @default(now())
+  // Compteurs figés à la réception (le détail vit dans InboxOffer).
+  totalRows     Int          @default(0)
+  newRows       Int          @default(0)
+  // Lignes ignorées à la réception car déjà présentes dans la boîte.
+  duplicateRows Int          @default(0)
+  // pending  = au moins une offre reste à trier
+  // processed = lot tranché (offres importées et/ou écartées)
+  status        String       @default("pending")
+  processedAt   DateTime?
+  processedBy   String       @default("")
+  // Batch d'import créé lorsque des offres du lot ont été importées.
+  importBatchId String?
+  offers        InboxOffer[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([status, receivedAt])
+}
+
+// Une offre reçue, en attente d'arbitrage. Les colonnes reprennent les champs
+// métier de l'import CSV (cf. MappedRow) pour pouvoir afficher la ligne dans la
+// popup sans re-parser `rawData`, qui garde la charge utile d'origine.
+model InboxOffer {
+  id              String     @id @default(cuid())
+  inboxId         String
+  inbox           OfferInbox @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+  rawData         Json
+  brand           String     @default("")
+  storeName       String     @default("")
+  city            String     @default("")
+  postalCode      String     @default("")
+  department      String     @default("")
+  address         String     @default("")
+  jobTitle        String     @default("")
+  offerTitle      String     @default("")
+  contractType    String     @default("")
+  salary          String     @default("")
+  source          String     @default("")
+  url             String     @default("")
+  publishedAt     String     @default("")
+  externalOfferId String     @default("")
+  // Clé de déduplication À LA RÉCEPTION : une offre déjà reçue (peu importe
+  // qu'elle ait été importée, écartée ou qu'elle attende encore) n'est pas
+  // reproposée. Calculée sans identifiant de magasin, celui-ci pouvant ne pas
+  // exister encore en base (cf. buildInboxOfferKey).
+  receptionKey    String     @unique
+  // Clé de dédup magasin (cf. buildDeduplicationKey), pour information.
+  storeKey        String     @default("")
+  // Renseignés à la réception, pour aider au tri :
+  //   knownStore = le magasin est déjà suivi dans le CRM
+  //   knownOffer = cette offre précise a déjà été importée (doublon)
+  knownStore      Boolean    @default(false)
+  knownOffer      Boolean    @default(false)
+  existingDealId  String?
+  // pending | imported | rejected
+  status          String     @default("pending")
+  decidedAt       DateTime?
+  decidedBy       String     @default("")
+  createdAt       DateTime   @default(now())
+
+  @@index([inboxId])
+  @@index([status])
+}

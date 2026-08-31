@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCurrentUser } from '@/lib/currentUser';
+import { useOfferInbox } from '@/lib/offerInboxClient';
 
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 
@@ -12,6 +13,7 @@ const NAV = [
   { href: '/pipeline',  label: 'Pipeline',      icon: '📋' },
   { href: '/carte',     label: 'Carte',         icon: '🗺️' },
   { href: '/import',    label: 'Importer CSV',  icon: '📥' },
+  { href: '/offres-recues', label: 'Offres reçues', icon: '📨' },
   { href: '/history',   label: 'Historique',    icon: '🕐' },
   { href: '/actions',   label: 'Actions',       icon: '✅' },
   { href: '/settings',  label: 'Paramètres',    icon: '⚙️' },
@@ -20,6 +22,8 @@ const NAV = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useCurrentUser();
+  // Nombre d'offres poussées par l'automatisation et pas encore triées.
+  const { pendingCount } = useOfferInbox();
   return (
     <aside style={{ width: 192, flexShrink: 0, background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0 }}>
       <div style={{ padding: '14px 12px 10px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -49,6 +53,15 @@ export default function Sidebar() {
               marginBottom: 1, textDecoration: 'none',
             }}>
               <span>{icon}</span> {label}
+              {href === '/offres-recues' && pendingCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999,
+                  background: '#4f46e5', color: '#fff', fontSize: 10.5, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}

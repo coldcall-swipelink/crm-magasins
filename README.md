@@ -157,6 +157,61 @@ Un fichier CSV d'exemple est disponible dans `public/exemple-import.csv`.
 
 Le séparateur est auto-détecté (virgule ou point-virgule).
 
+### Recevoir les offres automatiquement (N8N → CRM)
+
+Au lieu de recevoir un Excel par email et de le trier à la main, l'automatisation
+N8N pousse ses offres directement dans le CRM. **Rien n'entre dans le pipeline
+sans validation** : les offres arrivent dans une boîte de réception, et une
+popup propose de cocher celles à importer.
+
+**1. Configurer le jeton** (`.env`, puis sur l'hébergeur) :
+
+```env
+OFFERS_WEBHOOK_TOKEN="…"    # openssl rand -base64 32
+```
+
+**2. Brancher N8N** sur un nœud *HTTP Request* en fin de workflow :
+
+```
+POST https://<votre-crm>/api/webhooks/job-offers?token=<OFFERS_WEBHOOK_TOKEN>
+Content-Type: application/json
+
+{
+  "label": "Indeed — 12/03",
+  "source": "n8n-indeed",
+  "rows": [
+    { "enseigne": "Leclerc", "nom magasin": "E.Leclerc Rennes", "ville": "Rennes",
+      "poste": "Manager Rayon", "date publication": "2026-03-12",
+      "lien": "https://…", "contrat": "CDI", "source": "Indeed" }
+  ]
+}
+```
+
+Formats également acceptés : un tableau d'offres nu (`[ {…}, {…} ]`), une
+enveloppe `offers` / `data` / `items`, un CSV entier (`{"csv": "enseigne;…"}`)
+ou du CSV brut avec `Content-Type: text/csv`. **Les noms de colonnes sont ceux
+de l'import manuel** (tableau ci-dessus) : le fichier déjà produit par le
+workflow passe tel quel.
+
+**3. Trier dans le CRM.** À l'arrivée d'un lot, la popup **« Nouvelles offres
+reçues »** s'ouvre sur n'importe quel écran. Chaque ligne indique si le magasin
+est déjà suivi et si l'offre a déjà été importée :
+
+| Étiquette | Sens | Coché par défaut |
+|---|---|---|
+| **Nouveau magasin** | magasin inconnu du CRM | ✅ |
+| **Magasin déjà suivi** | affaire existante, offre nouvelle | ✅ |
+| **Offre déjà importée** | doublon d'une offre déjà en base | ❌ |
+
+- **Importer la sélection** → les offres cochées passent par l'import normal
+  (mêmes règles que le CSV, voir ci-dessous) ; les non cochées sont écartées.
+- **Plus tard** → la popup se referme jusqu'au prochain lot ; le tri reste
+  accessible dans **Offres reçues** (barre latérale, avec le nombre en attente).
+
+Le webhook est **rejouable** : une offre déjà reçue — importée, écartée ou
+encore en attente — n'est jamais reproposée (comptée dans `duplicates` de la
+réponse JSON).
+
 ### Règle d'import principale
 
 | Situation | Comportement |
