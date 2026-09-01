@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
  * démo de l'affaire — c'est le geste qu'on vient chercher ici.
  */
 
-interface Slot { start: string; end: string; label: string; busy: boolean; past: boolean; }
+interface Slot { start: string; end: string; label: string; busy: boolean; past: boolean; busyLabel?: string; }
 interface Day { date: string; label: string; weekend: boolean; slots: Slot[]; }
 interface Availability { configured: boolean; timeZone: string; weekStart: string; days: Day[]; error?: string; }
 
@@ -132,7 +132,7 @@ export default function AvailabilityModal({ onPick, onClose }: Props) {
                         key={slot.start}
                         disabled={indisponible}
                         onClick={() => onPick(slot.start)}
-                        title={slot.past ? 'Créneau passé' : slot.busy ? 'Occupé' : 'Libre — cliquez pour caler la démo'}
+                        title={slot.past ? 'Créneau passé' : slot.busy ? `Occupé — ${slot.busyLabel || 'rendez-vous'}` : 'Libre — cliquez pour caler la démo'}
                         style={{
                           padding: '4px 6px', fontSize: 11.5, borderRadius: 5, textAlign: 'center',
                           fontVariantNumeric: 'tabular-nums',

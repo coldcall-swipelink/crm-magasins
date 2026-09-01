@@ -33,6 +33,8 @@ export type Slot = {
   label: string;
   busy: boolean;
   past: boolean;
+  /** Titre de l'événement qui occupe le créneau, pour l'infobulle. */
+  busyLabel?: string;
 };
 
 export type DayAvailability = {
@@ -100,33 +102,79 @@ function localParts(instant: Date, tz: string): { y: number; m: number; d: numbe
   return { y: Number(g('year')), m: Number(g('month')), d: Number(g('day')), weekday: jours[g('weekday')] ?? 0 };
 }
 
-/** Interroge freeBusy : les plages occupées de l'agenda entre deux instants. */
-async function fetchBusy(timeMin: Date, timeMax: Date): Promise<Array<{ start: string; end: string }>> {
+/**
+ * Plages occupées de l'agenda entre deux instants, lues via la LISTE DES
+ * ÉVÉNEMENTS et non via l'API freeBusy.
+ *
+ * Pourquoi : freeBusy réclame une autorisation OAuth que le jeton du CRM n'a
+ * pas (« ACCESS_TOKEN_SCOPE_INSUFFICIENT »), alors que ce même jeton crée déjà
+ * des événements — et qui peut écrire peut lire. Passer par events.list évite
+ * de refaire tout le parcours de consentement Google.
+ *
+ * Sont ignorés : les événements annulés, ceux marqués « disponible »
+ * (transparency = transparent, typiquement les rappels d'anniversaire), et
+ * ceux auxquels on a répondu non.
+ */
+async function fetchBusy(
+  timeMin: Date,
+  timeMax: Date,
+): Promise<Array<{ start: string; end: string; summary: string }>> {
   const token = await getGoogleAccessToken();
   const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 
-  const res = await fetch(`${CALENDAR_BASE}/freeBusy`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      timeZone: timeZone(),
-      items: [{ id: calendarId }],
-    }),
+  const params = new URLSearchParams({
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
+    // Les séries récurrentes sont développées en occurrences datées : sans
+    // cela, un point hebdomadaire n'apparaîtrait qu'une fois.
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '2500',
+    timeZone: timeZone(),
   });
 
+  const res = await fetch(
+    `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
   if (!res.ok) {
-    throw new Error(`Google freeBusy (${res.status}) : ${await res.text()}`);
+    throw new Error(`Google Calendar (${res.status}) : ${await res.text()}`);
   }
+
   const data = await res.json() as {
-    calendars?: Record<string, { busy?: Array<{ start: string; end: string }>; errors?: Array<{ reason: string }> }>;
+    items?: Array<{
+      status?: string;
+      summary?: string;
+      transparency?: string;
+      start?: { dateTime?: string; date?: string };
+      end?: { dateTime?: string; date?: string };
+      attendees?: Array<{ self?: boolean; responseStatus?: string }>;
+    }>;
   };
-  const agenda = data.calendars?.[calendarId];
-  if (agenda?.errors?.length) {
-    throw new Error(`Agenda inaccessible : ${agenda.errors.map(e => e.reason).join(', ')}`);
+
+  const plages: Array<{ start: string; end: string; summary: string }> = [];
+  for (const ev of data.items ?? []) {
+    if (ev.status === 'cancelled') continue;
+    if (ev.transparency === 'transparent') continue;
+    if (ev.attendees?.some(a => a.self && a.responseStatus === 'declined')) continue;
+
+    const summary = ev.summary || '(sans titre)';
+    if (ev.start?.dateTime && ev.end?.dateTime) {
+      plages.push({ start: ev.start.dateTime, end: ev.end.dateTime, summary });
+    } else if (ev.start?.date && ev.end?.date) {
+      // Journée entière : les bornes sont des dates nues, à interpréter dans le
+      // fuseau de travail. La fin est exclusive côté Google.
+      const [y1, m1, d1] = ev.start.date.split('-').map(Number);
+      const [y2, m2, d2] = ev.end.date.split('-').map(Number);
+      plages.push({
+        start: fromLocalParts(y1, m1, d1, 0, 0, timeZone()).toISOString(),
+        end: fromLocalParts(y2, m2, d2, 0, 0, timeZone()).toISOString(),
+        summary,
+      });
+    }
   }
-  return agenda?.busy ?? [];
+  return plages;
 }
 
 /**
@@ -170,12 +218,13 @@ export async function getWeekAvailability(weekStart?: string): Promise<Availabil
     days: [],
   };
 
-  let busy: Array<{ start: number; end: number }> = [];
+  let busy: Array<{ start: number; end: number; summary: string }> = [];
   if (resultat.configured) {
     try {
       busy = (await fetchBusy(timeMin, timeMax)).map(b => ({
         start: new Date(b.start).getTime(),
         end: new Date(b.end).getTime(),
+        summary: b.summary,
       }));
     } catch (err) {
       // La grille reste affichée : mieux vaut des créneaux sans occupation
@@ -197,14 +246,16 @@ export async function getWeekAvailability(weekStart?: string): Promise<Availabil
       const debut = fromLocalParts(jour.y, jour.m, jour.d, h, min, tz);
       const fin = new Date(debut.getTime() + SLOT_MIN * 60000);
       const t = debut.getTime();
+      // Un créneau est pris dès qu'il chevauche une plage occupée, même
+      // partiellement : une réunion de 15 h 10 à 15 h 40 bloque 15 h et 15 h 30.
+      const occupant = busy.find(b => t < b.end && fin.getTime() > b.start);
       slots.push({
         start: debut.toISOString(),
         end: fin.toISOString(),
         label: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`,
-        // Un créneau est pris dès qu'il chevauche une plage occupée, même
-        // partiellement : une réunion de 15 h 10 à 15 h 40 bloque 15 h et 15 h 30.
-        busy: busy.some(b => t < b.end && fin.getTime() > b.start),
+        busy: !!occupant,
         past: fin.getTime() <= maintenant,
+        ...(occupant ? { busyLabel: occupant.summary } : {}),
       });
     }
 
