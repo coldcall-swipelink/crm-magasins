@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
+import AvailabilityModal from '@/components/deal/AvailabilityModal';
 import { useCurrentUser } from '@/lib/currentUser';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
@@ -451,6 +452,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
   // Envoi programmé : '' = tout de suite, sinon une date locale « YYYY-MM-DDTHH:mm ».
   const [emailWhen, setEmailWhen] = useState('');
+  // Pop-up « Afficher les dispos » (agenda Google, créneaux de 30 min).
+  const [showDispos, setShowDispos] = useState(false);
   // Formulaire « lien de paiement » : liens Stripe actifs résolus pour ce deal,
   // chacun avec son URL finale (client_reference_id = group_id ou organization_id).
   // Le plan tarifaire fixe (42 cases, vides comprises) et les liens spéciaux,
@@ -1427,6 +1430,19 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     </>
   );
 
+  /** Créneau choisi dans la pop-up : renseigne la date de démo de l'affaire.
+   *  Le champ attend une heure LOCALE « YYYY-MM-DDTHH:mm » ; l'API renvoie un
+   *  instant absolu, on convertit. */
+  const pickDispo = (startIso: string) => {
+    const d = new Date(startIso);
+    const p = (n: number) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    setFields(f => ({ ...f, demoDate: local }));
+    patchDeal({ demoDate: d.toISOString() });
+    setShowDispos(false);
+    toast(`Démo calée au ${formatDate(d)}`);
+  };
+
   const deleteDeal = async () => {
     const name = deal?.store?.name || 'cette affaire';
     if (!window.confirm(`Supprimer ${name} ? Les actions, notes, offres et emails associés seront définitivement supprimés. Cette action est irréversible.`)) return;
@@ -1904,6 +1920,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   type="datetime-local" style={inp} value={fields.demoDate ?? ''}
                   onChange={e => { setFields(f => ({ ...f, demoDate: e.target.value })); patchDeal({ demoDate: e.target.value ? new Date(e.target.value).toISOString() : null }); }}
                 />
+                <button
+                  onClick={() => setShowDispos(true)}
+                  style={{ marginTop: 6, padding: '6px 12px', fontSize: 12, borderRadius: 7, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  📅 Afficher les dispos
+                </button>
                 {(deal.column?.title === 'Démo prévue' || deal.column?.title === 'DEMO PREVUE') && (
                   <p style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>
                     Une invitation Google Meet est envoyée au contact{deal.dealEmail ? ` (${deal.dealEmail})` : ''} et à bilal@swipelink.fr à l&apos;enregistrement de la date.
@@ -2451,6 +2473,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       />
     )}
     {pvPrompt && <PVModal onConfirm={handlePvConfirm} onCancel={() => setPvPrompt(false)} />}
+    {showDispos && <AvailabilityModal onPick={pickDispo} onClose={() => setShowDispos(false)} />}
     {closingPrompt && (
       <ClosingDateModal
         storeName={store?.name}

@@ -220,6 +220,26 @@ réponse JSON).
 | Magasin existant + **nouvelle offre** | → **Retour automatique en « À appeler »** |
 | Magasin existant + offre déjà connue | → `lastSeenAt` mis à jour, colonne inchangée |
 
+### Voir ses disponibilités pour caler une démo
+
+Sous le champ **Date de la démo** de la fiche affaire, le bouton **📅 Afficher
+les dispos** ouvre l'agenda Google de la semaine en créneaux de 30 minutes :
+libre en vert, occupé en rouge, passé en gris. Les flèches naviguent d'une
+semaine à l'autre, et **cliquer un créneau libre renseigne la date de démo**.
+
+L'agenda lu est celui déjà connecté pour les visios Google Meet
+(`GOOGLE_CALENDAR_ID`, « primary » par défaut) : rien de plus à configurer si
+les invitations Meet fonctionnent déjà. La lecture est en **lecture seule** —
+consulter les disponibilités n'écrit jamais dans l'agenda.
+
+Les sept jours sont affichés, week-end compris : un directeur de magasin est
+souvent joignable le samedi. La plage horaire par défaut va de 9 h à 19 h
+(`CALENDAR_START_HOUR` / `CALENDAR_END_HOUR`), dans le fuseau
+`GOOGLE_MEET_TIMEZONE`.
+
+Sans intégration Google configurée, la grille s'affiche vide et le dit, plutôt
+que de tomber en erreur.
+
 ### Programmer l'envoi d'un email
 
 Dans la fiche affaire, le composeur d'email propose une ligne **Départ** :
