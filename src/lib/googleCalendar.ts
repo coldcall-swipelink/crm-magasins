@@ -48,7 +48,9 @@ export function isGoogleCalendarConfigured(): boolean {
   );
 }
 
-/** Échange le refresh token contre un access token. */
+/** Échange le refresh token contre un access token.
+ *  Exporté sous le nom `getGoogleAccessToken` (cf. plus bas) pour la lecture
+ *  des disponibilités, qui interroge le même agenda. */
 async function getAccessToken(): Promise<string> {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID as string,
@@ -72,6 +74,10 @@ async function getAccessToken(): Promise<string> {
   if (!data.access_token) throw new Error('Réponse OAuth Google sans access_token');
   return data.access_token;
 }
+
+/** Jeton d'accès partagé avec la lecture des disponibilités
+ *  (cf. src/lib/calendarAvailability.ts) : même compte, même agenda. */
+export const getGoogleAccessToken = getAccessToken;
 
 /**
  * Crée un espace Google Meet « Ouvert à tous » (accessType = OPEN) via l'API
