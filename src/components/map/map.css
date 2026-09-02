@@ -209,6 +209,14 @@
 .slm-mapwrap { flex: 1; position: relative; min-width: 0; height: 100%; }
 .slm-mapwrap .leaflet-container { font-family: inherit; background: #eceae3; height: 100%; width: 100%; }
 
+/* Fond OpenStreetMap (aucune clé CARTO configurée) : les tuiles sont en
+   couleurs et deviennent illisibles sous des milliers d'épingles. On les
+   désature pour retrouver le gris clair du fond d'origine. Le filtre ne porte
+   QUE sur le calque des tuiles : les épingles, elles, gardent leurs couleurs. */
+.slm-mapwrap .leaflet-container.slm-tiles-plain .leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.06) contrast(.9);
+}
+
 .slm-marker {
   width: 18px; height: 18px; border-radius: 50% 50% 50% 0;
   background: var(--accent); transform: rotate(-45deg);
