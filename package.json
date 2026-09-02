@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
+    "google:auth": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/google-auth.ts",
     "user:set-password": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/set-user-password.ts",
     "phones:lookup": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/phone-lookup.ts",
     "db:studio": "prisma studio",

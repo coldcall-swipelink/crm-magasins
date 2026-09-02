@@ -240,6 +240,41 @@ souvent joignable le samedi. La plage horaire par défaut va de 9 h à 19 h
 Sans intégration Google configurée, la grille s'affiche vide et le dit, plutôt
 que de tomber en erreur.
 
+#### Réautoriser l'agenda Google
+
+Si la pop-up affiche « Agenda illisible » avec une erreur **403
+`ACCESS_TOKEN_SCOPE_INSUFFICIENT`**, c'est que le `GOOGLE_REFRESH_TOKEN` en
+place n'a que l'autorisation d'**écrire** des événements (celle qui sert aux
+invitations Meet), pas celle de **lire** l'agenda. Refaites le parcours :
+
+```bash
+npm run google:auth
+```
+
+Le script a besoin de `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET` dans un
+`.env.local` à la racine — recopiez-les depuis Vercel → Settings → Environment
+Variables (ou `npx vercel env pull .env.local` si vous avez la CLI ; le `npx`
+est nécessaire, la commande `vercel` n'est pas installée par défaut).
+
+Il affiche alors une adresse Google. Ouvrez-la, acceptez, et selon l'endroit
+d'où vous lancez le script :
+
+| Où tourne le script | Ce qui se passe |
+|---|---|
+| Sur la machine du navigateur | Google revient sur `http://localhost:5555/oauth2callback`, le script attrape le code **tout seul** |
+| Sur une machine distante (**Codespace**, serveur, SSH) | Le navigateur affiche « site inaccessible » : c'est **normal**. Copiez l'**adresse entière de la barre du navigateur** et collez-la dans le terminal |
+
+Dans les deux cas, le script vérifie immédiatement que l'agenda est lisible,
+puis affiche le `GOOGLE_REFRESH_TOKEN` à recopier dans Vercel avant de
+redéployer. Il n'écrit rien : ni dans vos fichiers, ni dans votre agenda.
+
+Le port d'écoute se règle avec `GOOGLE_AUTH_PORT`. Si Google répond
+`redirect_uri_mismatch`, ajoutez l'URI affichée par le script dans la console
+Google Cloud → API et services → Identifiants → votre ID client OAuth → URI de
+redirection autorisés. Si le script se plaint de ne pas recevoir de refresh
+token, retirez d'abord l'accès du CRM sur
+[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+
 ### Programmer l'envoi d'un email
 
 Dans la fiche affaire, le composeur d'email propose une ligne **Départ** :
