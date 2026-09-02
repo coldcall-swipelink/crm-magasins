@@ -12,3 +12,153 @@ body {
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 input, select, textarea, button { font-family: inherit; font-size: 13px; }
 a { text-decoration: none; }
+
+/* ── Settings workspace ────────────────────────────────────────────────────
+   The settings screen predates the shared UI primitives and is mostly styled
+   inline. Keep this polish route-scoped through its unique page container so
+   the rest of the CRM remains untouched. */
+main > div:has(> div[style*="max-width: 700px"]) {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(99, 102, 241, .08), transparent 30rem),
+    #f8fafc;
+}
+
+main > div > div[style*="max-width: 700px"] {
+  width: min(100%, 1040px) !important;
+  max-width: 1040px !important;
+  margin-inline: auto;
+  padding: 38px clamp(20px, 4vw, 48px) 64px !important;
+}
+
+/* Page title */
+main > div > div[style*="max-width: 700px"] > div:first-child {
+  margin-bottom: 28px !important;
+  font-size: 26px !important;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+  color: #111827;
+}
+
+/* Turn each top-level settings group into a calm, readable work surface. */
+main > div > div[style*="max-width: 700px"] > div:not(:first-child) {
+  margin-bottom: 20px !important;
+  padding: clamp(18px, 2.5vw, 24px) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, .94) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .03), 0 10px 30px rgba(15, 23, 42, .04);
+}
+
+main > div > div[style*="max-width: 700px"] > div:not(:first-child):hover {
+  border-color: #d7dbea !important;
+}
+
+/* Section headings and supporting copy */
+main > div > div[style*="max-width: 700px"] > div:not(:first-child) > div:first-child {
+  font-size: 15px !important;
+  line-height: 1.4;
+  color: #172033;
+}
+
+main > div > div[style*="max-width: 700px"] p {
+  max-width: 82ch;
+  line-height: 1.6 !important;
+  color: #64748b !important;
+}
+
+/* Fields: more comfortable hit targets and a clear, consistent focus state. */
+main > div > div[style*="max-width: 700px"] :is(input:not([type="color"]), select, textarea) {
+  min-height: 40px;
+  padding: 9px 12px !important;
+  border-color: #dbe1ea !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+main > div > div[style*="max-width: 700px"] :is(input:not([type="color"]), select, textarea):hover {
+  border-color: #bdc6d4 !important;
+}
+
+main > div > div[style*="max-width: 700px"] :is(input:not([type="color"]), select, textarea):focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, .14) !important;
+}
+
+main > div > div[style*="max-width: 700px"] input[type="color"] {
+  overflow: hidden;
+  padding: 3px;
+  border-color: #dbe1ea !important;
+  background: #fff;
+}
+
+/* Buttons feel tactile without changing any component markup or behaviour. */
+main > div > div[style*="max-width: 700px"] button {
+  min-height: 34px;
+  border-radius: 9px !important;
+  font-weight: 600 !important;
+  transition: transform .12s ease, box-shadow .15s ease, filter .15s ease, border-color .15s ease;
+}
+
+main > div > div[style*="max-width: 700px"] button:not(:disabled):hover {
+  filter: brightness(.98);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .10);
+}
+
+main > div > div[style*="max-width: 700px"] button:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+main > div > div[style*="max-width: 700px"] button:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, .24);
+  outline-offset: 2px;
+}
+
+/* List rows */
+main > div > div[style*="max-width: 700px"] div[style*="margin-bottom: 6px"][style*="border: 1px solid"] {
+  min-height: 50px;
+  padding: 9px 12px !important;
+  border-color: #e7eaf0 !important;
+  border-radius: 10px !important;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+main > div > div[style*="max-width: 700px"] div[style*="margin-bottom: 6px"][style*="border: 1px solid"]:hover {
+  border-color: #cfd5e1 !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .05);
+}
+
+/* Preserve the visual importance of the destructive area. */
+main > div > div[style*="max-width: 700px"] > div:last-child {
+  border-color: #fecaca !important;
+  background: linear-gradient(135deg, #fffafa, #fff5f5) !important;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  main > div > div[style*="max-width: 700px"] {
+    padding: 24px 14px 44px !important;
+  }
+
+  main > div > div[style*="max-width: 700px"] > div:not(:first-child) {
+    padding: 16px !important;
+    border-radius: 13px !important;
+  }
+
+  main > div > div[style*="max-width: 700px"] div[style*="display: flex"] {
+    row-gap: 10px !important;
+    flex-wrap: wrap;
+  }
+
+  main > div > div[style*="max-width: 700px"] div[style*="grid-template-columns: 1fr 1.4fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main > div > div[style*="max-width: 700px"] :is(button, input, select, textarea) {
+    transition: none;
+  }
+}
