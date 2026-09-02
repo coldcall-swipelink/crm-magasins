@@ -187,6 +187,7 @@ export interface Deal {
   lastImportAt:             string | null;
   directeur?:               string;
   contactCalling?:          string;
+  contactPosition?:         'Directeur' | 'Adhérent' | 'RH' | '';
   dealEmail?:               string;
   // Numéro du contact : masqué dans la fiche affaire tant que l'utilisateur n'a
   // pas cliqué sur « Afficher le numéro » (clic comptabilisé comme un appel).

@@ -89,6 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           position,
           directeur: source.directeur,
           contactCalling: source.contactCalling,
+          contactPosition: source.contactPosition,
           dealEmail: source.dealEmail,
           contactCivilite: source.contactCivilite,
           contactLastName: source.contactLastName,

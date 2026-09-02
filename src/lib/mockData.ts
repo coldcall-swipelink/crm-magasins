@@ -94,7 +94,7 @@ function makeDeal(spec: DealSpec) {
     columnId: spec.columnId, column: mockColumns.find(c => c.id === spec.columnId) ?? null,
     previousColumnId: null, priority: spec.priority ?? 'normale', position: dealSeq,
     isNewFromLastImport: false, hasNewOfferFromLastImport: false, isPresentInLastImport: true,
-    movedToCallAt: null, lastImportAt: null, directeur: '', contactCalling: spec.contact,
+    movedToCallAt: null, lastImportAt: null, directeur: '', contactCalling: spec.contact, contactPosition: '',
     dealEmail: '', contactPhone: spec.contact, contactCivilite: 'Monsieur', contactLastName: '',
     dealValue: spec.dealValue ?? null, demoDate: null, demoBookedAt: null, candidateCallDate: null,
     assignedUserId: spec.user?.id ?? null, assignedUser: spec.user ?? null, collaborator: null,

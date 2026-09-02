@@ -127,15 +127,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         p._count.childDeals = kids.length;
       }
     }
-    for (const k of ['priority', 'isPV', 'paymentMode', 'paymentTiming', 'subscriptionType', 'subscriptionMonths', 'dealValue', 'directeur', 'contactCalling', 'dealEmail', 'contactPhone', 'contactCivilite', 'contactLastName'] as const) {
+    for (const k of ['priority', 'isPV', 'paymentMode', 'paymentTiming', 'subscriptionType', 'subscriptionMonths', 'dealValue', 'directeur', 'contactCalling', 'contactPosition', 'dealEmail', 'contactPhone', 'contactCivilite', 'contactLastName'] as const) {
       if (k in body) (d as any)[k] = body[k];
     }
     return NextResponse.json(buildMockDeal(params.id));
   }
   try {
     const body = await req.json();
+    if ('contactPosition' in body && !['', 'Directeur', 'Adhérent', 'RH'].includes(body.contactPosition)) {
+      return NextResponse.json({ error: 'Poste du contact invalide' }, { status: 400 });
+    }
     const allowed = ['columnId', 'priority', 'isPV', 'paymentMode', 'position', 'previousColumnId',
-                     'directeur', 'contactCalling', 'dealEmail', 'contactPhone', 'contactCivilite', 'contactLastName',
+                     'directeur', 'contactCalling', 'contactPosition', 'dealEmail', 'contactPhone', 'contactCivilite', 'contactLastName',
                      'dealValue', 'demoDate', 'candidateCallDate', 'closingDate', 'collaboratorId', 'assignedUserId',
                      'subscriptionType', 'paymentTiming', 'subscriptionMonths'];
     const data: Record<string, unknown> = {};
