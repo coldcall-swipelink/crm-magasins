@@ -163,6 +163,8 @@ model Deal {
   lastImportAt              DateTime?
   directeur                 String   @default("")
   contactCalling            String   @default("")
+  // Fonction du contact calling, choisie directement depuis la deal card.
+  contactPosition           String   @default("")
   dealEmail                 String   @default("")
   contactCivilite           String   @default("Monsieur")
   contactLastName           String   @default("")

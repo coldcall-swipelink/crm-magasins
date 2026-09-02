@@ -164,6 +164,21 @@ export default function PipelineBoard() {
 
   const onDragStart = (e: React.DragEvent, deal: Deal) => { dragDeal.current = deal; setDraggingId(deal.id); e.dataTransfer.effectAllowed = 'move'; };
   const onDragEnd = () => { setDraggingId(null); setDragOverCol(null); };
+  const updateContactPosition = async (deal: Deal, contactPosition: Deal['contactPosition']) => {
+    const previousPosition = deal.contactPosition || '';
+    setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, contactPosition } : d));
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactPosition }),
+      });
+      if (!res.ok) throw new Error('save');
+    } catch {
+      setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, contactPosition: previousPosition } : d));
+      toast('Erreur lors de l’enregistrement du poste', 'error');
+    }
+  };
   const onDragOver = (e: React.DragEvent, colId: string) => { e.preventDefault(); setDragOverCol(colId); };
   const onDrop = async (e: React.DragEvent, targetColId: string) => {
     e.preventDefault();
@@ -601,7 +616,8 @@ export default function PipelineBoard() {
                 {colDeals.map(deal => (
                   <DealCard key={deal.id} deal={deal} isDragging={draggingId === deal.id}
                     hasNewOffer={dealsWithNewOffer.has(deal.id)}
-                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => openDeal(deal.id)} />
+                    onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => openDeal(deal.id)}
+                    onContactPositionChange={position => updateContactPosition(deal, position)} />
                 ))}
               </div>
             </div>
