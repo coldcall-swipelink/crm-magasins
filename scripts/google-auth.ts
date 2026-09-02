@@ -24,6 +24,7 @@
 // vérifie juste, à la fin, que le nouveau jeton lit bien le calendrier.
 
 import { createServer } from 'http';
+import { createInterface } from 'readline';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -70,9 +71,32 @@ function pageRetour(ok: boolean, detail = ''): string {
   }</p></div></body>`;
 }
 
-/** Attend le retour de Google sur le port local et renvoie le code d'autorisation. */
+/**
+ * Attend le code d'autorisation, par DEUX chemins menés de front — le premier
+ * qui aboutit gagne :
+ *
+ *   • le port local : si vous lancez le script sur la machine où tourne le
+ *     navigateur, Google y revient tout seul et il n'y a rien à faire ;
+ *   • le collage : sur une machine distante (Codespace, serveur, SSH), le
+ *     navigateur ne joint PAS ce port. La page d'erreur qu'il affiche est sans
+ *     importance : l'adresse de sa barre contient le code. On la colle ici.
+ *
+ * C'est ce second chemin qui rend le script utilisable de partout.
+ */
 function attendreLeCode(state: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    let fini = false;
+    // Sans le pause() du clavier, Node reste en vie après coup : fermer
+    // l'interface readline ne suffit pas à relâcher l'entrée standard.
+    const terminer = (fn: () => void) => {
+      if (fini) return;
+      fini = true;
+      server.close();
+      rl.close();
+      process.stdin.pause();
+      fn();
+    };
+
     const server = createServer((req, res) => {
       const url = new URL(req.url || '/', `http://localhost:${PORT}`);
       if (url.pathname !== '/oauth2callback') { res.statusCode = 404; return res.end(); }
@@ -84,26 +108,44 @@ function attendreLeCode(state: string): Promise<string> {
       if (url.searchParams.get('state') !== state) {
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(pageRetour(false, 'état inattendu'));
-        server.close();
-        return reject(new Error('État OAuth inattendu — recommencez le parcours.'));
+        return terminer(() => reject(new Error('État OAuth inattendu — recommencez le parcours.')));
       }
 
       res.writeHead(erreur || !code ? 400 : 200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(pageRetour(!erreur && !!code, erreur || 'aucun code reçu'));
-      server.close();
 
-      if (erreur || !code) return reject(new Error(erreur || 'Google n’a renvoyé aucun code.'));
-      resolve(code);
+      if (erreur || !code) return terminer(() => reject(new Error(erreur || 'Google n’a renvoyé aucun code.')));
+      terminer(() => resolve(code));
     });
 
+    // Le port peut très bien être indisponible (déjà pris, machine verrouillée) :
+    // ce n'est pas une erreur, il reste le collage.
     server.on('error', (e: NodeJS.ErrnoException) => {
-      reject(new Error(
-        e.code === 'EADDRINUSE'
-          ? `Le port ${PORT} est déjà pris. Relancez avec un autre port :\n   GOOGLE_AUTH_PORT=5566 npm run google:auth`
-          : String(e),
-      ));
+      console.log(`   (port ${PORT} inutilisable${e.code ? ` — ${e.code}` : ''} : passez par le collage ci-dessous)\n`);
     });
     server.listen(PORT);
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('   Collez ici l’adresse complète (ou le code) puis Entrée : ', (saisie) => {
+      const brut = saisie.trim();
+      if (!brut) return terminer(() => reject(new Error('Rien n’a été collé.')));
+
+      // On accepte aussi bien l'adresse entière que le code seul.
+      let code = brut, etat: string | null = null, erreur: string | null = null;
+      const params = brut.includes('?') ? new URLSearchParams(brut.slice(brut.indexOf('?') + 1)) : null;
+      if (params) {
+        code = params.get('code') || '';
+        etat = params.get('state');
+        erreur = params.get('error');
+      }
+
+      if (erreur) return terminer(() => reject(new Error(`Google a refusé : ${erreur}`)));
+      if (!code) return terminer(() => reject(new Error('Aucun code trouvé dans ce qui a été collé.')));
+      if (etat !== null && etat !== state) {
+        return terminer(() => reject(new Error('L’adresse collée ne correspond pas à cette demande — recommencez.')));
+      }
+      terminer(() => resolve(code));
+    });
   });
 }
 
@@ -115,8 +157,11 @@ async function main() {
   if (!clientId || !clientSecret) {
     console.error(
       '❌ GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET sont introuvables.\n' +
-      '   Récupérez-les depuis Vercel :  vercel env pull .env.local\n' +
-      '   (ou créez un .env.local à la racine avec ces deux lignes).',
+      '   Créez un .env.local à la racine avec ces deux lignes, en recopiant les\n' +
+      '   valeurs depuis Vercel → Settings → Environment Variables :\n' +
+      '     GOOGLE_CLIENT_ID="…"\n' +
+      '     GOOGLE_CLIENT_SECRET="…"\n' +
+      '   (ou, si la CLI Vercel est installée :  npx vercel env pull .env.local)',
     );
     process.exit(1);
   }
@@ -135,14 +180,22 @@ async function main() {
 
   console.log('\n① Ouvrez cette adresse dans votre navigateur :\n');
   console.log('   ' + auth.toString() + '\n');
-  console.log(`   (le script écoute sur ${REDIRECT} et attend votre retour…)\n`);
+  console.log('② Après avoir accepté, Google vous renvoie vers');
+  console.log(`   ${REDIRECT}?code=…`);
+  console.log('');
+  console.log('   • Si ce script tourne sur la MÊME machine que le navigateur,');
+  console.log('     il attrape le retour tout seul : il n’y a rien à faire.');
+  console.log('   • Sinon (Codespace, serveur distant, SSH), le navigateur affichera');
+  console.log('     une page d’erreur « site inaccessible » : c’est NORMAL et sans');
+  console.log('     gravité. Copiez l’adresse entière de la barre du navigateur');
+  console.log('     (elle contient le code) et collez-la ci-dessous.\n');
   console.log('   Si Google répond « redirect_uri_mismatch », ajoutez cette URI');
   console.log('   dans la console Google Cloud → API et services → Identifiants →');
   console.log(`   votre ID client OAuth → URI de redirection autorisés :\n     ${REDIRECT}\n`);
 
   const code = await attendreLeCode(state);
 
-  console.log('② Échange du code contre un jeton…');
+  console.log('\n③ Échange du code contre un jeton…');
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -169,7 +222,7 @@ async function main() {
 
   // Vérification immédiate : le jeton lit-il vraiment l'agenda ? Mieux vaut le
   // savoir ici que devant l'écran rouge de la pop-up des dispos.
-  console.log('③ Vérification de la lecture de l’agenda…');
+  console.log('④ Vérification de la lecture de l’agenda…');
   const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
   const debut = new Date();
   const fin = new Date(debut.getTime() + 7 * 24 * 3600 * 1000);
@@ -185,13 +238,19 @@ async function main() {
     console.log(`   ⚠️  Lecture refusée (${check.status}) : ${await check.text()}`);
   }
 
-  console.log('\n④ À recopier dans Vercel (Settings → Environment Variables),');
+  console.log('\n⑤ À recopier dans Vercel (Settings → Environment Variables),');
   console.log('   puis redéployer :\n');
   console.log('GOOGLE_REFRESH_TOKEN=' + data.refresh_token + '\n');
   console.log('   Autorisations obtenues :');
   for (const s of (data.scope || '').split(' ').filter(Boolean)) console.log('     • ' + s);
   console.log('\n   Ce jeton reste valable tant que vous ne révoquez pas l’accès.');
   console.log('   Ne le commitez pas : il ouvre votre agenda.\n');
+
+  // Sortie explicite : les connexions gardées ouvertes par fetch retiendraient
+  // sinon le processus une poignée de secondes après l'affichage du jeton, ce
+  // qui donne l'impression fâcheuse que le script s'est figé.
+  await new Promise<void>(r => process.stdout.write('', () => r()));
+  process.exit(0);
 }
 
 main().catch(err => { console.error('\n❌ ' + (err instanceof Error ? err.message : String(err)) + '\n'); process.exit(1); });
