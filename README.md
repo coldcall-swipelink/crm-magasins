@@ -240,6 +240,32 @@ souvent joignable le samedi. La plage horaire par défaut va de 9 h à 19 h
 Sans intégration Google configurée, la grille s'affiche vide et le dit, plutôt
 que de tomber en erreur.
 
+#### Réautoriser l'agenda Google
+
+Si la pop-up affiche « Agenda illisible » avec une erreur **403
+`ACCESS_TOKEN_SCOPE_INSUFFICIENT`**, c'est que le `GOOGLE_REFRESH_TOKEN` en
+place n'a que l'autorisation d'**écrire** des événements (celle qui sert aux
+invitations Meet), pas celle de **lire** l'agenda. Refaites le parcours depuis
+votre poste — il faut un navigateur :
+
+```bash
+vercel env pull .env.local   # récupère GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+npm run google:auth          # ouvre le parcours, affiche le nouveau jeton
+```
+
+Le script écoute sur `http://localhost:5555/oauth2callback` (port réglable avec
+`GOOGLE_AUTH_PORT`), demande les autorisations `calendar` et
+`meetings.space.created`, vérifie tout de suite que l'agenda est lisible, puis
+affiche le `GOOGLE_REFRESH_TOKEN` à recopier dans Vercel (Settings →
+Environment Variables) avant de redéployer. Il n'écrit rien : ni dans vos
+fichiers, ni dans votre agenda.
+
+Si Google répond `redirect_uri_mismatch`, ajoutez l'URI affichée par le script
+dans la console Google Cloud → API et services → Identifiants → votre ID client
+OAuth → URI de redirection autorisés. Si le script se plaint de ne pas recevoir
+de refresh token, retirez d'abord l'accès du CRM sur
+[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+
 ### Programmer l'envoi d'un email
 
 Dans la fiche affaire, le composeur d'email propose une ligne **Départ** :
