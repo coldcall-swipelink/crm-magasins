@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { basemap } from './basemap';
 
 export interface MapDeal {
   id: string;
@@ -166,6 +167,7 @@ interface Props {
 
 export default function DealsMap({ deals, focus, zone, selectedId, onSelect, onOpenDeal }: Props) {
   const zIcon = useMemo(() => zoneIcon(), []);
+  const fond = useMemo(() => basemap(), []);
 
   return (
     <MapContainer
@@ -174,13 +176,14 @@ export default function DealsMap({ deals, focus, zone, selectedId, onSelect, onO
       minZoom={5}
       scrollWheelZoom
       zoomControl={false}
+      className={fond.desaturate ? 'slm-tiles-plain' : undefined}
       style={{ height: '100%', width: '100%' }}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        subdomains="abcd"
-        maxZoom={19}
+        attribution={fond.attribution}
+        url={fond.url}
+        subdomains={fond.subdomains}
+        maxZoom={fond.maxZoom}
       />
       <ZoomControl position="topright" />
       <FitBounds deals={deals} />

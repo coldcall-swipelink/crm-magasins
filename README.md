@@ -304,6 +304,22 @@ Une pièce jointe ne peut pas accompagner un envoi programmé (rien ne la
 conserve entre la rédaction et le départ) : le composeur le signale et refuse
 l'envoi plutôt que de la perdre en route.
 
+### Fond de la carte des magasins
+
+CARTO a rendu ses fonds de carte payants : sans clé, ses tuiles arrivent
+barrées d'un filigrane **« API KEY REQUIRED »**. La carte fonctionne dans les
+deux cas :
+
+| `NEXT_PUBLIC_CARTO_API_KEY` | Fond utilisé |
+|---|---|
+| vide (par défaut) | Tuiles libres **OpenStreetMap**, sans inscription ni filigrane. En couleurs à la source, désaturées par le CRM pour retrouver le gris clair d'origine |
+| renseignée | Fond **CARTO** pour lequel la carte a été dessinée, avec ses tuiles doubles sur écran Retina |
+
+La clé CARTO est gratuite ([carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)).
+Le préfixe `NEXT_PUBLIC_` est obligatoire : les tuiles sont chargées par le
+navigateur, pas par le serveur. Après l'avoir ajoutée dans Vercel, redéployez —
+une variable `NEXT_PUBLIC_` est figée au moment de la compilation.
+
 ### Pipeline Kanban
 
 - **Glisser-déposer** les cartes entre les colonnes
