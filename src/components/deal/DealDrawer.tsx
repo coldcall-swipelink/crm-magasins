@@ -1831,20 +1831,22 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       onBlur={() => { if ((fields[key] ?? '') !== (deal[key] ?? '')) patchDeal({ [key]: fields[key] ?? '' }); }}
                     />
                   </div>
-                  {/* Poste du contact calling : même champ que la liste déroulante
-                      de la carte du pipeline (Deal.contactPosition). */}
+                  {/* Poste du contact calling : volontairement discret — pas de
+                      libellé ni de cadre au repos, juste sous le nom du contact. */}
                   {key === 'contactCalling' && (
-                    <div style={{ marginBottom: 9 }}>
-                      <label style={labelStyle}>Poste</label>
+                    <div style={{ margin: '-5px 0 9px' }}>
                       <select
-                        style={inp} value={fields.contactPosition ?? ''}
+                        className="contact-poste-select"
+                        aria-label="Poste du contact calling"
+                        value={fields.contactPosition ?? ''}
+                        style={{ color: fields.contactPosition ? '#475569' : '#a8b2c1' }}
                         onChange={e => {
                           const contactPosition = e.target.value;
                           setFields(f => ({ ...f, contactPosition }));
                           patchDeal({ contactPosition });
                         }}
                       >
-                        <option value="">— Non renseigné —</option>
+                        <option value="">Poste…</option>
                         <option value="Directeur">Directeur</option>
                         <option value="Adhérent">Adhérent</option>
                         <option value="RH">RH</option>

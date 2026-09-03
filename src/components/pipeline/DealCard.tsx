@@ -10,7 +10,6 @@ interface Props {
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onSelect: () => void;
-  onContactPositionChange: (position: Deal['contactPosition']) => void;
 }
 
 function getBrandBorderColor(brandName?: string): string {
@@ -55,7 +54,7 @@ function getActionBackgroundColor(actions?: any[]): string {
   return '#ffffff'; // Blanc par défaut
 }
 
-export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, onDragEnd, onSelect, onContactPositionChange }: Props) {
+export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, onDragEnd, onSelect }: Props) {
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
@@ -167,26 +166,6 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
       {(deal as any).contactCalling && (
         <div style={{ fontSize: 10, color: '#4f46e5', marginTop: 2, fontWeight: 500 }}>📞 {(deal as any).contactCalling}</div>
       )}
-
-      <select
-        aria-label="Poste du contact calling"
-        value={deal.contactPosition || ''}
-        onClick={e => e.stopPropagation()}
-        onMouseDown={e => e.stopPropagation()}
-        onDragStart={e => { e.preventDefault(); e.stopPropagation(); }}
-        onChange={e => onContactPositionChange(e.target.value as Deal['contactPosition'])}
-        style={{
-          display: 'block', width: '100%', marginTop: 4, height: 25,
-          padding: '0 7px', border: '1px solid #cbd5e1', borderRadius: 6,
-          background: '#fff', color: deal.contactPosition ? '#334155' : '#94a3b8',
-          fontSize: 10.5, cursor: 'pointer', outline: 'none',
-        }}
-      >
-        <option value="">Poste du contact…</option>
-        <option value="Directeur">Directeur</option>
-        <option value="Adhérent">Adhérent</option>
-        <option value="RH">RH</option>
-      </select>
 
       {(movedBack || lastReply) && (
         <div style={{ margin: '5px 0', display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -162,3 +162,40 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
     transition: none;
   }
 }
+
+/* Poste du contact calling (volet gauche de la fiche affaire) : liste
+   déroulante volontairement discrète — ni libellé, ni cadre au repos ; elle ne
+   se matérialise qu'au survol et au focus. */
+.contact-poste-select {
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: 100%;
+  padding: 2px 20px 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 8px 5px;
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.55;
+  cursor: pointer;
+  outline: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.contact-poste-select:hover {
+  background-color: #f8fafc;
+  border-color: #e8edf3;
+}
+
+.contact-poste-select:focus-visible {
+  background-color: #fff;
+  border-color: #c7d2fe;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-poste-select { transition: none; }
+}
