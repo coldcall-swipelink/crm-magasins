@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
@@ -501,6 +501,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         storeName: d.store?.name || '',
         directeur: d.directeur || '',
         contactCalling: d.contactCalling || '',
+        contactPosition: d.contactPosition || '',
         dealEmail: d.dealEmail || '',
         contactPhone: d.contactPhone || '',
         contactCivilite: d.contactCivilite || 'Monsieur',
@@ -1821,14 +1822,36 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 </select>
               </div>
               {([['Nom de famille', 'contactLastName', 'Dupont'], ['Directeur', 'directeur', 'Prénom Nom'], ['Contact calling', 'contactCalling', 'Prénom Nom'], ['Email', 'dealEmail', 'contact@magasin.fr']] as const).map(([label, key, ph]) => (
-                <div key={key} style={{ marginBottom: 9 }}>
-                  <label style={labelStyle}>{label}</label>
-                  <input
-                    style={inp} placeholder={ph} value={fields[key] ?? ''}
-                    onChange={e => setFields(f => ({ ...f, [key]: e.target.value }))}
-                    onBlur={() => { if ((fields[key] ?? '') !== (deal[key] ?? '')) patchDeal({ [key]: fields[key] ?? '' }); }}
-                  />
-                </div>
+                <Fragment key={key}>
+                  <div style={{ marginBottom: 9 }}>
+                    <label style={labelStyle}>{label}</label>
+                    <input
+                      style={inp} placeholder={ph} value={fields[key] ?? ''}
+                      onChange={e => setFields(f => ({ ...f, [key]: e.target.value }))}
+                      onBlur={() => { if ((fields[key] ?? '') !== (deal[key] ?? '')) patchDeal({ [key]: fields[key] ?? '' }); }}
+                    />
+                  </div>
+                  {/* Poste du contact calling : même champ que la liste déroulante
+                      de la carte du pipeline (Deal.contactPosition). */}
+                  {key === 'contactCalling' && (
+                    <div style={{ marginBottom: 9 }}>
+                      <label style={labelStyle}>Poste</label>
+                      <select
+                        style={inp} value={fields.contactPosition ?? ''}
+                        onChange={e => {
+                          const contactPosition = e.target.value;
+                          setFields(f => ({ ...f, contactPosition }));
+                          patchDeal({ contactPosition });
+                        }}
+                      >
+                        <option value="">— Non renseigné —</option>
+                        <option value="Directeur">Directeur</option>
+                        <option value="Adhérent">Adhérent</option>
+                        <option value="RH">RH</option>
+                      </select>
+                    </div>
+                  )}
+                </Fragment>
               ))}
 
               {/* N° de téléphone : saisi manuellement, puis masqué. Le clic sur
