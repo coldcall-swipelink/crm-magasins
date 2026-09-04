@@ -239,6 +239,10 @@ const STATEMENTS: string[] = [
   // Décisionnaire joint ou non (réponse à la pop-up affichée après l'appel).
   // Nullable : les appels enregistrés avant cette question restent « inconnu ».
   "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"connected\" BOOLEAN;",
+  // Détail du résultat de l'appel (JOINT / ABSENT / REUNION / REFUS), qui
+  // colore l'appel dans le calendrier de l'affaire. Nullable pour les mêmes
+  // raisons que « connected ».
+  "ALTER TABLE \"CallLog\" ADD COLUMN IF NOT EXISTS \"outcome\" TEXT;",
   "CREATE INDEX IF NOT EXISTS \"CallLog_calledAt_idx\" ON \"CallLog\"(\"calledAt\");",
   "CREATE INDEX IF NOT EXISTS \"CallLog_userId_calledAt_idx\" ON \"CallLog\"(\"userId\",\"calledAt\");",
   "CREATE INDEX IF NOT EXISTS \"CallLog_dealId_idx\" ON \"CallLog\"(\"dealId\");",

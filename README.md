@@ -327,6 +327,33 @@ une variable `NEXT_PUBLIC_` est figée au moment de la compilation.
 - **Filtres** : nouvelles affaires, nouvelles offres, recherche texte
 - **Badges** : ✦ Nouvelle · ⟳ Rappelée · ⚠ Absente
 
+### Calendrier des appels d'une affaire
+
+Chaque clic sur **« Afficher le numéro »** dans une fiche affaire journalise un
+appel. Vingt secondes plus tard, la bannière **« Est-ce que le décisionnaire a
+pu être contacté ? »** demande ce qu'il en est — et, si la réponse est
+**Non**, *pourquoi* : « Pas sur le magasin », « En réunion » ou « Refus de
+prendre l'appel ».
+
+L'onglet **Calendrier** de la fiche affiche ces appels mois par mois, une
+pastille par appel, colorée par cette réponse :
+
+| Couleur | Réponse | Ce que ça dit du magasin |
+|---|---|---|
+| 🟢 vert | Décisionnaire joint | créneau qui fonctionne |
+| 🔴 rouge | Pas sur le magasin | il n'y est pas à cette heure-là |
+| 🟠 orange | En réunion / refus de prendre l'appel | il y est, mais pas disponible |
+| ⚪ gris | pop-up restée sans réponse | résultat inconnu |
+
+Lu en travers, le mois indique quand rappeler : c'est le suivi de
+**disponibilité** du décisionnaire. Cliquer un jour déplie le détail des appels
+de la journée (heure, résultat, qui a appelé). Les compteurs sous la grille
+résument le mois affiché.
+
+> Ces réponses sont stockées sur `CallLog.outcome` (avec `CallLog.connected` en
+> miroir, pour les compteurs d'appels aboutis). Après une mise à jour, relancez
+> `npm run db:migrate` (ou `npm run db:push`) pour créer cette colonne.
+
 ### Numéros de téléphone des magasins (recherche automatique)
 
 Le champ **N° de Téléphone** d'une affaire peut être rempli automatiquement,

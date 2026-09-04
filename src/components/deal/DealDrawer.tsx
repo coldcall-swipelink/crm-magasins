@@ -4,7 +4,9 @@ import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import AvailabilityModal from '@/components/deal/AvailabilityModal';
+import DealCallCalendar from '@/components/deal/DealCallCalendar';
 import { useCurrentUser } from '@/lib/currentUser';
+import { CALL_OUTCOME_STYLES, type CallOutcome } from '@/lib/callOutcomes';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
 import { PAYMENT_EMAIL_TEMPLATE, paymentRecurrenceLabel } from '@/lib/paymentEmailTemplate';
@@ -374,7 +376,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [loading, setLoading] = useState(true);
 
   // Onglet actif de la zone de droite : activité (par défaut) ou recrutement.
-  const [activeTab, setActiveTab] = useState<'activite' | 'abonnement' | 'recrutement' | 'proches'>('activite');
+  const [activeTab, setActiveTab] = useState<'activite' | 'calendrier' | 'abonnement' | 'recrutement' | 'proches'>('activite');
 
   // Volet de composition actif : note / action / email / lien de paiement
   const [composer, setComposer] = useState<null | 'note' | 'action' | 'email' | 'payment'>(null);
@@ -387,7 +389,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [phoneRevealing, setPhoneRevealing] = useState(false);
   // Suivi du résultat de l'appel : on passe toujours par l'accueil du magasin,
   // donc 20 s après le dévoilement du numéro on demande si le décisionnaire a
-  // pu être joint (réponse stockée dans CallLog.connected).
+  // pu être joint, et sinon pourquoi (réponse stockée dans CallLog.outcome,
+  // avec CallLog.connected en miroir).
   // `pendingCall` = appel dont la question est programmée (timer en cours),
   // `callQuestion` = appel dont la question est actuellement affichée. On garde
   // le magasin et le numéro appelés : le volet peut avoir changé d'affaire
@@ -396,6 +399,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [pendingCall, setPendingCall] = useState<CallQuestion | null>(null);
   const [callQuestion, setCallQuestion] = useState<CallQuestion | null>(null);
   const [savingCallAnswer, setSavingCallAnswer] = useState(false);
+  // « Non » ne suffit pas : on demande alors POURQUOI le décisionnaire n'a pas
+  // été joint (pas sur le magasin / en réunion / refus), car c'est ce motif qui
+  // colore l'appel dans le calendrier de l'affaire. Ce drapeau bascule la
+  // bannière sur ce second temps.
+  const [askingCallReason, setAskingCallReason] = useState(false);
+  // Incrémenté à chaque réponse enregistrée : l'onglet « Calendrier » se
+  // recharge, y compris quand il est déjà affiché.
+  const [callsVersion, setCallsVersion] = useState(0);
   // Fermeture du volet demandée alors que la question n'a pas encore de réponse :
   // on la pose d'abord, le volet se ferme juste après.
   const [closeAfterAnswer, setCloseAfterAnswer] = useState(false);
@@ -656,6 +667,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         callTimerRef.current = setTimeout(() => {
           callTimerRef.current = null;
           setPendingCall(null);
+          setAskingCallReason(false);
           setCallQuestion(question);
         }, DECISION_MAKER_PROMPT_DELAY_MS);
       }
@@ -669,8 +681,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // Le timer ne doit pas survivre au démontage du volet.
   useEffect(() => () => { if (callTimerRef.current) clearTimeout(callTimerRef.current); }, []);
 
-  // Réponse à « Est-ce que le décisionnaire a pu être contacté ? ».
-  const answerCallQuestion = async (connected: boolean) => {
+  // Réponse à « Est-ce que le décisionnaire a pu être contacté ? ». Le motif
+  // choisi (joint / pas sur le magasin / en réunion / refus) est enregistré sur
+  // l'appel : c'est lui qui colore la pastille du calendrier de l'affaire.
+  const answerCallQuestion = async (outcome: CallOutcome) => {
     const callId = callQuestion?.id;
     if (!callId || savingCallAnswer) return;
     setSavingCallAnswer(true);
@@ -678,12 +692,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       const res = await fetch(`/api/calls/${callId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connected }),
+        body: JSON.stringify({ outcome }),
       });
       // En cas d'échec on garde la question à l'écran pour permettre un nouvel essai.
       if (!res.ok) { toast('Réponse non enregistrée', 'error'); return; }
       setCallQuestion(null);
-      toast(connected ? '✓ Décisionnaire contacté' : 'Décisionnaire non contacté');
+      setAskingCallReason(false);
+      setCallsVersion(v => v + 1);
+      toast(outcome === 'JOINT' ? '✓ Décisionnaire contacté' : `Appel noté : ${CALL_OUTCOME_STYLES[outcome].label.toLowerCase()}`);
       if (closeAfterAnswer) { setCloseAfterAnswer(false); onClose(); }
     } catch {
       toast('Réponse non enregistrée', 'error');
@@ -697,6 +713,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const closeDrawer = useCallback(() => {
     if (callTimerRef.current) { clearTimeout(callTimerRef.current); callTimerRef.current = null; }
     if (pendingCall) {
+      setAskingCallReason(false);
       setCallQuestion(pendingCall);
       setPendingCall(null);
       setCloseAfterAnswer(true);
@@ -1693,7 +1710,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
           {/* Suivi de l'appel : posée 20 s après le dévoilement du numéro (ou tout
               de suite si le volet est fermé avant), la question renseigne
-              CallLog.connected.
+              CallLog.outcome (et connected en miroir).
+
+              Deux temps : « oui / non », puis le motif du « non » (pas sur le
+              magasin / en réunion / refus), qui décide de la couleur de l'appel
+              dans l'onglet « Calendrier ».
 
               Bannière EN LIGNE dans l'en-tête figé du volet, et non plus modale
               plein écran : elle ne masque ni les coordonnées du contact ni le
@@ -1705,26 +1726,54 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '9px 12px' }}>
               <div style={{ flex: 1, minWidth: 220 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 800, color: '#92400e' }}>
-                  📞 Est-ce que le décisionnaire a pu être contacté ?
+                  {askingCallReason ? '📞 Pourquoi n\u2019a-t-il pas pu être joint ?' : '📞 Est-ce que le décisionnaire a pu être contacté ?'}
                 </div>
                 <div style={{ fontSize: 11.5, color: '#a16207', marginTop: 2 }}>
                   {callQuestion.store}{callQuestion.phone ? ` — ${callQuestion.phone}` : ''}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button
-                  type="button" onClick={() => answerCallQuestion(false)} disabled={savingCallAnswer}
-                  style={{ height: 34, padding: '0 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
-                >
-                  Non
-                </button>
-                <button
-                  type="button" onClick={() => answerCallQuestion(true)} disabled={savingCallAnswer}
-                  style={{ height: 34, padding: '0 18px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
-                >
-                  Oui
-                </button>
-              </div>
+              {/* Second temps : le motif du « non ». Il colore l'appel dans le
+                  calendrier de l'affaire (rouge = pas sur le magasin, orange =
+                  joignable mais indisponible), donc il n'est pas facultatif —
+                  seul un retour en arrière permet de sortir de cet écran. */}
+              {askingCallReason ? (
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                  {(['ABSENT', 'REUNION', 'REFUS'] as const).map(cle => {
+                    const st = CALL_OUTCOME_STYLES[cle];
+                    return (
+                      <button
+                        key={cle}
+                        type="button" onClick={() => answerCallQuestion(cle)} disabled={savingCallAnswer}
+                        style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${st.border}`, background: st.bg, color: st.text, fontSize: 12.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                      >
+                        {st.label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button" onClick={() => setAskingCallReason(false)} disabled={savingCallAnswer}
+                    title="Revenir à la question précédente"
+                    style={{ height: 34, padding: '0 12px', borderRadius: 8, border: 'none', background: 'none', color: '#a16207', fontSize: 12.5, fontWeight: 600, cursor: savingCallAnswer ? 'not-allowed' : 'pointer' }}
+                  >
+                    ← Retour
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    type="button" onClick={() => setAskingCallReason(true)} disabled={savingCallAnswer}
+                    style={{ height: 34, padding: '0 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                  >
+                    Non
+                  </button>
+                  <button
+                    type="button" onClick={() => answerCallQuestion('JOINT')} disabled={savingCallAnswer}
+                    style={{ height: 34, padding: '0 18px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                  >
+                    Oui
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -2156,7 +2205,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
             {/* Onglets : Activité / Recrutement */}
             <div style={{ display: 'flex', gap: 22, borderBottom: '1px solid #e2e8f0', marginBottom: 20 }}>
-              {([['activite', 'Activité'], ['abonnement', 'Abonnement'], ['recrutement', 'Recrutement'], ['proches', 'Magasins proches']] as const).map(([key, label]) => {
+              {([['activite', 'Activité'], ['calendrier', 'Calendrier'], ['abonnement', 'Abonnement'], ['recrutement', 'Recrutement'], ['proches', 'Magasins proches']] as const).map(([key, label]) => {
                 const active = activeTab === key;
                 return (
                   <button
@@ -2440,6 +2489,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </div>
             </>
             )}
+
+            {/* Calendrier des appels : quand ce magasin a été appelé, et avec
+                quel résultat. Sert à repérer les créneaux où le décisionnaire
+                est joignable avant de rappeler. */}
+            {activeTab === 'calendrier' && <DealCallCalendar dealId={dealId} refreshKey={callsVersion} />}
 
             {activeTab === 'abonnement' && (
               <div style={{ maxWidth: 640 }}>
