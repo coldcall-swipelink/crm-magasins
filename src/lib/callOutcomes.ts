@@ -27,6 +27,11 @@ export interface CallOutcomeStyle {
 // Vert = joint, rouge = absent du magasin, orange = joignable mais pas
 // disponible (réunion ou refus) : ce sont les trois lectures utiles quand on
 // cherche le bon moment pour rappeler.
+//
+// Le rouge est volontairement sombre et l'orange tiré vers l'ambre : côte à
+// côte dans une grille, deux teintes voisines se confondent, et c'est
+// justement « pas là » contre « là mais pas dispo » qu'on doit distinguer
+// d'un coup d'œil.
 export const CALL_OUTCOME_STYLES: Record<CallOutcome, CallOutcomeStyle> = {
   JOINT: {
     label: 'Décisionnaire joint',
@@ -38,19 +43,19 @@ export const CALL_OUTCOME_STYLES: Record<CallOutcome, CallOutcomeStyle> = {
     label: 'Pas sur le magasin',
     short: 'Absent',
     connected: false,
-    bg: '#fef2f2', border: '#fecaca', text: '#b91c1c', dot: '#dc2626',
+    bg: '#fee2e2', border: '#fca5a5', text: '#7f1d1d', dot: '#991b1b',
   },
   REUNION: {
     label: 'En réunion',
     short: 'Réunion',
     connected: false,
-    bg: '#fff7ed', border: '#fed7aa', text: '#9a3412', dot: '#ea580c',
+    bg: '#fffbeb', border: '#fcd34d', text: '#b45309', dot: '#f59e0b',
   },
   REFUS: {
     label: "Refus de prendre l'appel",
     short: 'Refus',
     connected: false,
-    bg: '#fff7ed', border: '#fed7aa', text: '#9a3412', dot: '#ea580c',
+    bg: '#fffbeb', border: '#fcd34d', text: '#b45309', dot: '#f59e0b',
   },
 };
 
@@ -71,7 +76,7 @@ export const CALL_OUTCOME_LEGACY_MISSED: CallOutcomeStyle = {
   label: 'Décisionnaire non joint',
   short: 'Non joint',
   connected: false,
-  bg: '#fef2f2', border: '#fecaca', text: '#b91c1c', dot: '#dc2626',
+  bg: '#fee2e2', border: '#fca5a5', text: '#7f1d1d', dot: '#991b1b',
 };
 
 export function isCallOutcome(v: unknown): v is CallOutcome {
