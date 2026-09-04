@@ -305,3 +305,95 @@ export function mockDeleteSubscription(id: string): boolean {
   recomputeMockDeal(dealId);
   return true;
 }
+
+// ─── Journal des appels en mémoire (mode preview / mock) ─────────────────────
+// Alimente le calendrier des appels de la fiche affaire sans base de données :
+// quelques appels déjà passés sur les premières affaires, puis les appels
+// réellement déclenchés pendant la session (clic sur « Afficher le numéro »).
+
+export interface MockCall {
+  id: string; dealId: string; calledAt: string; userName: string; phone: string;
+  connected: boolean | null; outcome: string | null;
+}
+
+export const mockCalls: MockCall[] = [];
+
+let mockCallSeq = 0;
+
+// Historique de démonstration : appels répartis sur les six dernières semaines,
+// tous résultats confondus, pour que le calendrier montre ses quatre couleurs
+// dès l'ouverture de l'onglet. Les dates sont relatives à maintenant : la
+// preview reste parlante quelle que soit la date de consultation.
+const MOCK_CALL_SEED: { joursAvant: number; heure: number; minute: number; outcome: string | null }[] = [
+  { joursAvant: 0, heure: 9, minute: 20, outcome: 'ABSENT' },
+  { joursAvant: 0, heure: 11, minute: 5, outcome: 'JOINT' },
+  { joursAvant: 1, heure: 14, minute: 40, outcome: 'REUNION' },
+  { joursAvant: 2, heure: 10, minute: 15, outcome: 'ABSENT' },
+  { joursAvant: 2, heure: 16, minute: 30, outcome: 'REFUS' },
+  { joursAvant: 5, heure: 9, minute: 45, outcome: 'ABSENT' },
+  { joursAvant: 8, heure: 11, minute: 30, outcome: 'JOINT' },
+  { joursAvant: 12, heure: 15, minute: 10, outcome: 'REUNION' },
+  { joursAvant: 15, heure: 8, minute: 55, outcome: null },
+  { joursAvant: 21, heure: 17, minute: 20, outcome: 'REFUS' },
+  { joursAvant: 30, heure: 10, minute: 0, outcome: 'ABSENT' },
+  { joursAvant: 42, heure: 14, minute: 5, outcome: 'JOINT' },
+];
+
+/** Miroir de CallLog.connected : seul « JOINT » compte comme un appel abouti. */
+function mockConnected(outcome: string | null): boolean | null {
+  if (outcome === null) return null;
+  return outcome === 'JOINT';
+}
+
+mockDeals.slice(0, 6).forEach((deal, rang) => {
+  if (!deal.contactPhone) return;
+  // Chaque affaire décale son historique d'un cran : deux fiches voisines ne
+  // montrent pas le même calendrier.
+  MOCK_CALL_SEED.forEach((seed, i) => {
+    if ((i + rang) % 4 === 3) return; // Toutes les affaires n'ont pas tout l'historique.
+    const d = new Date();
+    d.setDate(d.getDate() - seed.joursAvant);
+    d.setHours(seed.heure, seed.minute, 0, 0);
+    mockCalls.push({
+      id: `call-seed-${++mockCallSeq}`,
+      dealId: deal.id,
+      calledAt: d.toISOString(),
+      userName: (deal.assignedUser?.name as string) || mockUsers[0].name,
+      phone: deal.contactPhone,
+      connected: mockConnected(seed.outcome),
+      outcome: seed.outcome,
+    });
+  });
+});
+
+/** Mois « YYYY-MM » d'un appel, dans le fuseau du serveur (comme en base). */
+function moisLocal(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Appels d'une affaire, du plus récent au plus ancien, éventuellement d'un seul mois « YYYY-MM ». */
+export function mockGetCalls(dealId: string, month?: string | null): MockCall[] {
+  return mockCalls
+    .filter(c => c.dealId === dealId && (!month || moisLocal(c.calledAt) === month))
+    .sort((a, b) => b.calledAt.localeCompare(a.calledAt));
+}
+
+/** Enregistre un appel (clic sur « Afficher le numéro ») et le renvoie. */
+export function mockCreateCall(dealId: string, userName: string, phone: string): MockCall {
+  const call: MockCall = {
+    id: `call-new-${++mockCallSeq}`, dealId, calledAt: new Date().toISOString(),
+    userName, phone, connected: null, outcome: null,
+  };
+  mockCalls.push(call);
+  return call;
+}
+
+/** Réponse à la pop-up qui suit l'appel. Renvoie l'appel à jour, ou null. */
+export function mockUpdateCall(id: string, connected: boolean, outcome: string | null): MockCall | null {
+  const call = mockCalls.find(c => c.id === id);
+  if (!call) return null;
+  call.connected = connected;
+  call.outcome = outcome;
+  return call;
+}

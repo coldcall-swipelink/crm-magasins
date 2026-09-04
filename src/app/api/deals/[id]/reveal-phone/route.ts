@@ -6,7 +6,7 @@
 // numéros réellement consultés.
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { USE_MOCK_DATA, mockDeals } from '@/lib/mockData';
+import { USE_MOCK_DATA, mockDeals, mockCreateCall } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (USE_MOCK_DATA) {
     const deal = mockDeals.find(d => d.id === params.id) as any;
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
-    return NextResponse.json({ phone: deal.contactPhone || '', logged: false });
+    const phone = deal.contactPhone || '';
+    if (!phone.trim()) return NextResponse.json({ phone: '', logged: false });
+    // Même parcours qu'en base : l'appel est journalisé, donc la pop-up de
+    // suivi s'affiche et l'appel apparaît dans le calendrier de l'affaire.
+    const call = mockCreateCall(deal.id, userName, phone);
+    return NextResponse.json({ phone, logged: true, callId: call.id, calledAt: call.calledAt });
   }
 
   try {

@@ -598,6 +598,12 @@ model CallLog {
   // Renseigné par la pop-up affichée 20 s après le clic sur « Afficher le
   // numéro » ; reste null tant que l'utilisateur n'a pas répondu.
   connected Boolean?
+  // Détail de la réponse quand le décisionnaire n'a PAS été joint, choisi dans
+  // la même pop-up : ABSENT (pas sur le magasin), REUNION (en réunion), REFUS
+  // (a refusé de prendre l'appel). JOINT quand il a été contacté — redondant
+  // avec connected = true, mais le calendrier de l'affaire lit ce seul champ.
+  // Null pour les appels enregistrés avant cette question (ou sans réponse).
+  outcome   String?
 
   @@index([calledAt])
   @@index([userId, calledAt])
