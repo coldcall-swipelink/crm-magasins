@@ -1744,8 +1744,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       <button
                         key={cle}
                         type="button" onClick={() => answerCallQuestion(cle)} disabled={savingCallAnswer}
-                        style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${st.border}`, background: st.bg, color: st.text, fontSize: 12.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1 }}
+                        // Fond blanc, pas la teinte du résultat : la bannière est
+                        // elle-même ambrée, un bouton ambré s'y fondrait. La
+                        // couleur passe par la pastille, le liseré et le texte.
+                        style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${st.dot}`, background: '#fff', color: st.text, fontSize: 12.5, fontWeight: 700, cursor: savingCallAnswer ? 'not-allowed' : 'pointer', opacity: savingCallAnswer ? .6 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}
                       >
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: st.dot, flexShrink: 0 }} />
                         {st.label}
                       </button>
                     );

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { callOutcomeStyle } from '@/lib/callOutcomes';
+import { callOutcomeStyle, CALL_OUTCOME_STYLES, CALL_OUTCOME_UNKNOWN } from '@/lib/callOutcomes';
 
 /**
  * Calendrier des appels d'une affaire — l'onglet « Calendrier » de la fiche.
@@ -208,14 +208,21 @@ export default function DealCallCalendar({ dealId, refreshKey = 0 }: Props) {
         ))}
       </div>
 
-      {/* Légende + compteurs */}
+      {/* Légende + compteurs. Les pastilles reprennent les couleurs des appels
+          (source unique : callOutcomes) — une légende qui diverge de la grille
+          est pire que pas de légende. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 11.5, color: '#64748b' }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#16a34a', marginRight: 5 }} />Décisionnaire joint ({resume.joint})</span>
-        <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#dc2626', marginRight: 5 }} />Pas sur le magasin ({resume.absent})</span>
-        <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#ea580c', marginRight: 5 }} />En réunion / refus ({resume.indispo})</span>
-        {resume.sansReponse > 0 && (
-          <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#94a3b8', marginRight: 5 }} />Sans réponse ({resume.sansReponse})</span>
-        )}
+        {([
+          [CALL_OUTCOME_STYLES.JOINT.dot, 'Décisionnaire joint', resume.joint, true],
+          [CALL_OUTCOME_STYLES.ABSENT.dot, 'Pas sur le magasin', resume.absent, true],
+          [CALL_OUTCOME_STYLES.REUNION.dot, 'En réunion / refus', resume.indispo, true],
+          [CALL_OUTCOME_UNKNOWN.dot, 'Sans réponse', resume.sansReponse, resume.sansReponse > 0],
+        ] as const).filter(([, , , visible]) => visible).map(([couleur, libelle, nombre]) => (
+          <span key={libelle}>
+            <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: couleur, marginRight: 5 }} />
+            {libelle} ({nombre})
+          </span>
+        ))}
       </div>
 
       {/* Détail du créneau cliqué : les appels de la semaine type y perdent leur
