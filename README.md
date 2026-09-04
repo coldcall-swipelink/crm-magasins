@@ -327,7 +327,7 @@ une variable `NEXT_PUBLIC_` est figée au moment de la compilation.
 - **Filtres** : nouvelles affaires, nouvelles offres, recherche texte
 - **Badges** : ✦ Nouvelle · ⟳ Rappelée · ⚠ Absente
 
-### Calendrier des appels d'une affaire
+### Calendrier des appels d'une affaire (semaine type)
 
 Chaque clic sur **« Afficher le numéro »** dans une fiche affaire journalise un
 appel. Vingt secondes plus tard, la bannière **« Est-ce que le décisionnaire a
@@ -335,8 +335,13 @@ pu être contacté ? »** demande ce qu'il en est — et, si la réponse est
 **Non**, *pourquoi* : « Pas sur le magasin », « En réunion » ou « Refus de
 prendre l'appel ».
 
-L'onglet **Calendrier** de la fiche affiche ces appels mois par mois, une
-pastille par appel, colorée par cette réponse :
+L'onglet **Calendrier** de la fiche affiche ces appels sur une **semaine
+type** : une colonne par jour de la semaine, une ligne par heure. Les appels ne
+sont pas rangés à leur date, mais à leur **jour de la semaine et à leur
+heure** — un appel passé un lundi à 10 h et un autre le lundi suivant à 11 h se
+retrouvent tous les deux sur la colonne « Lundi », l'un à 10 h, l'autre à 11 h.
+
+Chaque appel est une pastille à son heure, colorée par la réponse à la pop-up :
 
 | Couleur | Réponse | Ce que ça dit du magasin |
 |---|---|---|
@@ -345,10 +350,11 @@ pastille par appel, colorée par cette réponse :
 | 🟠 orange | En réunion / refus de prendre l'appel | il y est, mais pas disponible |
 | ⚪ gris | pop-up restée sans réponse | résultat inconnu |
 
-Lu en travers, le mois indique quand rappeler : c'est le suivi de
-**disponibilité** du décisionnaire. Cliquer un jour déplie le détail des appels
-de la journée (heure, résultat, qui a appelé). Les compteurs sous la grille
-résument le mois affiché.
+D'un coup d'œil sur la grille : **à quelle heure ce magasin décroche, et quand
+il ne sert à rien d'appeler**. La vue couvre les douze derniers mois, sur la
+plage 8 h – 19 h (élargie si des appels sortent de cette plage). Cliquer un
+créneau déplie les appels qui s'y trouvent, avec leur date réelle, leur
+résultat et qui a appelé. Les compteurs sous la grille résument l'ensemble.
 
 > Ces réponses sont stockées sur `CallLog.outcome` (avec `CallLog.connected` en
 > miroir, pour les compteurs d'appels aboutis). Après une mise à jour, relancez

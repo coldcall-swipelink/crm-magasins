@@ -2490,9 +2490,10 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </>
             )}
 
-            {/* Calendrier des appels : quand ce magasin a été appelé, et avec
-                quel résultat. Sert à repérer les créneaux où le décisionnaire
-                est joignable avant de rappeler. */}
+            {/* Calendrier des appels : tous les appels de l'affaire rabattus
+                sur une semaine type (jour × heure), colorés par leur résultat.
+                Sert à repérer les créneaux où le décisionnaire est joignable
+                avant de rappeler. */}
             {activeTab === 'calendrier' && <DealCallCalendar dealId={dealId} refreshKey={callsVersion} />}
 
             {activeTab === 'abonnement' && (
