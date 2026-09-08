@@ -159,6 +159,11 @@ export async function GET(req: NextRequest) {
         kind: 'closing',
         kicker: '',
         title: libelleMagasin(closing.deal.store),
+        // Le magasin seul, à côté du libellé complet. L'écran compose lui-même
+        // sa ligne de titre — l'enseigne y est dite par son logo — et découper
+        // « Enseigne — Magasin » là-bas serait fragile : un nom de magasin
+        // contenant un tiret cadratin suffirait à tromper le découpage.
+        store: closing.deal.store.name,
         subtitle: [qui && `Closé par ${qui}`, montant].filter(Boolean).join(' · '),
         closer: qui,
         closerKey: searchKey(qui),
@@ -172,12 +177,11 @@ export async function GET(req: NextRequest) {
         kind: 'demo',
         kicker: 'Nouvelle démo bookée',
         title: libelleMagasin(demo.deal.store),
+        store: demo.deal.store.name,
         subtitle: qui ? `Bravo ${qui}` : '',
         closer: qui,
         closerKey: searchKey(qui),
-        // L'enseigne à part du titre : l'écran s'en sert pour choisir un logo,
-        // et la déduire en découpant « Enseigne — Magasin » serait fragile —
-        // un nom de magasin contenant un tiret cadratin suffirait à tromper.
+        // L'enseigne à part du titre : l'écran s'en sert pour choisir un logo.
         brand: demo.deal.store.brand?.name ?? '',
       };
     }
