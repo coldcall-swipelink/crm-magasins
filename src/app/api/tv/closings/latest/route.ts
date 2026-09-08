@@ -22,10 +22,14 @@ export const dynamic = 'force-dynamic';
 // toute une journée creuse.
 const FRAICHEUR_MIN = 10;
 
-// Cible de MRR de l'écran : 500 000 € d'ARR, soit 41 667 € par mois. La même
-// valeur que TEAM_MRR_TARGET dans smartlink-brain, qui juge la prime d'équipe
-// sur ce chiffre — les deux doivent bouger ensemble.
-const MRR_CIBLE = 41_667;
+// Cible de l'écran. L'objectif se dit en ARR : c'est LUI le chiffre décidé, et
+// le mensuel n'en est que le douzième. On le range donc dans cet ordre, et non
+// l'inverse — smartlink-brain arrondit ce douzième à 41 667 pour sa prime
+// d'équipe (TEAM_MRR_TARGET), à 33 centimes près la même chose, mais partir de
+// l'arrondi donnerait 500 004 € d'ARR à l'écran, ce qui n'est l'objectif de
+// personne.
+const ARR_CIBLE = 500_000;
+const MRR_CIBLE = ARR_CIBLE / 12;
 
 // Échéance de cette cible : fin décembre 2026, le TEAM_MRR_MONTH de
 // smartlink-brain. Elle part avec le chiffre plutôt que d'être écrite dans la
@@ -88,7 +92,9 @@ export async function GET(req: NextRequest) {
     const mrrValeur = Math.round((somme._sum.value ?? 0) * 100) / 100;
     const mrr = {
       value: mrrValeur,
-      target: MRR_CIBLE,
+      // Arrondi au centime sur le fil : l'écran multiplie ce chiffre par douze
+      // pour retrouver l'ARR, et 41 666,67 × 12 rend bien 500 000.
+      target: Math.round(MRR_CIBLE * 100) / 100,
       ratio: MRR_CIBLE > 0 ? Math.min(1, mrrValeur / MRR_CIBLE) : 0,
       remaining: Math.max(0, Math.round((MRR_CIBLE - mrrValeur) * 100) / 100),
       deadline: MRR_ECHEANCE,
