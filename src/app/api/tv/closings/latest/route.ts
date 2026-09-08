@@ -22,6 +22,11 @@ export const dynamic = 'force-dynamic';
 // toute une journée creuse.
 const FRAICHEUR_MIN = 10;
 
+// Cible de MRR de l'écran : 500 000 € d'ARR, soit 41 667 € par mois. La même
+// valeur que TEAM_MRR_TARGET dans smartlink-brain, qui juge la prime d'équipe
+// sur ce chiffre — les deux doivent bouger ensemble.
+const MRR_CIBLE = 41_667;
+
 const euros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
   currency: 'EUR',
@@ -54,6 +59,33 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // MRR du jour, sur la règle exacte de l'onglet Sales de smartlink-brain
+    // (`mrrAt`) : un abonnement compte s'il est signé — c'est-à-dire s'il a une
+    // date de closing — au plus tard aujourd'hui, et s'il n'est pas résilié à
+    // cette date. Deux définitions du MRR dans la même maison finiraient par se
+    // contredire, alors celle-ci est reprise telle quelle.
+    const finDuJour = new Date();
+    finDuJour.setUTCHours(23, 59, 59, 999);
+    const somme = await prisma.subscription.aggregate({
+      _sum: { value: true },
+      where: {
+        closingDate: { not: null, lte: finDuJour },
+        NOT: {
+          AND: [
+            { churned: true },
+            { OR: [{ churnedAt: null }, { churnedAt: { lte: finDuJour } }] },
+          ],
+        },
+      },
+    });
+    const mrrValeur = Math.round((somme._sum.value ?? 0) * 100) / 100;
+    const mrr = {
+      value: mrrValeur,
+      target: MRR_CIBLE,
+      ratio: MRR_CIBLE > 0 ? Math.min(1, mrrValeur / MRR_CIBLE) : 0,
+      remaining: Math.max(0, Math.round((MRR_CIBLE - mrrValeur) * 100) / 100),
+    };
+
     // On se repère sur createdAt, l'horodatage d'enregistrement. Pour un
     // closing, closingDate est la date COMMERCIALE du contrat et peut être
     // antérieure. Pour un booking, demoDate, noShow et doneBy* sont renseignés
@@ -92,8 +124,10 @@ export async function GET(req: NextRequest) {
       : demo ? 'demo'
       : null;
 
+    // Le MRR n'est pas un évènement mais un état : il accompagne la réponse
+    // même quand il n'y a rien à célébrer.
     if (!gagnant) {
-      return NextResponse.json({ id: null }, { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json({ id: null, mrr }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     let corps;
@@ -134,7 +168,7 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    return NextResponse.json(corps, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ ...corps, mrr }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[GET /api/tv/closings/latest]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
