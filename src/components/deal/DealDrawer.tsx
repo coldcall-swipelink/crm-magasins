@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/Toast';
 import AvailabilityModal from '@/components/deal/AvailabilityModal';
 import DealCallCalendar from '@/components/deal/DealCallCalendar';
 import { useCurrentUser } from '@/lib/currentUser';
+import { useProspectionMode } from '@/lib/prospectionMode';
 import { CALL_OUTCOME_STYLES, type CallOutcome } from '@/lib/callOutcomes';
 import RichTextEditor from '@/components/ui/RichTextEditor';
 import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
@@ -372,6 +373,7 @@ function SubscriptionCard({ sub, index, subscriptionTypes, users, onPatch, onDel
 
 export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: Props) {
   const { user: currentUser } = useCurrentUser();
+  const { enabled: prospectionEnabled } = useProspectionMode();
   const [deal, setDeal] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -641,6 +643,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   // ---- Téléphone (dévoilement = +1 appel pour l'utilisateur) ---------------
   // Le numéro n'est affiché qu'à partir de la réponse du serveur, qui enregistre
   // l'appel au passage. Le garde `phoneRevealing` empêche un double comptage.
+  // Mode prospection coupé (interrupteur en haut à droite) : le numéro est
+  // dévoilé mais le serveur ne journalise rien, donc pas de question ensuite.
   const revealPhone = async () => {
     if (phoneRevealing) return;
     setPhoneRevealing(true);
@@ -648,14 +652,19 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       const res = await fetch(`/api/deals/${dealId}/reveal-phone`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser?.id || null, userName: currentUser?.name || '' }),
+        body: JSON.stringify({
+          userId: currentUser?.id || null,
+          userName: currentUser?.name || '',
+          prospection: prospectionEnabled,
+        }),
       });
       if (!res.ok) { toast('Impossible d\'afficher le numéro', 'error'); return; }
       const data = await res.json();
       setRevealedPhone(data.phone || '');
       setFields(f => ({ ...f, contactPhone: data.phone || '' }));
 
-      // Appel comptabilisé : on programme la question sur le décisionnaire.
+      // Appel comptabilisé (mode prospection actif) : on programme la question
+      // sur le décisionnaire. Sans callId, rien n'a été journalisé.
       if (data.callId) {
         const question: CallQuestion = {
           id: data.callId,
@@ -1911,9 +1920,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
               {/* N° de téléphone : saisi manuellement, puis masqué. Le clic sur
                   « Afficher le numéro » le dévoile ET compte +1 dans le compteur
-                  d'appels de l'utilisateur connecté (stats du Dashboard). */}
+                  d'appels de l'utilisateur connecté (stats du Dashboard) — sauf
+                  si le mode prospection est coupé. */}
               <div style={{ marginBottom: 9 }}>
                 <label style={labelStyle}>N° de Téléphone</label>
+                {(deal.contactPhone || '').trim() && revealedPhone === null && !prospectionEnabled && (
+                  <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 4 }}>
+                    Mode prospection désactivé : l'appel ne sera pas comptabilisé.
+                  </div>
+                )}
                 {(deal.contactPhone || '').trim() && revealedPhone === null ? (
                   // La case elle-même fait office de bouton : un clic dessus
                   // dévoile le numéro (et compte l'appel).

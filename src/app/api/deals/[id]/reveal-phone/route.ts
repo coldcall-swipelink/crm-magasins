@@ -4,6 +4,12 @@
 // compteur d'appels de l'utilisateur (une ligne CallLog). La fiche n'affiche le
 // numéro qu'à partir de la réponse de cette route : le compteur suit donc les
 // numéros réellement consultés.
+//
+// Sauf si le « mode prospection » est coupé (interrupteur en haut à droite de
+// l'app) : le corps porte alors `prospection: false`, le numéro est renvoyé
+// sans rien journaliser (`logged: false`, pas de callId) et la fiche ne pose
+// pas la question sur le décisionnaire. Champ absent = on compte (ancien
+// comportement).
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { USE_MOCK_DATA, mockDeals, mockCreateCall } from '@/lib/mockData';
@@ -14,12 +20,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const userId = typeof body?.userId === 'string' && body.userId ? body.userId : null;
   const userName = typeof body?.userName === 'string' ? body.userName : '';
+  const countCall = body?.prospection !== false;
 
   if (USE_MOCK_DATA) {
     const deal = mockDeals.find(d => d.id === params.id) as any;
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
     const phone = deal.contactPhone || '';
     if (!phone.trim()) return NextResponse.json({ phone: '', logged: false });
+    if (!countCall) return NextResponse.json({ phone, logged: false });
     // Même parcours qu'en base : l'appel est journalisé, donc la pop-up de
     // suivi s'affiche et l'appel apparaît dans le calendrier de l'affaire.
     const call = mockCreateCall(deal.id, userName, phone);
@@ -36,6 +44,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const phone = deal.contactPhone || '';
     // Pas de numéro renseigné → rien à dévoiler, donc aucun appel à compter.
     if (!phone.trim()) return NextResponse.json({ phone: '', logged: false });
+    // Mode prospection coupé → on dévoile sans compter.
+    if (!countCall) return NextResponse.json({ phone, logged: false });
 
     // L'utilisateur peut ne plus exister en base (identité stockée côté
     // navigateur) : on retombe alors sur un log anonyme plutôt que d'échouer.
