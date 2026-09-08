@@ -27,6 +27,13 @@ const FRAICHEUR_MIN = 10;
 // sur ce chiffre — les deux doivent bouger ensemble.
 const MRR_CIBLE = 41_667;
 
+// Échéance de cette cible : fin décembre 2026, le TEAM_MRR_MONTH de
+// smartlink-brain. Elle part avec le chiffre plutôt que d'être écrite dans la
+// page de l'écran, pour la même raison que la cible elle-même : un objectif et
+// sa date sont une seule chose, et les ranger à deux endroits, c'est se
+// préparer à n'en changer qu'un.
+const MRR_ECHEANCE = '2026-12-31';
+
 const euros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
   currency: 'EUR',
@@ -84,6 +91,7 @@ export async function GET(req: NextRequest) {
       target: MRR_CIBLE,
       ratio: MRR_CIBLE > 0 ? Math.min(1, mrrValeur / MRR_CIBLE) : 0,
       remaining: Math.max(0, Math.round((MRR_CIBLE - mrrValeur) * 100) / 100),
+      deadline: MRR_ECHEANCE,
     };
 
     // On se repère sur createdAt, l'horodatage d'enregistrement. Pour un
