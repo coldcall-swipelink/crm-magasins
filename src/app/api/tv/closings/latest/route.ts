@@ -22,6 +22,22 @@ export const dynamic = 'force-dynamic';
 // toute une journée creuse.
 const FRAICHEUR_MIN = 10;
 
+// Cible de l'écran. L'objectif se dit en ARR : c'est LUI le chiffre décidé, et
+// le mensuel n'en est que le douzième. On le range donc dans cet ordre, et non
+// l'inverse — smartlink-brain arrondit ce douzième à 41 667 pour sa prime
+// d'équipe (TEAM_MRR_TARGET), à 33 centimes près la même chose, mais partir de
+// l'arrondi donnerait 500 004 € d'ARR à l'écran, ce qui n'est l'objectif de
+// personne.
+const ARR_CIBLE = 500_000;
+const MRR_CIBLE = ARR_CIBLE / 12;
+
+// Échéance de cette cible : fin décembre 2026, le TEAM_MRR_MONTH de
+// smartlink-brain. Elle part avec le chiffre plutôt que d'être écrite dans la
+// page de l'écran, pour la même raison que la cible elle-même : un objectif et
+// sa date sont une seule chose, et les ranger à deux endroits, c'est se
+// préparer à n'en changer qu'un.
+const MRR_ECHEANCE = '2026-12-31';
+
 const euros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
   currency: 'EUR',
@@ -54,6 +70,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // MRR du jour, sur la règle exacte de l'onglet Sales de smartlink-brain
+    // (`mrrAt`) : un abonnement compte s'il est signé — c'est-à-dire s'il a une
+    // date de closing — au plus tard aujourd'hui, et s'il n'est pas résilié à
+    // cette date. Deux définitions du MRR dans la même maison finiraient par se
+    // contredire, alors celle-ci est reprise telle quelle.
+    const finDuJour = new Date();
+    finDuJour.setUTCHours(23, 59, 59, 999);
+    const somme = await prisma.subscription.aggregate({
+      _sum: { value: true },
+      where: {
+        closingDate: { not: null, lte: finDuJour },
+        NOT: {
+          AND: [
+            { churned: true },
+            { OR: [{ churnedAt: null }, { churnedAt: { lte: finDuJour } }] },
+          ],
+        },
+      },
+    });
+    const mrrValeur = Math.round((somme._sum.value ?? 0) * 100) / 100;
+    const mrr = {
+      value: mrrValeur,
+      // Arrondi au centime sur le fil : l'écran multiplie ce chiffre par douze
+      // pour retrouver l'ARR, et 41 666,67 × 12 rend bien 500 000.
+      target: Math.round(MRR_CIBLE * 100) / 100,
+      ratio: MRR_CIBLE > 0 ? Math.min(1, mrrValeur / MRR_CIBLE) : 0,
+      remaining: Math.max(0, Math.round((MRR_CIBLE - mrrValeur) * 100) / 100),
+      deadline: MRR_ECHEANCE,
+    };
+
     // On se repère sur createdAt, l'horodatage d'enregistrement. Pour un
     // closing, closingDate est la date COMMERCIALE du contrat et peut être
     // antérieure. Pour un booking, demoDate, noShow et doneBy* sont renseignés
@@ -92,8 +138,10 @@ export async function GET(req: NextRequest) {
       : demo ? 'demo'
       : null;
 
+    // Le MRR n'est pas un évènement mais un état : il accompagne la réponse
+    // même quand il n'y a rien à célébrer.
     if (!gagnant) {
-      return NextResponse.json({ id: null }, { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json({ id: null, mrr }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     let corps;
@@ -134,7 +182,7 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    return NextResponse.json(corps, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ ...corps, mrr }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[GET /api/tv/closings/latest]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
