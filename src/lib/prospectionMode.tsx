@@ -8,8 +8,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 // client, appel perso…) ne faussent plus le compteur.
 //
 // Le choix est propre au navigateur (localStorage) et survit aux rechargements.
-// Par défaut le mode est DÉSACTIVÉ : on l'active volontairement quand on
-// démarre une session de prospection.
+// Par défaut le mode est ACTIVÉ (la prospection est l'usage courant) : on le
+// coupe volontairement le temps d'un appel hors prospection.
 
 const STORAGE_KEY = 'crmProspectionMode';
 
@@ -25,12 +25,14 @@ interface Ctx {
 const ProspectionModeContext = createContext<Ctx | null>(null);
 
 export function ProspectionModeProvider({ children }: { children: React.ReactNode }) {
-  const [enabled, setEnabledState] = useState(false);
+  const [enabled, setEnabledState] = useState(true);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     try {
-      setEnabledState(localStorage.getItem(STORAGE_KEY) === '1');
+      // Seule une désactivation explicite ('0') coupe le mode : clé absente
+      // (premier lancement) = activé.
+      setEnabledState(localStorage.getItem(STORAGE_KEY) !== '0');
     } catch { /* ignore */ }
     setReady(true);
   }, []);
