@@ -578,7 +578,8 @@ model ClosingEvent {
 }
 
 // Compteur d'appels : une ligne est créée à CHAQUE clic sur « Afficher le
-// numéro » dans la fiche affaire. Sert à mesurer le nombre d'appels passés par
+// numéro » dans la fiche affaire, tant que le « mode prospection » (interrupteur
+// en haut à droite de l'app) est activé. Sert à mesurer le nombre d'appels passés par
 // utilisateur sur une période (semaine, quinzaine, mois…). Le nom de
 // l'utilisateur est figé à l'enregistrement pour que la statistique reste
 // lisible même si le compte est renommé ou supprimé.
