@@ -119,7 +119,9 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.demoBooking.findFirst({
-        where: { createdAt: { gte: depuis } },
+        // Une reprogrammation de rendez-vous n'est pas une nouvelle démo
+        // bookée : rien à célébrer.
+        where: { createdAt: { gte: depuis }, isReschedule: false },
         orderBy: { createdAt: 'desc' },
         select: {
           id: true, createdAt: true, userName: true,

@@ -38,6 +38,17 @@ interface DemoBookingAuthor {
   userName?: string | null;
 }
 
+interface DemoBookingOptions {
+  /**
+   * Reprogrammation d'un rendez-vous existant (choix fait dans la pop-up à
+   * l'arrivée dans « DEMO PREVUE », typiquement après un NO SHOW) : la ligne
+   * est créée quand même — elle porte la nouvelle date, le no-show et le
+   * crédit de la démo à venir — mais marquée isReschedule pour ne pas compter
+   * comme une nouvelle démo bookée (ni célébration TV, ni Deal.demoBookedAt).
+   */
+  reschedule?: boolean;
+}
+
 /**
  * Enregistre un booking de démo si la colonne d'arrivée est « DEMO PREVUE »
  * (Closing) : une ligne DemoBooking de plus, plus le miroir Deal.demoBookedAt.
@@ -45,7 +56,7 @@ interface DemoBookingAuthor {
  * Best-effort, comme la journalisation des déplacements : une erreur ici ne doit
  * pas faire échouer le déplacement de l'affaire. Renvoie la ligne créée, ou null.
  */
-export async function markDemoBookedIfNeeded(dealId: string, columnId: string, author: DemoBookingAuthor = {}) {
+export async function markDemoBookedIfNeeded(dealId: string, columnId: string, author: DemoBookingAuthor = {}, options: DemoBookingOptions = {}) {
   try {
     const column = await prisma.pipelineColumn.findUnique({
       where: { id: columnId },
@@ -70,6 +81,7 @@ export async function markDemoBookedIfNeeded(dealId: string, columnId: string, a
       linkedUserId = user?.id ?? null;
     }
 
+    const reschedule = options.reschedule === true;
     const booking = await prisma.demoBooking.create({
       data: {
         dealId,
@@ -77,9 +89,14 @@ export async function markDemoBookedIfNeeded(dealId: string, columnId: string, a
         userName: author.userName || '',
         bookedAt,
         demoDate,
+        isReschedule: reschedule,
       },
     });
-    await prisma.deal.update({ where: { id: dealId }, data: { demoBookedAt: bookedAt } });
+    // Le miroir Deal.demoBookedAt suit la dernière démo bookée COMPTÉE : une
+    // reprogrammation ne le déplace pas.
+    if (!reschedule) {
+      await prisma.deal.update({ where: { id: dealId }, data: { demoBookedAt: bookedAt } });
+    }
     return booking;
   } catch (err) {
     console.error('[markDemoBookedIfNeeded]', err);

@@ -270,7 +270,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
     // l'auteur du changement d'étape.
     if (body.columnId) {
-      await markDemoBookedIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName });
+      await markDemoBookedIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName }, { reschedule: body.demoReschedule === true });
       await markDemoDoneIfNeeded(params.id, body.columnId, { userId: body.userId, userName: body.userName });
     }
 

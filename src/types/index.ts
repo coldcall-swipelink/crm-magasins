@@ -149,6 +149,9 @@ export interface DemoBooking {
   bookedAt: string;
   demoDate: string | null;
   noShow:   boolean;
+  // Reprogrammation d'un rendez-vous existant : la ligne garde l'historique
+  // mais ne compte pas comme une nouvelle démo bookée.
+  isReschedule?: boolean;
 }
 
 // Un closing enregistré (table ClosingEvent) : une ligne par abonnement validé

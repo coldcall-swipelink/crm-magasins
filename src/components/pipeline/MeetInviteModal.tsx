@@ -13,6 +13,12 @@ import { toast } from '@/components/ui/Toast';
 //
 // La date affichée reste modifiable : sans date de démo, Google ne peut pas
 // créer l'événement. La corriger ici évite un aller-retour par la fiche.
+//
+// La pop-up porte aussi la case « Reprogrammation » : cochée, l'entrée dans
+// DEMO PREVUE ne compte pas comme une nouvelle démo bookée (ligne d'historique
+// marquée isReschedule, pas de célébration TV). Elle est pré-cochée quand
+// l'affaire arrive d'« ABSENT DEMO » — le cas du rendez-vous reprogrammé après
+// un NO SHOW.
 // La pop-up ne fait QUE l'UI ; le déplacement est géré par le parent.
 
 /**
@@ -97,19 +103,26 @@ interface Props {
   demoDate?: string | null;
   /** Contact de l'affaire : c'est lui qui recevra l'invitation. */
   dealEmail?: string | null;
+  /** Vrai si l'affaire arrive d'une colonne « ABSENT DEMO » : la case
+   *  « Reprogrammation » est alors pré-cochée (rendez-vous re-planifié après
+   *  un NO SHOW, pas une nouvelle démo bookée). */
+  fromAbsent?: boolean;
   /**
    * @param send          true = envoyer l'invitation, false = déplacer sans rien envoyer.
    * @param newDemoDate   ISO si la date a été modifiée dans la pop-up, sinon `undefined`
    *                      (l'affaire garde sa date, on ne la réécrit pas pour rien).
+   * @param reschedule    true = reprogrammation d'un rendez-vous existant : ne
+   *                      compte pas comme une nouvelle démo bookée.
    */
-  onConfirm: (send: boolean, newDemoDate?: string | null) => Promise<void>;
+  onConfirm: (send: boolean, newDemoDate: string | null | undefined, reschedule: boolean) => Promise<void>;
   onCancel: () => void;
 }
 
-export default function MeetInviteModal({ storeName, demoDate, dealEmail, onConfirm, onCancel }: Props) {
+export default function MeetInviteModal({ storeName, demoDate, dealEmail, fromAbsent, onConfirm, onCancel }: Props) {
   const initial = toLocalInput(demoDate);
   const [value, setValue] = useState(initial);
   const [loading, setLoading] = useState<'oui' | 'non' | null>(null);
+  const [reschedule, setReschedule] = useState(!!fromAbsent);
   const email = dealEmail?.trim() || '';
   const changed = value !== initial;
 
@@ -124,7 +137,7 @@ export default function MeetInviteModal({ storeName, demoDate, dealEmail, onConf
   const choose = async (send: boolean) => {
     setLoading(send ? 'oui' : 'non');
     try {
-      await onConfirm(send, changed ? fromLocalInput(value) : undefined);
+      await onConfirm(send, changed ? fromLocalInput(value) : undefined, reschedule);
     } catch {
       // Le parent affiche le toast d'erreur ; on réactive les boutons.
       setLoading(null);
@@ -198,6 +211,30 @@ export default function MeetInviteModal({ storeName, demoDate, dealEmail, onConf
                   : <><b>Aucun email sur cette affaire</b> — la visio sera créée avec le seul invité Swipelink.</>}
             </span>
           </div>
+
+          {/* Reprogrammation : la ligne d'historique est créée quand même, mais
+              ne compte pas comme une nouvelle démo bookée. Pré-cochée quand
+              l'affaire arrive d'« ABSENT DEMO ». */}
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, borderRadius: 11,
+            padding: '10px 12px', cursor: loading ? 'not-allowed' : 'pointer', userSelect: 'none',
+            fontSize: 12.5, lineHeight: 1.5,
+            background: reschedule ? '#eff6ff' : '#f8fafc',
+            border: `1px solid ${reschedule ? '#bfdbfe' : '#e8ecf3'}`,
+            color: reschedule ? '#1d4ed8' : '#475569',
+          }}>
+            <input
+              type="checkbox"
+              checked={reschedule}
+              disabled={loading !== null}
+              onChange={e => setReschedule(e.target.checked)}
+              style={{ width: 15, height: 15, accentColor: '#2563eb', cursor: 'pointer', margin: '2px 0 0', flexShrink: 0 }}
+            />
+            <span style={{ minWidth: 0 }}>
+              <b>Reprogrammation du rendez-vous</b> — ne compte pas comme une
+              nouvelle démo bookée{fromAbsent ? ' (l’affaire revient d’ABSENT DEMO)' : ''}.
+            </span>
+          </label>
         </div>
 
         {/* Pied : les deux issues, et ce qu'implique l'annulation */}

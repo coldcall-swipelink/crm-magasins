@@ -17,7 +17,7 @@ import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry, type Closi
 import FlowWarningModal from '@/components/pipeline/FlowWarningModal';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
-  flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
+  flowForColumn, isAbsentDemoColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
   type FlowKey,
 } from '@/lib/pipelineStages';
 
@@ -88,6 +88,9 @@ interface DemoBooking {
   bookedAt: string;
   demoDate: string | null;
   noShow: boolean;
+  // Reprogrammation d'un rendez-vous existant : la ligne garde l'historique
+  // mais n'a pas compté comme une nouvelle démo bookée.
+  isReschedule?: boolean;
   // Qui a fait la démo : personne ne le saisit, c'est l'auteur du déplacement
   // vers « DEMO FAITE », rattaché à ce booking par GET /api/deals/[id].
   doneByName?: string | null;
@@ -925,11 +928,15 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   //   - OUI → l'étape est enregistrée ET l'invitation part (sendMeetInvite).
   //   - NON → l'étape est enregistrée, aucune invitation n'est envoyée.
   // Une date corrigée dans la pop-up est enregistrée avec le déplacement.
-  const handleMeetConfirm = async (send: boolean, newDemoDate?: string | null) => {
+  // reschedule (case « Reprogrammation ») : l'entrée en DEMO PREVUE ne compte
+  // pas comme une nouvelle démo bookée.
+  const handleMeetConfirm = async (send: boolean, newDemoDate: string | null | undefined, reschedule: boolean) => {
     if (!meetInvite) return;
-    await runMove(meetInvite.columnId, send ? meetInvite.msg : `${meetInvite.msg} — aucune invitation envoyée`, {
+    const msg = reschedule ? `${meetInvite.msg} — rendez-vous reprogrammé, non compté comme une nouvelle démo bookée` : meetInvite.msg;
+    await runMove(meetInvite.columnId, send ? msg : `${msg} — aucune invitation envoyée`, {
       payload: {
         sendMeetInvite: send,
+        demoReschedule: reschedule,
         ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
       },
       reportMeet: send,
@@ -2567,6 +2574,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         storeName={store?.name}
         demoDate={deal.demoDate}
         dealEmail={deal.dealEmail}
+        fromAbsent={isAbsentDemoColumn(deal.column?.title)}
         onConfirm={handleMeetConfirm}
         onCancel={() => setMeetInvite(null)}
       />
@@ -2767,13 +2775,14 @@ function DemoBookedItem({ booking, onToggleNoShow }: {
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 13.5, margin: 0, fontWeight: 700, color: booking.noShow ? '#9f1239' : '#92400e' }}>
-          {booking.noShow ? '🚫' : '🎉'} Démo bookée le {formatDate(booking.bookedAt)}
+          {booking.noShow ? '🚫' : booking.isReschedule ? '🔁' : '🎉'} {booking.isReschedule ? 'Démo reprogrammée' : 'Démo bookée'} le {formatDate(booking.bookedAt)}
           {demoValid
             ? <> pour le <span style={{ color: booking.noShow ? '#be123c' : '#b45309' }}>{formatDate(booking.demoDate)}{heure && heure !== '00:00' ? ` à ${heure}` : ''}</span></>
             : <span style={{ fontWeight: 500, color: '#a16207' }}> — date de démo à renseigner</span>}
         </p>
         <p style={{ fontSize: 11.5, margin: '4px 0 0', color: '#a16207' }}>
-          Bookée par <span style={{ fontWeight: 600 }}>{booking.userName || 'utilisateur inconnu'}</span>
+          {booking.isReschedule ? 'Reprogrammée' : 'Bookée'} par <span style={{ fontWeight: 600 }}>{booking.userName || 'utilisateur inconnu'}</span>
+          {booking.isReschedule && <span title="Reprogrammation d'un rendez-vous existant"> · non comptée comme une nouvelle démo bookée</span>}
           {booking.doneByName && (
             <span title={booking.doneAt ? `Démo faite le ${formatDate(booking.doneAt)}` : undefined}>
               {' · '}Faite par <span style={{ fontWeight: 600 }}>{booking.doneByName}</span>

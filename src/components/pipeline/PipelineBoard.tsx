@@ -15,7 +15,7 @@ import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
 import { useCurrentUser } from '@/lib/currentUser';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
-  flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
+  flowForColumn, isAbsentDemoColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
   type FlowKey,
 } from '@/lib/pipelineStages';
 
@@ -48,7 +48,8 @@ export default function PipelineBoard() {
   // Confirmation avant de lancer une séquence automatique (DEMO FAITE / RELANCE 1).
   const [flowWarn, setFlowWarn] = useState<{ dealId: string; targetColId: string; originColId: string; flow: FlowKey; isPV: boolean; storeName?: string; dealEmail?: string | null } | null>(null);
   // Confirmation de l'invitation Google Meet à l'arrivée dans « DEMO PREVUE ».
-  const [meetInvite, setMeetInvite] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; demoDate?: string | null; dealEmail?: string | null } | null>(null);
+  // fromAbsent pré-coche « Reprogrammation » quand l'affaire quitte « ABSENT DEMO ».
+  const [meetInvite, setMeetInvite] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; demoDate?: string | null; dealEmail?: string | null; fromAbsent?: boolean } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
   // Notifications d'offres (offres créées par les organisations rattachées).
@@ -194,6 +195,9 @@ export default function PipelineBoard() {
         storeName: deal.store?.name,
         demoDate: deal.demoDate ?? null,
         dealEmail: deal.dealEmail ?? null,
+        // Sortie d'« ABSENT DEMO » : c'est très probablement le rendez-vous
+        // reprogrammé après un NO SHOW — la pop-up pré-coche « Reprogrammation ».
+        fromAbsent: isAbsentDemoColumn(pipelineColumns.find(c => c.id === originColId)?.title),
       });
       return;
     }
@@ -287,7 +291,9 @@ export default function PipelineBoard() {
   //   - NON  → le déplacement est persisté, aucune invitation n'est envoyée.
   // Une date modifiée dans la pop-up est enregistrée sur l'affaire au passage,
   // pour que la visio et le champ « Date de la démo » ne divergent jamais.
-  const handleMeetConfirm = async (send: boolean, newDemoDate?: string | null) => {
+  // reschedule (case « Reprogrammation ») : l'entrée en DEMO PREVUE ne compte
+  // pas comme une nouvelle démo bookée.
+  const handleMeetConfirm = async (send: boolean, newDemoDate: string | null | undefined, reschedule: boolean) => {
     if (!meetInvite) return;
 
     const res = await fetch(`/api/deals/${meetInvite.dealId}/move`, {
@@ -295,6 +301,7 @@ export default function PipelineBoard() {
       body: JSON.stringify({
         columnId: meetInvite.targetColId,
         sendMeetInvite: send,
+        demoReschedule: reschedule,
         ...(newDemoDate !== undefined ? { demoDate: newDemoDate } : {}),
         userId: currentUser?.id || null,
         userName: currentUser?.name || '',
@@ -306,7 +313,9 @@ export default function PipelineBoard() {
     if (send) {
       reportMeetSync(moveData?.meetSync);
     } else {
-      toast('Affaire déplacée dans DEMO PREVUE — aucune invitation envoyée');
+      toast(reschedule
+        ? 'Rendez-vous reprogrammé — non compté comme une nouvelle démo bookée, aucune invitation envoyée'
+        : 'Affaire déplacée dans DEMO PREVUE — aucune invitation envoyée');
     }
     setMeetInvite(null);
     fetchDeals();
@@ -618,6 +627,7 @@ export default function PipelineBoard() {
           storeName={meetInvite.storeName}
           demoDate={meetInvite.demoDate}
           dealEmail={meetInvite.dealEmail}
+          fromAbsent={meetInvite.fromAbsent}
           onConfirm={handleMeetConfirm}
           onCancel={handleMeetCancel}
         />

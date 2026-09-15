@@ -23,7 +23,7 @@ function isSmartlinkColumn(title?: string | null): boolean {
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { columnId, position, pvChoice, closingDate, closingDates, closedByUserId, closedByName, userId, userName, source, sendMeetInvite, demoDate } = await req.json();
+    const { columnId, position, pvChoice, closingDate, closingDates, closedByUserId, closedByName, userId, userName, source, sendMeetInvite, demoDate, demoReschedule } = await req.json();
     if (!columnId) return NextResponse.json({ error: 'columnId requis' }, { status: 400 });
     const column = await prisma.pipelineColumn.findUnique({ where: { id: columnId } });
     if (!column) return NextResponse.json({ error: 'Colonne non trouvée' }, { status: 404 });
@@ -80,8 +80,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
 
     // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus
-    // (un rebooking s'ajoute à l'historique, il n'écrase rien).
-    await markDemoBookedIfNeeded(params.id, columnId, { userId, userName });
+    // (un rebooking s'ajoute à l'historique, il n'écrase rien). demoReschedule
+    // vient de la pop-up d'arrivée : une reprogrammation garde sa ligne
+    // d'historique mais ne compte pas comme une nouvelle démo bookée.
+    await markDemoBookedIfNeeded(params.id, columnId, { userId, userName }, { reschedule: demoReschedule === true });
 
     // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
     // celui qui déplace la carte, sur le booking encore ouvert.

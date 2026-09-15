@@ -17,6 +17,15 @@ export const CLOSING_PIPELINE_NAME = 'Closing';
 /** Séquence automatique n8n déclenchée à l'arrivée dans la colonne. */
 export type FlowKey = 'DEMO_FAITE' | 'RELANCE_1';
 
+/** Vrai si le titre de colonne correspond à une étape « ABSENT DEMO »
+ *  (insensible à la casse et aux accents, par inclusion pour survivre aux
+ *  variantes de libellé — même lecture que le serveur). Sert à pré-cocher
+ *  « Reprogrammation » dans la pop-up d'arrivée en DEMO PREVUE. */
+export function isAbsentDemoColumn(title?: string | null): boolean {
+  if (!title) return false;
+  return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('absent');
+}
+
 /** Vrai si le titre de colonne correspond à l'étape « SMARTLINKÉ »
  *  (insensible à la casse et aux accents). */
 export function isSmartlinkColumn(title?: string | null): boolean {

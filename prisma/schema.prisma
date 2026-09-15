@@ -509,6 +509,11 @@ model DemoBooking {
   demoDate  DateTime?
   // Case « NO SHOW » de la fiche affaire : le contact n'est pas venu.
   noShow    Boolean  @default(false)
+  // Reprogrammation d'un rendez-vous existant (choix fait dans la pop-up à
+  // l'arrivée dans « DEMO PREVUE », typiquement après un NO SHOW) : la ligne
+  // garde l'historique mais ne compte pas comme une nouvelle démo bookée
+  // (pas de célébration TV, pas de mise à jour de Deal.demoBookedAt).
+  isReschedule Boolean @default(false)
   // Qui a FAIT la démo, et quand. Rempli au passage de l'affaire dans
   // « DEMO FAITE » ou « ABSENT DEMO » : celui qui déplace la carte est celui
   // qui était devant le client. Vide tant que la démo n'a pas eu lieu ; jamais
