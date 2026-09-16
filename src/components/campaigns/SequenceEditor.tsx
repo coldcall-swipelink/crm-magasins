@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
-import { btnDef, btnPri, btnXs, card, formatDelay, inp, label } from './ui';
+import { T, btnDef, btnPri, btnXs, card, formatDelay, inp, label, modal, overlay } from './ui';
 
 export interface Step {
   id: string;
@@ -85,22 +85,23 @@ export default function SequenceEditor({ campaignId, steps, onChanged }: {
       <button style={{ ...btnDef, marginTop: 4 }} onClick={addStep}>+ Ajouter une relance</button>
 
       {preview && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}
+        <div style={overlay}
           onClick={() => setPreview(null)}>
-          <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(720px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
+          <div onClick={event => event.stopPropagation()} style={{ ...modal, width: 'min(720px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Aperçu sur un lead réel</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>De : {preview.from || '— aucune boîte affectée —'}</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>À : {preview.lead}</div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, padding: '8px 0', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', marginBottom: 12 }}>
-              {preview.subject || <span style={{ color: '#dc2626' }}>(sujet vide)</span>}
+            <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 4 }}>De : {preview.from || '— aucune boîte affectée —'}</div>
+            <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 10 }}>À : {preview.lead}</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600, padding: '8px 0', borderTop: '1px solid #262b38', borderBottom: '1px solid #262b38', marginBottom: 12 }}>
+              {preview.subject || <span style={{ color: '#f87171' }}>(sujet vide)</span>}
             </div>
             {preview.missing.length > 0 && (
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#78350f', marginBottom: 12 }}>
+              <div style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#fbbf24', marginBottom: 12 }}>
                 Variables sans valeur pour ce lead : {preview.missing.map(name => `{{${name}}}`).join(', ')}.
                 Donnez-leur une valeur de repli — <code>{'{{prenom|bonjour}}'}</code> — pour éviter les phrases bancales.
               </div>
             )}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#fff' }}
+            {/* Fond blanc assumé : c'est l'email tel que le lead le recevra. */}
+            <div className="camp-email-preview" style={{ border: `1px solid ${T.border}`, padding: 16 }}
               dangerouslySetInnerHTML={{ __html: preview.html }} />
             <button style={{ ...btnDef, marginTop: 14 }} onClick={() => setPreview(null)}>Fermer</button>
           </div>
@@ -168,18 +169,18 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
   return (
     <div style={{ ...card, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#eef2ff', color: '#4338ca', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(59,113,245,.16)', color: '#8fb0ff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {step.position}
         </div>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>
           {isFirst ? 'Premier email' : `Relance ${step.position - 1}`}
         </div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4' }}>
           {isFirst ? '— part dès l\'inscription du lead' : `— ${formatDelay(draft.delayHours)} après l'email précédent`}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button style={btnXs} onClick={onPreview}>Aperçu</button>
-          {canDelete && <button style={{ ...btnXs, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }} onClick={remove}>Supprimer</button>}
+          {canDelete && <button style={{ ...btnXs, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }} onClick={remove}>Supprimer</button>}
         </div>
       </div>
 
@@ -190,14 +191,14 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
             {DELAY_PRESETS.filter(preset => preset.hours > 0).map(preset => (
               <button key={preset.hours} onClick={() => change({ delayHours: preset.hours })} style={{
                 ...btnXs,
-                borderColor: draft.delayHours === preset.hours ? '#4f46e5' : '#e2e8f0',
-                background: draft.delayHours === preset.hours ? '#eef2ff' : '#f8fafc',
-                color: draft.delayHours === preset.hours ? '#4338ca' : '#64748b',
+                borderColor: draft.delayHours === preset.hours ? '#3b71f5' : '#262b38',
+                background: draft.delayHours === preset.hours ? 'rgba(59,113,245,.16)' : '#1c1f2a',
+                color: draft.delayHours === preset.hours ? '#8fb0ff' : '#9aa1b4',
               }}>{preset.label}</button>
             ))}
             <input style={{ ...inp, width: 90 }} type="number" min={0} value={draft.delayHours}
               onChange={event => change({ delayHours: Number(event.target.value) })} />
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>heures</span>
+            <span style={{ fontSize: 12, color: '#6b7283' }}>heures</span>
           </div>
         </div>
       )}
@@ -209,7 +210,7 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
           placeholder="Une question sur {{enseigne}}"
           onChange={event => change({ subject: event.target.value })} />
         {!isFirst && draft.replyToThread && (
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: '#6b7283', marginTop: 4 }}>
             Cette relance part dans le fil du premier email : c&apos;est son sujet, préfixé « Re: », qui sera utilisé.
           </div>
         )}
@@ -220,15 +221,15 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
         <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
           <button onClick={() => change({ useHtml: false })} style={{
             ...btnXs,
-            borderColor: !draft.useHtml ? '#4f46e5' : '#e2e8f0',
-            background: !draft.useHtml ? '#eef2ff' : '#f8fafc',
-            color: !draft.useHtml ? '#4338ca' : '#64748b',
+            borderColor: !draft.useHtml ? '#3b71f5' : '#262b38',
+            background: !draft.useHtml ? 'rgba(59,113,245,.16)' : '#1c1f2a',
+            color: !draft.useHtml ? '#8fb0ff' : '#9aa1b4',
           }}>Texte</button>
           <button onClick={() => change({ useHtml: true })} style={{
             ...btnXs,
-            borderColor: draft.useHtml ? '#4f46e5' : '#e2e8f0',
-            background: draft.useHtml ? '#eef2ff' : '#f8fafc',
-            color: draft.useHtml ? '#4338ca' : '#64748b',
+            borderColor: draft.useHtml ? '#3b71f5' : '#262b38',
+            background: draft.useHtml ? 'rgba(59,113,245,.16)' : '#1c1f2a',
+            color: draft.useHtml ? '#8fb0ff' : '#9aa1b4',
           }}>HTML</button>
         </div>
       </div>
@@ -244,7 +245,7 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
           : 'Bonjour {{prenom|bonjour}},\n\nJe vous écris parce que…'}
         onChange={event => change(draft.useHtml ? { bodyHtml: event.target.value } : { bodyText: event.target.value })}
       />
-      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>
+      <div style={{ fontSize: 11, color: '#6b7283', marginTop: 5 }}>
         {draft.useHtml
           ? 'HTML libre : idéal pour un email commercial. Un email trop maquetté passe moins bien les filtres qu\'un email simple.'
           : 'Texte simple, converti en HTML sobre à l\'envoi — c\'est le format qui arrive le mieux en boîte de réception.'}
@@ -262,7 +263,7 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
             ))}
             {variables.custom.map(name => (
               <button key={name} onClick={() => insertVariable(name)}
-                style={{ ...btnXs, fontFamily: 'ui-monospace, monospace', fontSize: 11, borderColor: '#c7d2fe', background: '#eef2ff', color: '#4338ca' }}>
+                style={{ ...btnXs, fontFamily: 'ui-monospace, monospace', fontSize: 11, borderColor: 'rgba(59,113,245,.38)', background: 'rgba(59,113,245,.16)', color: '#8fb0ff' }}>
                 {`{{${name}}}`}
               </button>
             ))}
@@ -271,7 +272,7 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
       )}
 
       {!isFirst && (
-        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#475569', marginTop: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#b3b9c9', marginTop: 12 }}>
           <input type="checkbox" checked={draft.replyToThread}
             onChange={event => change({ replyToThread: event.target.checked })} />
           Envoyer dans le fil du premier email (relance, plutôt que nouvel email)

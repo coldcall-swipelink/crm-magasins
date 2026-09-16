@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { LEAD_FIELDS, customFieldSlug } from '@/lib/campaigns/leadFields';
-import { btnDef, btnPri, btnXs, card, inp, label } from './ui';
+import { btnDef, btnPri, btnXs, card, inp, label, modal, overlay } from './ui';
 
 /** Champs standard proposés, dans l'ordre de saisie naturel. */
 const FIELDS = LEAD_FIELDS.filter(field => field.key !== 'email');
@@ -66,13 +66,13 @@ export default function LeadFormModal({ userName, campaignId, onClose, onSaved }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 24 }}
+    <div style={overlay}
       onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(620px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
+      <div onClick={event => event.stopPropagation()} style={{ ...modal, width: 'min(620px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
           {campaignId ? 'Ajouter un lead à la campagne' : 'Nouveau lead'}
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 16 }}>
           Seul l&apos;email est obligatoire. Tout le reste sert à personnaliser les emails.
         </div>
 
@@ -99,7 +99,7 @@ export default function LeadFormModal({ userName, campaignId, onClose, onSaved }
             + Ajouter un champ
           </button>
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: '#6b7283', marginBottom: 8 }}>
           Chaque champ devient une variable utilisable dans les emails.
         </div>
 
@@ -109,7 +109,7 @@ export default function LeadFormModal({ userName, campaignId, onClose, onSaved }
               onChange={event => setCustom(rows => rows.map((r, i) => i === index ? { ...r, name: event.target.value } : r))} />
             <input style={{ ...inp, flex: 1 }} placeholder="Valeur" value={row.value}
               onChange={event => setCustom(rows => rows.map((r, i) => i === index ? { ...r, value: event.target.value } : r))} />
-            <code style={{ fontSize: 11, color: '#4f46e5', width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <code style={{ fontSize: 11, color: '#3b71f5', width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {row.name.trim() ? `{{${customFieldSlug(row.name)}}}` : ''}
             </code>
             <button style={btnXs} onClick={() => setCustom(rows => rows.filter((_, i) => i !== index))}>✕</button>

@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
-import { btnDef, btnPri, btnXs, card, inp, label } from './ui';
+import { btnDef, btnPri, btnXs, card, inp, label, modal, overlay } from './ui';
 
 type Lead = {
   id: string; email: string; civility: string | null; firstName: string | null;
@@ -115,11 +115,11 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 24 }}
+    <div style={overlay}
       onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(760px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+      <div onClick={event => event.stopPropagation()} style={{ ...modal, width: 'min(760px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Ajouter depuis mes leads</div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 14 }}>
           Cochez les leads à inscrire, ou inscrivez d&apos;un coup tous ceux qui correspondent
           à la recherche. Les désinscrits et les adresses mortes sont écartés automatiquement.
         </div>
@@ -134,17 +134,17 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
           </select>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 9, minHeight: 200 }}>
+        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #262b38', borderRadius: 9, minHeight: 200 }}>
           {loading ? (
-            <div style={{ padding: 16, fontSize: 12.5, color: '#94a3b8' }}>Chargement…</div>
+            <div style={{ padding: 16, fontSize: 12.5, color: '#6b7283' }}>Chargement…</div>
           ) : leads.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 12.5, color: '#94a3b8' }}>Aucun lead ne correspond.</div>
+            <div style={{ padding: 16, fontSize: 12.5, color: '#6b7283' }}>Aucun lead ne correspond.</div>
           ) : leads.map(lead => {
             const already = enrolledIds.has(lead.id);
             return (
               <label key={lead.id} style={{
                 display: 'flex', alignItems: 'center', gap: 9, padding: '7px 11px',
-                borderBottom: '1px solid #f8fafc', fontSize: 12.5,
+                borderBottom: '1px solid #1c1f2a', fontSize: 12.5,
                 opacity: already ? 0.45 : 1, cursor: already ? 'default' : 'pointer',
               }}>
                 <input type="checkbox" disabled={already} checked={selected.has(lead.id)}
@@ -152,9 +152,9 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500 }}>
                     {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email}
-                    {already && <span style={{ marginLeft: 7, fontSize: 11, color: '#94a3b8' }}>déjà dans la campagne</span>}
+                    {already && <span style={{ marginLeft: 7, fontSize: 11, color: '#6b7283' }}>déjà dans la campagne</span>}
                   </div>
-                  <div style={{ color: '#94a3b8', fontSize: 11.5 }}>
+                  <div style={{ color: '#6b7283', fontSize: 11.5 }}>
                     {lead.email}{lead.company ? ` · ${lead.company}` : ''}{lead.jobTitle ? ` · ${lead.jobTitle}` : ''}
                   </div>
                 </div>
@@ -171,11 +171,11 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
           {pages > 1 && (
             <>
               <button style={btnXs} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹</button>
-              <span style={{ fontSize: 11.5, color: '#64748b' }}>page {page} / {pages}</span>
+              <span style={{ fontSize: 11.5, color: '#9aa1b4' }}>page {page} / {pages}</span>
               <button style={btnXs} disabled={page >= pages} onClick={() => setPage(p => p + 1)}>›</button>
             </>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9aa1b4' }}>
             {selected.size} sélectionné(s) · {total} lead(s) dans la recherche
           </span>
         </div>

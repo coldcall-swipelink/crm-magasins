@@ -78,7 +78,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
     <div style={{ padding: '18px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <Chip label="Tous" count={Object.values(counts).reduce((sum, n) => sum + n, 0)}
-          active={!status} color="#4f46e5" onClick={() => { setStatus(''); setPage(1); }} />
+          active={!status} color="#3b71f5" onClick={() => { setStatus(''); setPage(1); }} />
         {Object.entries(ENROLLMENT_STATUS).map(([key, item]) => (
           <Chip key={key} label={item.label} count={counts[key] || 0} active={status === key}
             color={item.color} onClick={() => { setStatus(key); setPage(1); }} />
@@ -91,16 +91,16 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
+        <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
       ) : enrollments.length === 0 ? (
-        <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+        <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
           {status ? 'Aucun lead dans cet état.' : 'Aucun lead inscrit. Ajoutez-en pour que la campagne ait de quoi travailler.'}
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#64748b' }}>
+              <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
                 <th style={th}>Lead</th>
                 <th style={th}>Avancement</th>
                 <th style={th}>Boîte</th>
@@ -111,20 +111,20 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
             </thead>
             <tbody>
               {enrollments.map(enrollment => {
-                const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#64748b' };
+                const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#9aa1b4' };
                 const last = enrollment.messages[0];
                 return (
-                  <tr key={enrollment.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr key={enrollment.id} style={{ borderTop: '1px solid #222634' }}>
                     <td style={td}>
                       <div style={{ fontWeight: 600 }}>
                         {[enrollment.lead.firstName, enrollment.lead.lastName].filter(Boolean).join(' ') || enrollment.lead.email}
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: 11.5 }}>
+                      <div style={{ color: '#6b7283', fontSize: 11.5 }}>
                         {enrollment.lead.email}{enrollment.lead.company ? ` · ${enrollment.lead.company}` : ''}
                       </div>
                     </td>
                     <td style={td}>
-                      {enrollment.sentSteps === 0 ? <span style={{ color: '#94a3b8' }}>rien envoyé</span> : (
+                      {enrollment.sentSteps === 0 ? <span style={{ color: '#6b7283' }}>rien envoyé</span> : (
                         <span>
                           {enrollment.sentSteps} email{enrollment.sentSteps > 1 ? 's' : ''}
                           {last?.openedAt && <span title="Ouvert"> · 👁️</span>}
@@ -132,8 +132,8 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                         </span>
                       )}
                     </td>
-                    <td style={{ ...td, color: '#64748b', fontSize: 11.5 }}>{enrollment.mailbox?.email || '—'}</td>
-                    <td style={{ ...td, color: '#64748b' }}>
+                    <td style={{ ...td, color: '#9aa1b4', fontSize: 11.5 }}>{enrollment.mailbox?.email || '—'}</td>
+                    <td style={{ ...td, color: '#9aa1b4' }}>
                       {enrollment.nextSendAt
                         ? new Date(enrollment.nextSendAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
                         : '—'}
@@ -143,7 +143,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                         {state.label}
                       </span>
                       {enrollment.stopReason && (
-                        <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>
+                        <div style={{ fontSize: 10.5, color: '#6b7283', marginTop: 2 }}>
                           {STOP_REASONS[enrollment.stopReason] || enrollment.stopReason}
                         </div>
                       )}
@@ -157,7 +157,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                           <button style={btnXs} onClick={() => act(enrollment, 'resume')}>Reprendre</button>
                         )}
                         {enrollment.status !== 'stopped' && enrollment.status !== 'finished' && (
-                          <button style={{ ...btnXs, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}
+                          <button style={{ ...btnXs, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
                             onClick={() => act(enrollment, 'stop')}>Arrêter</button>
                         )}
                       </div>
@@ -171,11 +171,11 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-        <div style={{ fontSize: 12, color: '#64748b' }}>{total} lead{total > 1 ? 's' : ''} dans la campagne</div>
+        <div style={{ fontSize: 12, color: '#9aa1b4' }}>{total} lead{total > 1 ? 's' : ''} dans la campagne</div>
         {pages > 1 && (
           <>
             <button style={{ ...btnDef, marginLeft: 'auto' }} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Précédent</button>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Page {page} / {pages}</span>
+            <span style={{ fontSize: 12, color: '#9aa1b4' }}>Page {page} / {pages}</span>
             <button style={btnDef} disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Suivant</button>
           </>
         )}
@@ -207,9 +207,9 @@ function Chip({ label: text, count, active, color, onClick }: {
     <button onClick={onClick} style={{
       padding: '4px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
       fontWeight: active ? 700 : 500,
-      border: `1px solid ${active ? color : '#e2e8f0'}`,
-      background: active ? `${color}18` : '#fff',
-      color: active ? color : '#64748b',
+      border: `1px solid ${active ? color : '#262b38'}`,
+      background: active ? `${color}18` : '#171a23',
+      color: active ? color : '#9aa1b4',
     }}>{text} <span style={{ opacity: 0.7 }}>{count}</span></button>
   );
 }

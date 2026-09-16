@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import { T } from '@/components/campaigns/ui';
 import CampaignsPanel from '@/components/campaigns/CampaignsPanel';
 import DashboardPanel from '@/components/campaigns/DashboardPanel';
 import LeadsPanel from '@/components/campaigns/LeadsPanel';
@@ -31,18 +32,29 @@ export default function CampagnesPage() {
 
   return (
     <AppLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-        <div style={{ padding: '10px 20px 0', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Campagnes</div>
-          <div style={{ display: 'flex', gap: 4 }}>
+      {/* La classe « camp » porte le survol, le focus et les finitions que des
+          styles en ligne ne savent pas exprimer (cf. globals.css). */}
+      <div className="camp" style={{
+        display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0,
+        background: T.bg, color: T.text,
+      }}>
+        <div style={{ padding: '14px 24px 0', background: T.bgPanel, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.01em' }}>Campagnes</div>
+            <div style={{ fontSize: 12, color: T.textFaint }}>
+              Prospection par email — séquences, leads et boîtes d&apos;envoi
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 2 }}>
             {TABS.map(item => {
               const active = tab === item.key;
               return (
-                <button key={item.key} onClick={() => setTab(item.key)} style={{
-                  padding: '7px 14px', fontSize: 13, border: 'none', background: 'transparent',
-                  cursor: 'pointer', fontWeight: active ? 600 : 400,
-                  color: active ? '#4338ca' : '#64748b',
-                  borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
+                <button key={item.key} onClick={() => setTab(item.key)} className="camp-tab" style={{
+                  padding: '9px 14px', fontSize: 13, border: 'none', background: 'transparent',
+                  cursor: 'pointer', fontWeight: active ? 650 : 500,
+                  color: active ? T.text : T.textMuted,
+                  borderBottom: `2px solid ${active ? T.primary : 'transparent'}`,
+                  marginBottom: -1,
                 }}>{item.label}</button>
               );
             })}

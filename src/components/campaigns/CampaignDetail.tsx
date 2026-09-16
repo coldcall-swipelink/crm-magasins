@@ -87,15 +87,15 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
   };
 
   if (!campaign || !stats) {
-    return <div style={{ padding: 24, fontSize: 13, color: '#94a3b8' }}>Chargement…</div>;
+    return <div style={{ padding: 24, fontSize: 13, color: '#6b7283' }}>Chargement…</div>;
   }
 
-  const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#64748b' };
+  const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
   const activeBoxes = campaign.mailboxes.filter(link => link.mailbox.active).length;
 
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
-      <div style={{ padding: '14px 24px', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+      <div style={{ padding: '14px 24px', background: '#171a23', borderBottom: '1px solid #262b38' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button style={btnXs} onClick={onBack}>← Campagnes</button>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{campaign.name}</div>
@@ -112,7 +112,7 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
             )}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', marginTop: 6 }}>
           {campaign.steps.length} étape{campaign.steps.length > 1 ? 's' : ''} ·
           {' '}{activeBoxes} boîte{activeBoxes > 1 ? 's' : ''} d&apos;envoi ·
           {' '}{stats.contacted} lead{stats.contacted > 1 ? 's' : ''} contacté{stats.contacted > 1 ? 's' : ''} ·
@@ -126,8 +126,8 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
               <button key={item.key} onClick={() => setTab(item.key)} style={{
                 padding: '6px 12px', fontSize: 12.5, border: 'none', background: 'transparent',
                 cursor: 'pointer', fontWeight: active ? 600 : 400,
-                color: active ? '#4338ca' : '#64748b',
-                borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
+                color: active ? '#8fb0ff' : '#9aa1b4',
+                borderBottom: `2px solid ${active ? '#3b71f5' : 'transparent'}`,
               }}>{item.label}</button>
             );
           })}
@@ -135,7 +135,7 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
       </div>
 
       {campaign.status === 'draft' && activeBoxes === 0 && (
-        <div style={{ margin: '14px 24px 0', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#78350f' }}>
+        <div style={{ margin: '14px 24px 0', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#fbbf24' }}>
           Aucune boîte d&apos;envoi active n&apos;est affectée : la campagne ne pourra pas être lancée.
           Choisissez-en une dans l&apos;onglet <strong>Réglages</strong>.
         </div>
@@ -190,22 +190,22 @@ function SettingsTab({ campaign, mailboxes, onPatch, onDelete }: {
 
       <div style={{ ...card, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Boîtes d&apos;envoi</div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 12 }}>
           Plusieurs boîtes = rotation : le volume se répartit, mais chaque lead reçoit
           toute sa séquence depuis une seule adresse (sinon les relances ne se
           rattachent pas au fil du premier email).
         </div>
         {mailboxes.length === 0 && (
-          <div style={{ fontSize: 12.5, color: '#94a3b8' }}>
+          <div style={{ fontSize: 12.5, color: '#6b7283' }}>
             Aucune boîte connectée — rendez-vous dans l&apos;onglet « Boîtes d&apos;envoi ».
           </div>
         )}
         {mailboxes.map(mailbox => (
-          <label key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
+          <label key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, padding: '6px 0', borderBottom: '1px solid #1c1f2a' }}>
             <input type="checkbox" checked={selected.has(mailbox.id)} onChange={() => toggleMailbox(mailbox.id)} />
             <span style={{ fontWeight: 500 }}>{mailbox.email}</span>
-            <span style={{ color: '#94a3b8' }}>{mailbox.displayName}</span>
-            {!mailbox.active && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#b45309' }}>en pause</span>}
+            <span style={{ color: '#6b7283' }}>{mailbox.displayName}</span>
+            {!mailbox.active && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#fbbf24' }}>en pause</span>}
           </label>
         ))}
       </div>
@@ -232,7 +232,7 @@ function SettingsTab({ campaign, mailboxes, onPatch, onDelete }: {
         />
       </div>
 
-      <button style={{ ...btnDef, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }} onClick={onDelete}>
+      <button style={{ ...btnDef, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }} onClick={onDelete}>
         Supprimer la campagne
       </button>
     </div>
@@ -243,11 +243,11 @@ function Toggle({ checked, onChange, title, hint }: {
   checked: boolean; onChange: (value: boolean) => void; title: string; hint: string;
 }) {
   return (
-    <label style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid #f8fafc', cursor: 'pointer' }}>
+    <label style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid #1c1f2a', cursor: 'pointer' }}>
       <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} style={{ marginTop: 3 }} />
       <div>
         <div style={{ fontSize: 12.5, fontWeight: 500 }}>{title}</div>
-        <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>{hint}</div>
+        <div style={{ fontSize: 11.5, color: '#6b7283', marginTop: 2 }}>{hint}</div>
       </div>
     </label>
   );

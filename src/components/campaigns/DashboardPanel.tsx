@@ -48,7 +48,7 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
   useEffect(() => { load(); }, [load]);
 
   if (loading && !stats) {
-    return <div style={{ padding: 24, fontSize: 13, color: '#94a3b8' }}>Chargement…</div>;
+    return <div style={{ padding: 24, fontSize: 13, color: '#6b7283' }}>Chargement…</div>;
   }
   if (!stats) return null;
 
@@ -66,9 +66,9 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
           {RANGES.map(range => (
             <button key={range} onClick={() => setDays(range)} style={{
               ...btnXs,
-              borderColor: days === range ? '#4f46e5' : '#e2e8f0',
-              background: days === range ? '#eef2ff' : '#f8fafc',
-              color: days === range ? '#4338ca' : '#64748b',
+              borderColor: days === range ? '#3b71f5' : '#262b38',
+              background: days === range ? 'rgba(59,113,245,.16)' : '#1c1f2a',
+              color: days === range ? '#8fb0ff' : '#9aa1b4',
             }}>{range} jours</button>
           ))}
         </div>
@@ -88,18 +88,18 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
       <div style={{ ...card, marginBottom: 18 }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Activité sur {days} jours</div>
         {stats.sent === 0 ? (
-          <div style={{ fontSize: 12.5, color: '#94a3b8', padding: '30px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 12.5, color: '#6b7283', padding: '30px 0', textAlign: 'center' }}>
             Aucun email envoyé pour l&apos;instant.
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={34} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#262b38" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6b7283' }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: '#6b7283' }} width={34} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #262b38' }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="sent" name="Envoyés" fill="#4f46e5" radius={[3, 3, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="sent" name="Envoyés" fill="#3b71f5" radius={[3, 3, 0, 0]} maxBarSize={26} />
               <Line type="monotone" dataKey="opened" name="Ouverts" stroke="#0ea5e9" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="replied" name="Réponses" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} />
             </ComposedChart>
@@ -111,28 +111,28 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
         <div style={card}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Boîtes d&apos;envoi</div>
           {stats.mailboxes.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucune boîte connectée.</div>
+            <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucune boîte connectée.</div>
           ) : stats.mailboxes.map(mailbox => (
-            <div key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #f8fafc' }}>
+            <div key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #1c1f2a' }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                background: mailbox.lastError ? '#dc2626' : mailbox.active ? '#16a34a' : '#cbd5e1',
+                background: mailbox.lastError ? '#f87171' : mailbox.active ? '#4ade80' : '#333a4a',
               }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 500 }}>{mailbox.email}</div>
                 {mailbox.lastError && (
-                  <div style={{ fontSize: 11, color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 11, color: '#f87171', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {mailbox.lastError}
                   </div>
                 )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600 }}>{mailbox.sentToday}</div>
-                <div style={{ fontSize: 10, color: '#94a3b8' }}>aujourd&apos;hui</div>
+                <div style={{ fontSize: 10, color: '#6b7283' }}>aujourd&apos;hui</div>
               </div>
               <div style={{ textAlign: 'right', minWidth: 54 }}>
-                <div style={{ fontSize: 12.5, color: '#475569' }}>{mailbox.sentTotal}</div>
-                <div style={{ fontSize: 10, color: '#94a3b8' }}>au total</div>
+                <div style={{ fontSize: 12.5, color: '#b3b9c9' }}>{mailbox.sentTotal}</div>
+                <div style={{ fontSize: 10, color: '#6b7283' }}>au total</div>
               </div>
             </div>
           ))}
@@ -140,7 +140,7 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
 
         <div style={card}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
-            Leads <span style={{ fontWeight: 400, color: '#94a3b8' }}>({totalLeads})</span>
+            Leads <span style={{ fontWeight: 400, color: '#6b7283' }}>({totalLeads})</span>
           </div>
           {LEAD_STATUSES.filter(status => stats.leads[status.key]).map(status => {
             const count = stats.leads[status.key] || 0;
@@ -150,13 +150,13 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
                   <span style={{ color: statusColor(status.key) }}>{statusLabel(status.key)}</span>
                   <strong>{count}</strong>
                 </div>
-                <div style={{ height: 5, borderRadius: 3, background: '#f1f5f9', overflow: 'hidden' }}>
+                <div style={{ height: 5, borderRadius: 3, background: '#222634', overflow: 'hidden' }}>
                   <div style={{ width: `${(count / Math.max(1, totalLeads)) * 100}%`, height: '100%', background: statusColor(status.key) }} />
                 </div>
               </div>
             );
           })}
-          {totalLeads === 0 && <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucun lead importé.</div>}
+          {totalLeads === 0 && <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucun lead importé.</div>}
         </div>
       </div>
 
@@ -166,11 +166,11 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
           <button style={{ ...btnXs, marginLeft: 'auto' }} onClick={onOpenCampaigns}>Voir toutes</button>
         </div>
         {stats.topCampaigns.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucune campagne créée.</div>
+          <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucune campagne créée.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#64748b' }}>
+              <tr style={{ textAlign: 'left', color: '#9aa1b4' }}>
                 <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Campagne</th>
                 <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Envoyés</th>
                 <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Ouverture</th>
@@ -179,9 +179,9 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
             </thead>
             <tbody>
               {stats.topCampaigns.map(campaign => {
-                const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#64748b' };
+                const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
                 return (
-                  <tr key={campaign.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr key={campaign.id} style={{ borderTop: '1px solid #222634' }}>
                     <td style={{ padding: '8px' }}>
                       {campaign.name}
                       <span style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 999, fontSize: 10, fontWeight: 600, color: state.color, background: `${state.color}18` }}>
@@ -199,7 +199,7 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
         )}
       </div>
 
-      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 14, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 11, color: '#6b7283', marginTop: 14, lineHeight: 1.6 }}>
         Le taux d&apos;ouverture repose sur un pixel invisible : une image bloquée ne compte pas
         l&apos;ouverture, un pré-chargement (Apple Mail, proxy Gmail) la compte à tort. Il se lit
         comme une tendance. Le taux de réponse, lui, est mesuré sur les réponses réellement
@@ -222,27 +222,28 @@ function EngineHeartbeat({ lastRun }: { lastRun: string | null }) {
     // Il tourne toutes les 5 minutes : au-delà de 20, quelque chose cloche.
     if (minutes <= 20) {
       return (
-        <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-          Moteur d&apos;envoi : dernier passage il y a {minutes} minute{minutes > 1 ? 's' : ''}.
+        <div style={{ fontSize: 11.5, color: '#6b7283', marginBottom: 12 }}>
+          Planificateur : dernier passage automatique il y a {minutes} minute{minutes > 1 ? 's' : ''}.
         </div>
       );
     }
     return (
-      <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#78350f', marginBottom: 14 }}>
-        <strong>Le moteur d&apos;envoi n&apos;a pas tourné depuis {minutes} minutes</strong> — il devrait
-        passer toutes les 5 minutes. Tant qu&apos;il dort, aucune campagne n&apos;avance.
+      <div style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#fbbf24', marginBottom: 14 }}>
+        <strong>Le planificateur n&apos;a pas tourné depuis {minutes} minutes</strong> — il devrait
+        passer toutes les 5 minutes. Tant qu&apos;il dort, les relances des campagnes attendent.
       </div>
     );
   }
 
   return (
-    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#b91c1c', marginBottom: 14 }}>
-      <strong>Le moteur d&apos;envoi n&apos;a jamais tourné.</strong>
-      <div style={{ marginTop: 4, color: '#7f1d1d' }}>
-        La tâche planifiée <code>/api/campaigns/run</code> n&apos;est pas déclenchée. Sur un
-        hébergement qui limite les tâches planifiées, appelez cette route depuis un
-        planificateur externe (N8N…) toutes les 5 minutes. En attendant, le bouton
-        « Envoyer maintenant » d&apos;une campagne fait partir les emails sans dépendre d&apos;elle.
+    <div style={{ background: 'rgba(239,68,68,.13)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#f87171', marginBottom: 14 }}>
+      <strong>Le planificateur n&apos;a jamais tourné.</strong>
+      <div style={{ marginTop: 4, color: '#fca5a5' }}>
+        La tâche planifiée <code>/api/campaigns/run</code> n&apos;est pas déclenchée — les
+        <strong> relances des étapes suivantes ne partiront donc pas toutes seules</strong>.
+        Sur un hébergement qui limite les tâches planifiées à une par jour, appelez cette route
+        depuis un planificateur externe (N8N…) toutes les 5 minutes. Les envois déclenchés depuis
+        l&apos;interface, eux, ne dépendent pas d&apos;elle.
       </div>
     </div>
   );
@@ -253,13 +254,13 @@ function Metric({ label, value, hint, accent, warn }: {
 }) {
   return (
     <div style={{
-      background: warn ? '#fef2f2' : accent ? '#eef2ff' : '#fff',
-      border: `1px solid ${warn ? '#fecaca' : accent ? '#c7d2fe' : '#e2e8f0'}`,
+      background: warn ? 'rgba(239,68,68,.13)' : accent ? 'rgba(59,113,245,.16)' : '#171a23',
+      border: `1px solid ${warn ? 'rgba(239,68,68,.35)' : accent ? 'rgba(59,113,245,.38)' : '#262b38'}`,
       borderRadius: 10, padding: '14px 16px',
     }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: warn ? '#b91c1c' : accent ? '#4338ca' : '#0f172a' }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>{label}</div>
-      {hint && <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 1 }}>{hint}</div>}
+      <div style={{ fontSize: 22, fontWeight: 700, color: warn ? '#f87171' : accent ? '#8fb0ff' : '#e7e9ef' }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: '#9aa1b4', marginTop: 2 }}>{label}</div>
+      {hint && <div style={{ fontSize: 10.5, color: '#6b7283', marginTop: 1 }}>{hint}</div>}
     </div>
   );
 }

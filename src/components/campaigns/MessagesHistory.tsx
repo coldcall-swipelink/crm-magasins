@@ -11,7 +11,7 @@
 // base qu'une fois parti. L'échéance se lit donc sur l'inscription du lead.
 
 import { useCallback, useEffect, useState } from 'react';
-import { CAMPAIGN_STATUS, ENROLLMENT_STATUS, STOP_REASONS, btnDef, card, inp } from './ui';
+import { CAMPAIGN_STATUS, ENROLLMENT_STATUS, STOP_REASONS, T, btnDef, card, inp, modal, overlay } from './ui';
 
 type Message = {
   id: string; subject: string; toAddress: string; fromAddress: string;
@@ -94,15 +94,24 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
 
   useEffect(() => { load(); }, [load]);
 
-  // Le compteur « À venir » doit s'afficher même quand on regarde l'historique.
+  // Les compteurs de TOUS les onglets doivent être justes, quel que soit
+  // l'onglet ouvert : sinon « Tous les envois 0 » s'affiche à côté d'un
+  // historique qui contient neuf emails, et l'écran se contredit.
   useEffect(() => {
     const params = new URLSearchParams();
     if (campaignId) params.set('campaignId', campaignId);
-    fetch(`/api/campaigns/scheduled?${params}`)
-      .then(res => res.json())
-      .then(data => setUpcomingCount(data.total || 0))
-      .catch(() => { /* le compteur n'est pas vital */ });
-  }, [campaignId, tab]);
+    if (search) params.set('q', search);
+
+    Promise.all([
+      fetch(`/api/campaigns/scheduled?${params}`).then(res => res.json()),
+      fetch(`/api/campaigns/messages?${params}`).then(res => res.json()),
+    ])
+      .then(([scheduled, messages]) => {
+        setUpcomingCount(scheduled.total || 0);
+        setCounts(messages.counts || {});
+      })
+      .catch(() => { /* des compteurs absents valent mieux qu'un écran cassé */ });
+  }, [campaignId, tab, search]);
 
   const openDetail = async (id: string) => {
     const data = await fetch(`/api/campaigns/messages/${id}`).then(res => res.json());
@@ -124,9 +133,9 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
             <button key={item.key} onClick={() => { setTab(item.key); setPage(1); }} style={{
               padding: '4px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
               fontWeight: active ? 700 : 500,
-              border: `1px solid ${active ? '#4f46e5' : '#e2e8f0'}`,
-              background: active ? '#eef2ff' : '#fff',
-              color: active ? '#4338ca' : '#64748b',
+              border: `1px solid ${active ? '#3b71f5' : '#262b38'}`,
+              background: active ? 'rgba(59,113,245,.16)' : '#171a23',
+              color: active ? '#8fb0ff' : '#9aa1b4',
             }}>
               {item.label} <span style={{ opacity: 0.7 }}>{countFor(item.key)}</span>
             </button>
@@ -137,7 +146,7 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
+        <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
       ) : tab === 'upcoming' ? (
         <UpcomingTable items={upcoming} showCampaign={!campaignId} summary={summary} />
       ) : (
@@ -145,11 +154,15 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-        <div style={{ fontSize: 12, color: '#64748b' }}>{total} email{total > 1 ? 's' : ''}</div>
+        <div style={{ fontSize: 12, color: T.textMuted }}>
+          {tab === 'upcoming'
+            ? `${total} envoi${total > 1 ? 's' : ''} programmé${total > 1 ? 's' : ''}`
+            : `${total} email${total > 1 ? 's' : ''}`}
+        </div>
         {pages > 1 && (
           <>
             <button style={{ ...btnDef, marginLeft: 'auto' }} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Précédent</button>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Page {page} / {pages}</span>
+            <span style={{ fontSize: 12, color: '#9aa1b4' }}>Page {page} / {pages}</span>
             <button style={btnDef} disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Suivant</button>
           </>
         )}
@@ -169,10 +182,10 @@ function MessagesTable({ messages, showCampaign, onOpen }: {
     return <Empty text="Aucun email envoyé pour l'instant." />;
   }
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
-          <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#64748b' }}>
+          <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
             <th style={th}>Date et heure</th>
             <th style={th}>Destinataire</th>
             {showCampaign && <th style={th}>Campagne</th>}
@@ -185,22 +198,22 @@ function MessagesTable({ messages, showCampaign, onOpen }: {
         <tbody>
           {messages.map(message => (
             <tr key={message.id} onClick={() => onOpen(message.id)}
-              style={{ borderTop: '1px solid #f1f5f9', cursor: 'pointer' }}>
+              style={{ borderTop: '1px solid #222634', cursor: 'pointer' }}>
               <td style={{ ...td, whiteSpace: 'nowrap' }}>{formatDateTime(message.sentAt)}</td>
               <td style={td}>
                 <div style={{ fontWeight: 500 }}>
                   {[message.lead?.firstName, message.lead?.lastName].filter(Boolean).join(' ') || message.toAddress}
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: 11.5 }}>
+                <div style={{ color: '#6b7283', fontSize: 11.5 }}>
                   {message.toAddress}{message.lead?.company ? ` · ${message.lead.company}` : ''}
                 </div>
               </td>
-              {showCampaign && <td style={{ ...td, color: '#475569' }}>{message.campaign.name}</td>}
+              {showCampaign && <td style={{ ...td, color: '#b3b9c9' }}>{message.campaign.name}</td>}
               <td style={td}>{message.stepPosition}</td>
               <td style={{ ...td, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {message.subject || <span style={{ color: '#94a3b8' }}>(sans objet)</span>}
+                {message.subject || <span style={{ color: '#6b7283' }}>(sans objet)</span>}
               </td>
-              <td style={{ ...td, color: '#94a3b8', fontSize: 11.5 }}>{message.mailbox?.email || '—'}</td>
+              <td style={{ ...td, color: '#6b7283', fontSize: 11.5 }}>{message.mailbox?.email || '—'}</td>
               <td style={td}><MessageBadge message={message} /></td>
             </tr>
           ))}
@@ -212,13 +225,13 @@ function MessagesTable({ messages, showCampaign, onOpen }: {
 
 /** Le statut le plus avancé l'emporte : répondu > ouvert > envoyé. */
 function MessageBadge({ message }: { message: Message }) {
-  if (message.status === 'failed') return <Badge label="Échec" color="#b91c1c" title={message.error || ''} />;
-  if (message.repliedAt) return <Badge label="Répondu" color="#7c3aed" title={`Le ${formatDateTime(message.repliedAt)}`} />;
+  if (message.status === 'failed') return <Badge label="Échec" color="#f87171" title={message.error || ''} />;
+  if (message.repliedAt) return <Badge label="Répondu" color="#a78bfa" title={`Le ${formatDateTime(message.repliedAt)}`} />;
   if (message.openedAt) {
     return <Badge label="Ouvert" color="#0ea5e9"
       title={`Le ${formatDateTime(message.openedAt)}${message.openCount > 1 ? ` · ${message.openCount} ouvertures` : ''}`} />;
   }
-  return <Badge label="Envoyé" color="#64748b" />;
+  return <Badge label="Envoyé" color="#9aa1b4" />;
 }
 
 // ─── Envois à venir ───────────────────────────────────────────────────────
@@ -230,10 +243,10 @@ function UpcomingTable({ items, showCampaign, summary }: {
 }) {
   if (items.length === 0) return <NothingScheduled summary={summary} />;
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
-          <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#64748b' }}>
+          <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
             <th style={th}>Envoi prévu</th>
             <th style={th}>Destinataire</th>
             {showCampaign && <th style={th}>Campagne</th>}
@@ -251,27 +264,27 @@ function UpcomingTable({ items, showCampaign, summary }: {
             // n'arrivera jamais.
             const blocked = item.campaign.status !== 'running' || item.enrollmentStatus === 'paused';
             return (
-              <tr key={item.id} style={{ borderTop: '1px solid #f1f5f9', opacity: blocked ? 0.65 : 1 }}>
+              <tr key={item.id} style={{ borderTop: '1px solid #222634', opacity: blocked ? 0.65 : 1 }}>
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>
                   {formatDateTime(item.scheduledAt)}
                   {item.overdue && !blocked && (
-                    <div style={{ fontSize: 10.5, color: '#d97706' }}>en attente du moteur</div>
+                    <div style={{ fontSize: 10.5, color: '#fbbf24' }}>en attente du moteur</div>
                   )}
                 </td>
                 <td style={td}>
                   <div style={{ fontWeight: 500 }}>
                     {[item.lead.firstName, item.lead.lastName].filter(Boolean).join(' ') || item.lead.email}
                   </div>
-                  <div style={{ color: '#94a3b8', fontSize: 11.5 }}>
+                  <div style={{ color: '#6b7283', fontSize: 11.5 }}>
                     {item.lead.email}{item.lead.company ? ` · ${item.lead.company}` : ''}
                   </div>
                 </td>
-                {showCampaign && <td style={{ ...td, color: '#475569' }}>{item.campaign.name}</td>}
+                {showCampaign && <td style={{ ...td, color: '#b3b9c9' }}>{item.campaign.name}</td>}
                 <td style={td}>{item.stepPosition} / {item.stepCount}</td>
                 <td style={{ ...td, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.subjectTemplate || <span style={{ color: '#94a3b8' }}>(sujet vide)</span>}
+                  {item.subjectTemplate || <span style={{ color: '#6b7283' }}>(sujet vide)</span>}
                 </td>
-                <td style={{ ...td, color: '#94a3b8', fontSize: 11.5 }}>{item.mailbox?.email || '—'}</td>
+                <td style={{ ...td, color: '#6b7283', fontSize: 11.5 }}>{item.mailbox?.email || '—'}</td>
                 <td style={td}>
                   {item.enrollmentStatus === 'paused'
                     ? <Badge label="Lead en pause" color="#d97706" />
@@ -293,35 +306,37 @@ function UpcomingTable({ items, showCampaign, summary }: {
 function MessageDetail({ detail, onClose }: { detail: Detail; onClose: () => void }) {
   const { message, replies } = detail;
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 24 }}
+    <div style={overlay}
       onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(720px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
+      <div onClick={event => event.stopPropagation()} style={{ ...modal, width: 'min(720px, 100%)', maxHeight: '88vh', overflow: 'auto' }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
           {message.subject || '(sans objet)'}
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', lineHeight: 1.7, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #262b38' }}>
           De : {message.fromAddress}<br />
           À : {message.lead?.email || message.toAddress}<br />
           Envoyé le {formatDateTime(message.sentAt)} · étape {message.stepPosition} · campagne « {message.campaign.name} »
           {message.openedAt && <><br />Ouvert le {formatDateTime(message.openedAt)}{message.openCount > 1 ? ` (${message.openCount} fois)` : ''}</>}
           {message.repliedAt && <><br />Réponse reçue le {formatDateTime(message.repliedAt)}</>}
-          {message.error && <><br /><span style={{ color: '#b91c1c' }}>Échec : {message.error}</span></>}
+          {message.error && <><br /><span style={{ color: '#f87171' }}>Échec : {message.error}</span></>}
         </div>
 
         {/* Le contenu réellement envoyé, variables déjà remplacées. */}
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#fff' }}
+        {/* Fond blanc assumé : c'est l'email tel que le destinataire le voit,
+            pas un élément de l'interface. */}
+        <div className="camp-email-preview" style={{ border: `1px solid ${T.border}`, padding: 16 }}
           dangerouslySetInnerHTML={{ __html: message.bodyHtml }} />
 
         {replies.length > 0 && (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '.6px', margin: '16px 0 7px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7283', letterSpacing: '.6px', margin: '16px 0 7px' }}>
               RÉPONSES REÇUES DEPUIS
             </div>
             {replies.map(reply => (
-              <div key={reply.id} style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '8px 11px', marginBottom: 6 }}>
+              <div key={reply.id} style={{ background: 'rgba(139,92,246,.13)', border: '1px solid rgba(139,92,246,.35)', borderRadius: 8, padding: '8px 11px', marginBottom: 6 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600 }}>{reply.subject || '(sans objet)'}</div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{reply.snippet.slice(0, 300)}</div>
-                <div style={{ fontSize: 10.5, color: '#7c3aed', marginTop: 3 }}>
+                <div style={{ fontSize: 12, color: '#b3b9c9', marginTop: 3 }}>{reply.snippet.slice(0, 300)}</div>
+                <div style={{ fontSize: 10.5, color: '#a78bfa', marginTop: 3 }}>
                   {reply.fromAddress} · {formatDateTime(reply.receivedAt)}
                 </div>
               </div>
@@ -366,30 +381,30 @@ function NothingScheduled({ summary }: {
   }
 
   return (
-    <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 24 }}>
+    <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 24 }}>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Aucun envoi programmé</div>
-      <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 14 }}>
+      <div style={{ fontSize: 12.5, color: '#9aa1b4', marginBottom: 14 }}>
         {totalLeads} lead{totalLeads > 1 ? 's' : ''} inscrit{totalLeads > 1 ? 's' : ''}, mais aucun n&apos;attend d&apos;envoi.
         Voici où ils en sont :
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         {states.map(([status, count]) => {
-          const state = ENROLLMENT_STATUS[status] || { label: status, color: '#64748b' };
+          const state = ENROLLMENT_STATUS[status] || { label: status, color: '#9aa1b4' };
           return (
             <div key={status} style={{ border: `1px solid ${state.color}33`, background: `${state.color}12`, borderRadius: 8, padding: '7px 12px' }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: state.color }}>{count}</div>
-              <div style={{ fontSize: 11, color: '#475569' }}>{state.label}</div>
+              <div style={{ fontSize: 11, color: '#b3b9c9' }}>{state.label}</div>
             </div>
           );
         })}
       </div>
 
       {reasons.length > 0 && (
-        <div style={{ fontSize: 12, color: '#475569' }}>
+        <div style={{ fontSize: 12, color: '#b3b9c9' }}>
           Motifs d&apos;arrêt : {reasons.map(([reason, count]) => `${count} ${STOP_REASONS[reason] || reason}`).join(' · ')}.
           {reasons.some(([reason]) => reason === 'bounced') && (
-            <div style={{ marginTop: 8, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '9px 12px', color: '#78350f' }}>
+            <div style={{ marginTop: 8, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '9px 12px', color: '#fbbf24' }}>
               Des leads ont été arrêtés pour « adresse morte ». Si vos emails n&apos;ont jamais
               été remis, vérifiez d&apos;abord l&apos;état de vos boîtes d&apos;envoi : un refus
               d&apos;authentification ou un quota atteint vient de l&apos;expéditeur, pas de
@@ -404,7 +419,7 @@ function NothingScheduled({ summary }: {
 
 function Empty({ text }: { text: string }) {
   return (
-    <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+    <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
       {text}
     </div>
   );

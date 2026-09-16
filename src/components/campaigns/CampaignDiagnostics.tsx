@@ -16,9 +16,9 @@ import { btnDef, btnPri, card } from './ui';
 type Check = { key: string; label: string; level: 'ok' | 'warn' | 'error'; detail: string };
 
 const LEVELS = {
-  ok:    { color: '#16a34a', mark: '●' },
-  warn:  { color: '#d97706', mark: '●' },
-  error: { color: '#dc2626', mark: '●' },
+  ok:    { color: '#4ade80', mark: '●' },
+  warn:  { color: '#fbbf24', mark: '●' },
+  error: { color: '#f87171', mark: '●' },
 } as const;
 
 export default function CampaignDiagnostics({ campaignId, onSent }: {
@@ -66,7 +66,7 @@ export default function CampaignDiagnostics({ campaignId, onSent }: {
   if (!checks) return null;
 
   return (
-    <div style={{ ...card, marginBottom: 14, borderColor: ok ? '#e2e8f0' : '#fecaca', background: ok ? '#fff' : '#fffbfb' }}>
+    <div style={{ ...card, marginBottom: 14, borderColor: ok ? '#262b38' : 'rgba(239,68,68,.35)', background: ok ? '#171a23' : '#fffbfb' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           {ok ? 'État des envois' : 'Les envois sont bloqués'}
@@ -82,12 +82,12 @@ export default function CampaignDiagnostics({ campaignId, onSent }: {
       {checks.map(check => (
         <div key={check.key} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '5px 0', fontSize: 12.5 }}>
           <span style={{ color: LEVELS[check.level].color, lineHeight: 1.5 }}>{LEVELS[check.level].mark}</span>
-          <div style={{ minWidth: 118, fontWeight: 500, color: '#334155' }}>{check.label}</div>
-          <div style={{ flex: 1, color: check.level === 'ok' ? '#64748b' : '#334155' }}>{check.detail}</div>
+          <div style={{ minWidth: 118, fontWeight: 500, color: '#cdd2df' }}>{check.label}</div>
+          <div style={{ flex: 1, color: check.level === 'ok' ? '#9aa1b4' : '#cdd2df' }}>{check.detail}</div>
         </div>
       ))}
 
-      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 11, color: '#6b7283', marginTop: 10, lineHeight: 1.6 }}>
         « Envoyer maintenant » fait tourner le moteur sur les boîtes de cette campagne, sans
         attendre le planificateur — mais avec les mêmes garde-fous : plage horaire, quota du
         jour et espacement entre deux emails sont respectés.

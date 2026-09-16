@@ -10,12 +10,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { PROVIDER_PRESETS } from '@/lib/campaigns/providers';
+import { btnDef, btnPri, btnXs, inp, label } from './ui';
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnXs: React.CSSProperties = { padding: '4px 9px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11.5 };
-const label: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
 export interface Mailbox {
   id: string; email: string; displayName: string; provider: string;
@@ -165,10 +161,10 @@ export default function MailboxesPanel() {
   return (
     <div style={{ padding: '18px 24px', maxWidth: 1000 }}>
       {loadError && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#b91c1c', marginBottom: 16 }}>
+        <div style={{ background: 'rgba(239,68,68,.13)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#f87171', marginBottom: 16 }}>
           <strong>La liste des boîtes n&apos;a pas pu être chargée.</strong>
           <div style={{ marginTop: 4, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}>{loadError}</div>
-          <div style={{ marginTop: 6, color: '#7f1d1d' }}>
+          <div style={{ marginTop: 6, color: '#fca5a5' }}>
             Si le message parle d&apos;une table absente, le schéma de la base n&apos;est pas à jour :
             lancez <code>npx prisma db push</code> sur la base, ou la route de synchronisation
             <code> /api/admin/db-sync</code>. Le formulaire ci-dessous reste utilisable, mais
@@ -178,7 +174,7 @@ export default function MailboxesPanel() {
       )}
 
       {!encryptionReady && (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#78350f', marginBottom: 16 }}>
+        <div style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#fbbf24', marginBottom: 16 }}>
           <strong>Clé de chiffrement manquante.</strong> Les mots de passe des boîtes sont chiffrés en base :
           générez une clé avec <code>openssl rand -hex 32</code> et ajoutez-la en variable d&apos;environnement
           <code> CAMPAIGN_SECRET_KEY</code>. Tant qu&apos;elle est absente, aucune boîte ne peut être enregistrée.
@@ -188,7 +184,7 @@ export default function MailboxesPanel() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>Boîtes d&apos;envoi</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: '#9aa1b4', marginTop: 2 }}>
             Les campagnes partent de ces adresses, en direct (SMTP), et leurs réponses sont relevées en IMAP.
           </div>
         </div>
@@ -200,7 +196,7 @@ export default function MailboxesPanel() {
       </div>
 
       {adding && (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, marginBottom: 18 }}>
+        <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, padding: 18, marginBottom: 18 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <label style={label}>Fournisseur</label>
@@ -228,13 +224,13 @@ export default function MailboxesPanel() {
               <input style={inp} type="password" autoComplete="new-password" value={form.password}
                 onChange={e => set('password', e.target.value)} />
             </div>
-            <div style={{ fontSize: 11.5, color: '#64748b', alignSelf: 'end', paddingBottom: 8 }}>{hint}</div>
+            <div style={{ fontSize: 11.5, color: '#9aa1b4', alignSelf: 'end', paddingBottom: 8 }}>{hint}</div>
           </div>
 
           <PasswordHelp provider={form.provider} />
 
           <details style={{ marginTop: 10 }}>
-            <summary style={{ fontSize: 12, color: '#4f46e5', cursor: 'pointer' }}>Réglages serveurs et cadence</summary>
+            <summary style={{ fontSize: 12, color: '#3b71f5', cursor: 'pointer' }}>Réglages serveurs et cadence</summary>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 12 }}>
               <div><label style={label}>Serveur SMTP</label>
                 <input style={inp} value={form.smtpHost} onChange={e => set('smtpHost', e.target.value)} /></div>
@@ -253,7 +249,7 @@ export default function MailboxesPanel() {
               <div><label style={label}>Plage horaire</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input style={inp} type="number" value={form.sendStartHour} onChange={e => set('sendStartHour', Number(e.target.value))} />
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>→</span>
+                  <span style={{ fontSize: 12, color: '#6b7283' }}>→</span>
                   <input style={inp} type="number" value={form.sendEndHour} onChange={e => set('sendEndHour', Number(e.target.value))} />
                 </div></div>
             </div>
@@ -269,16 +265,16 @@ export default function MailboxesPanel() {
             </button>
             <button style={btnDef} onClick={() => setAdding(false)}>Annuler</button>
           </div>
-          <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 8 }}>
+          <div style={{ fontSize: 11.5, color: '#6b7283', marginTop: 8 }}>
             La boîte n&apos;est enregistrée que si la connexion aboutit.
           </div>
         </div>
       )}
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
+        <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
       ) : mailboxes.length === 0 ? (
-        <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+        <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
           Aucune boîte connectée. Connectez au moins une adresse pour pouvoir lancer une campagne.
         </div>
       ) : (
@@ -311,8 +307,8 @@ export default function MailboxesPanel() {
 function PasswordHelp({ provider }: { provider: string }) {
   if (provider === 'google') {
     return (
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
-        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 5 }}>
+      <div style={{ background: '#1c1f2a', border: '1px solid #262b38', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#b3b9c9', lineHeight: 1.6, marginBottom: 6 }}>
+        <div style={{ fontWeight: 600, color: '#e7e9ef', marginBottom: 5 }}>
           Où trouver ce mot de passe ?
         </div>
         Google refuse le mot de passe habituel du compte pour une connexion SMTP : il faut un
@@ -322,12 +318,12 @@ function PasswordHelp({ provider }: { provider: string }) {
             suivante n&apos;existe pas).</li>
           <li>Connecté avec cette adresse, ouvrir{' '}
             <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer"
-              style={{ color: '#4f46e5' }}>myaccount.google.com/apppasswords</a>,
+              style={{ color: '#3b71f5' }}>myaccount.google.com/apppasswords</a>,
             nommer l&apos;application (« CRM ») et copier les 16 caractères affichés.</li>
           <li>Vérifier que l&apos;IMAP est activé : Gmail → Paramètres → Transfert et POP/IMAP →
             « Activer IMAP » (sans quoi les réponses ne seront pas relevées).</li>
         </ol>
-        <div style={{ marginTop: 6, color: '#64748b' }}>
+        <div style={{ marginTop: 6, color: '#9aa1b4' }}>
           Les espaces entre les blocs n&apos;ont pas d&apos;importance, ils sont retirés à
           l&apos;enregistrement. Si la page des mots de passe d&apos;application est inaccessible,
           c&apos;est que l&apos;administrateur Workspace les a désactivés, ou que le compte est en
@@ -339,8 +335,8 @@ function PasswordHelp({ provider }: { provider: string }) {
 
   if (provider === 'ovh') {
     return (
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
-        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 5 }}>
+      <div style={{ background: '#1c1f2a', border: '1px solid #262b38', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#b3b9c9', lineHeight: 1.6, marginBottom: 6 }}>
+        <div style={{ fontWeight: 600, color: '#e7e9ef', marginBottom: 5 }}>
           Où trouver ce mot de passe ?
         </div>
         C&apos;est le mot de passe de la boîte elle-même, celui qui ouvre le webmail OVH : rien à
@@ -352,7 +348,7 @@ function PasswordHelp({ provider }: { provider: string }) {
   }
 
   return (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
+    <div style={{ background: '#1c1f2a', border: '1px solid #262b38', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#b3b9c9', lineHeight: 1.6, marginBottom: 6 }}>
       Le mot de passe de la boîte chez votre hébergeur, et ses serveurs SMTP et IMAP
       (« Réglages serveurs » ci-dessous). Si l&apos;hébergeur impose un mot de passe dédié aux
       applications, c&apos;est celui-là qu&apos;il faut.
@@ -375,8 +371,8 @@ function DayPicker({ value, onChange }: { value: string; onChange: (value: strin
         return (
           <button key={day.value} onClick={() => toggle(day.value)} style={{
             width: 32, height: 30, borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            border: `1px solid ${on ? '#4f46e5' : '#e2e8f0'}`,
-            background: on ? '#eef2ff' : '#f8fafc', color: on ? '#4338ca' : '#94a3b8',
+            border: `1px solid ${on ? '#3b71f5' : '#262b38'}`,
+            background: on ? 'rgba(59,113,245,.16)' : '#1c1f2a', color: on ? '#8fb0ff' : '#6b7283',
           }}>{day.label}</button>
         );
       })}
@@ -402,12 +398,12 @@ function MailboxCard({ mailbox, busy, expanded, onToggleExpand, onTest, onPatch,
     sendDays: mailbox.sendDays, signatureHtml: mailbox.signatureHtml || '',
   });
 
-  const status = mailbox.lastCheckOk === null ? { text: 'Non testée', color: '#94a3b8', bg: '#f1f5f9' }
-    : mailbox.lastCheckOk ? { text: 'Opérationnelle', color: '#15803d', bg: '#dcfce7' }
-    : { text: 'En échec', color: '#b91c1c', bg: '#fee2e2' };
+  const status = mailbox.lastCheckOk === null ? { text: 'Non testée', color: '#6b7283', bg: '#222634' }
+    : mailbox.lastCheckOk ? { text: 'Opérationnelle', color: '#4ade80', bg: 'rgba(34,197,94,.15)' }
+    : { text: 'En échec', color: '#f87171', bg: '#fee2e2' };
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', opacity: mailbox.active ? 1 : 0.6 }}>
+    <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, padding: '14px 16px', opacity: mailbox.active ? 1 : 0.6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -416,21 +412,21 @@ function MailboxCard({ mailbox, busy, expanded, onToggleExpand, onTest, onPatch,
               {status.text}
             </span>
             {!mailbox.imapConfigured && (
-              <span style={{ padding: '1px 7px', borderRadius: 4, fontSize: 10.5, fontWeight: 600, color: '#78350f', background: '#fef3c7' }}>
+              <span style={{ padding: '1px 7px', borderRadius: 4, fontSize: 10.5, fontWeight: 600, color: '#fbbf24', background: 'rgba(245,158,11,.14)' }}>
                 sans IMAP
               </span>
             )}
             {!mailbox.active && (
-              <span style={{ padding: '1px 7px', borderRadius: 4, fontSize: 10.5, color: '#475569', background: '#f1f5f9' }}>en pause</span>
+              <span style={{ padding: '1px 7px', borderRadius: 4, fontSize: 10.5, color: '#b3b9c9', background: '#222634' }}>en pause</span>
             )}
           </div>
-          <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>
+          <div style={{ fontSize: 11.5, color: '#9aa1b4', marginTop: 3 }}>
             {mailbox.displayName || 'Sans nom affiché'} · {mailbox.dailyLimit} envois/j ·
             {' '}{mailbox.sendStartHour}h–{mailbox.sendEndHour}h ·
             {' '}délai {mailbox.minDelaySec}–{mailbox.maxDelaySec}s
           </div>
           {mailbox.lastError && (
-            <div style={{ fontSize: 11.5, color: '#b91c1c', marginTop: 4 }}>{mailbox.lastError}</div>
+            <div style={{ fontSize: 11.5, color: '#f87171', marginTop: 4 }}>{mailbox.lastError}</div>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -445,7 +441,7 @@ function MailboxCard({ mailbox, busy, expanded, onToggleExpand, onTest, onPatch,
       </div>
 
       {expanded && (
-        <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 14, paddingTop: 14 }}>
+        <div style={{ borderTop: '1px solid #222634', marginTop: 14, paddingTop: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             <div><label style={label}>Nom affiché</label>
               <input style={inp} value={draft.displayName} onChange={e => setDraft({ ...draft, displayName: e.target.value })} /></div>
@@ -489,7 +485,7 @@ function MailboxCard({ mailbox, busy, expanded, onToggleExpand, onTest, onPatch,
               onPatch(mailbox.id, { ...draft, ...(password ? { password } : {}) });
               setPassword('');
             }}>Enregistrer</button>
-            <button style={{ ...btnDef, marginLeft: 'auto', borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}
+            <button style={{ ...btnDef, marginLeft: 'auto', borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
               onClick={() => onRemove(mailbox)}>Supprimer la boîte</button>
           </div>
         </div>

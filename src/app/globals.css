@@ -199,3 +199,55 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
 @media (prefers-reduced-motion: reduce) {
   .contact-poste-select { transition: none; }
 }
+
+/* ── Onglet Campagnes : finitions du thème sombre ──────────────────────────
+   Les écrans Campagnes sont stylés en ligne (comme tout le CRM) et portent
+   leurs couleurs dans src/components/campaigns/ui.ts. Restent ici les états
+   qu'un style en ligne ne sait pas exprimer — survol, focus, sélection — et
+   les éléments rendus par le navigateur : listes déroulantes, cases à cocher,
+   barres de défilement. Tout est confiné à « .camp » : le reste du CRM garde
+   son thème clair.
+   Le « !important » est nécessaire là où le style en ligne pose déjà la même
+   propriété ; sans lui le survol n'aurait aucun effet. */
+
+.camp { --camp-primary: #3b71f5; }
+
+.camp button { transition: background .14s ease, border-color .14s ease, color .14s ease; }
+.camp button:not(:disabled):hover { filter: brightness(1.14); }
+.camp button:disabled { opacity: .45; cursor: not-allowed; }
+.camp button:not(:disabled):active { transform: translateY(.5px); }
+
+/* Onglets du bandeau : un survol discret, sans déplacer le trait actif. */
+.camp .camp-tab:hover { color: #e7e9ef !important; filter: none; }
+
+/* Champs : le focus doit se voir sans épaissir la bordure (pas de saut). */
+.camp input, .camp select, .camp textarea {
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.camp input:focus, .camp select:focus, .camp textarea:focus {
+  border-color: var(--camp-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 113, 245, .18);
+}
+.camp input::placeholder, .camp textarea::placeholder { color: #5b6172; }
+
+/* Listes déroulantes : le menu ouvert est dessiné par le navigateur, seule
+   une règle CSS peut l'assombrir. */
+.camp select option { background: #1c1f2a; color: #e7e9ef; }
+
+/* Cases à cocher aux couleurs de l'onglet plutôt qu'au bleu du système. */
+.camp input[type="checkbox"] { accent-color: var(--camp-primary); width: 15px; height: 15px; cursor: pointer; }
+
+/* Lignes de tableau : le survol aide à suivre une ligne longue. */
+.camp tbody tr { transition: background .12s ease; }
+.camp tbody tr:hover { background: #1c1f2a; }
+
+/* Barre de défilement sombre : une barre claire trahit le thème. */
+.camp *::-webkit-scrollbar-thumb { background: #333a4a; }
+.camp * { scrollbar-color: #333a4a transparent; }
+
+.camp ::selection { background: rgba(59, 113, 245, .35); }
+
+/* Aperçu d'un email : il représente ce que reçoit le destinataire, sur fond
+   blanc. Il reste donc clair, même dans le thème sombre — et son texte avec. */
+.camp .camp-email-preview { background: #fff; color: #111827; border-radius: 8px; }
+.camp .camp-email-preview * { color: inherit; }

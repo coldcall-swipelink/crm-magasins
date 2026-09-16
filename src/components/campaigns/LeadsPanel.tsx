@@ -11,10 +11,8 @@ import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFie
 import LeadDrawer, { type LeadRow } from './LeadDrawer';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
+import { btnDef, btnPri, inp } from './ui';
 
-const inp: React.CSSProperties = { padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
 
 export default function LeadsPanel() {
   const { user } = useCurrentUser();
@@ -64,13 +62,13 @@ export default function LeadsPanel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <input style={{ ...inp, width: 280 }} placeholder="Rechercher (email, nom, enseigne…)"
             value={query} onChange={e => setQuery(e.target.value)} />
-          <div style={{ fontSize: 12, color: '#64748b' }}>{total} lead{total > 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 12, color: '#9aa1b4' }}>{total} lead{total > 1 ? 's' : ''}</div>
           <button style={{ ...btnDef, marginLeft: 'auto' }} onClick={() => setCreating(true)}>+ Nouveau lead</button>
           <button style={btnPri} onClick={() => setImporting(true)}>+ Importer un CSV</button>
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
-          <FilterChip label="Tous" count={totalAll} active={!status} color="#4f46e5"
+          <FilterChip label="Tous" count={totalAll} active={!status} color="#3b71f5"
             onClick={() => { setStatus(''); setPage(1); }} />
           {LEAD_STATUSES.map(item => (
             <FilterChip key={item.key} label={item.label} count={counts[item.key] || 0}
@@ -80,16 +78,16 @@ export default function LeadsPanel() {
         </div>
 
         {loading ? (
-          <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
+          <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
         ) : leads.length === 0 ? (
-          <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+          <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
             {search || status ? 'Aucun lead ne correspond à ce filtre.' : 'Aucun lead pour l\'instant — importez un fichier pour commencer.'}
           </div>
         ) : (
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
-                <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#64748b' }}>
+                <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
                   <th style={th}>Contact</th>
                   <th style={th}>Enseigne</th>
                   <th style={th}>Poste</th>
@@ -101,12 +99,12 @@ export default function LeadsPanel() {
               <tbody>
                 {leads.map(lead => (
                   <tr key={lead.id} onClick={() => setSelected(lead.id)}
-                    style={{ borderTop: '1px solid #f1f5f9', cursor: 'pointer', background: selected === lead.id ? '#eef2ff' : undefined }}>
+                    style={{ borderTop: '1px solid #222634', cursor: 'pointer', background: selected === lead.id ? 'rgba(59,113,245,.16)' : undefined }}>
                     <td style={td}>
                       <div style={{ fontWeight: 600 }}>
                         {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || '—'}
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: 11.5 }}>{lead.email}</div>
+                      <div style={{ color: '#6b7283', fontSize: 11.5 }}>{lead.email}</div>
                     </td>
                     <td style={td}>{lead.company || '—'}</td>
                     <td style={td}>{lead.jobTitle || '—'}</td>
@@ -117,7 +115,7 @@ export default function LeadsPanel() {
                         color: statusColor(lead.status), background: `${statusColor(lead.status)}18`,
                       }}>{statusLabel(lead.status)}</span>
                     </td>
-                    <td style={{ ...td, color: '#94a3b8' }}>
+                    <td style={{ ...td, color: '#6b7283' }}>
                       {lead.lastContactedAt ? new Date(lead.lastContactedAt).toLocaleDateString('fr-FR') : '—'}
                     </td>
                   </tr>
@@ -130,7 +128,7 @@ export default function LeadsPanel() {
         {pages > 1 && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
             <button style={btnDef} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Précédent</button>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Page {page} / {pages}</span>
+            <span style={{ fontSize: 12, color: '#9aa1b4' }}>Page {page} / {pages}</span>
             <button style={btnDef} disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Suivant</button>
           </div>
         )}
@@ -166,9 +164,9 @@ function FilterChip({ label, count, active, color, onClick }: {
     <button onClick={onClick} style={{
       padding: '4px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
       fontWeight: active ? 700 : 500,
-      border: `1px solid ${active ? color : '#e2e8f0'}`,
-      background: active ? `${color}18` : '#fff',
-      color: active ? color : '#64748b',
+      border: `1px solid ${active ? color : '#262b38'}`,
+      background: active ? `${color}18` : '#171a23',
+      color: active ? color : '#9aa1b4',
     }}>
       {label} <span style={{ opacity: 0.7 }}>{count}</span>
     </button>

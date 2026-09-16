@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { lastEngineRun } from '@/lib/campaigns/engine';
+import { lastCronRun, lastEngineRun } from '@/lib/campaigns/engine';
 import { dailyCap, isSendWindowOpen, nextOpenSlot, startOfLocalDay } from '@/lib/campaigns/schedule';
 
 export const dynamic = 'force-dynamic';
@@ -142,24 +142,33 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   // 5. Le planificateur tourne-t-il ? C'est le verrou le plus difficile à
   //    voir : tout peut être correct et n'avoir jamais été relevé.
-  const lastRun = await lastEngineRun();
-  const minutes = lastRun ? Math.round((now.getTime() - lastRun.getTime()) / 60_000) : null;
-  if (!lastRun) {
+  const [lastRun, cronRun] = await Promise.all([lastEngineRun(), lastCronRun()]);
+  const since = (date: Date) => Math.round((now.getTime() - date.getTime()) / 60_000);
+
+  // On regarde le planificateur, pas le moteur : un passage déclenché à la
+  // main (lancement, inscription, « Envoyer maintenant ») ne prouve rien sur
+  // les relances, qui ne partent QUE par lui.
+  if (!cronRun) {
     checks.push({
-      key: 'engine', label: "Moteur d'envoi", level: 'error',
-      detail: "Le moteur n'a JAMAIS tourné. Le cron « /api/campaigns/run » n'est pas déclenché — "
-        + 'sur un hébergement qui limite les tâches planifiées, il faut le déclencher depuis un '
-        + 'planificateur externe (N8N…). Le bouton « Envoyer maintenant » ne dépend pas de lui.',
+      key: 'engine', label: 'Planificateur', level: 'error',
+      detail: "N'a JAMAIS tourné"
+        + (lastRun ? ` (le moteur, lui, a tourné il y a ${since(lastRun)} min, mais à la main).` : '.')
+        + ' Les relances des étapes suivantes ne partiront donc pas toutes seules. Le cron '
+        + '« /api/campaigns/run » n\'est pas déclenché : sur un hébergement qui limite les tâches '
+        + 'planifiées à une par jour, appelez cette route depuis un planificateur externe (N8N…) '
+        + 'toutes les 5 minutes.',
     });
-  } else if (minutes !== null && minutes > 20) {
+  } else if (since(cronRun) > 20) {
     checks.push({
-      key: 'engine', label: "Moteur d'envoi", level: 'warn',
-      detail: `Dernier passage il y a ${minutes} minutes — il devrait tourner toutes les 5 minutes.`,
+      key: 'engine', label: 'Planificateur', level: 'warn',
+      detail: `Dernier passage automatique il y a ${since(cronRun)} minutes — il devrait passer `
+        + 'toutes les 5 minutes. Tant qu\'il dort, les relances attendent.',
     });
   } else {
     checks.push({
-      key: 'engine', label: "Moteur d'envoi", level: 'ok',
-      detail: `Dernier passage il y a ${minutes} minute(s).`,
+      key: 'engine', label: 'Planificateur', level: 'ok',
+      detail: `Dernier passage automatique il y a ${since(cronRun)} minute(s) : les relances `
+        + 'partiront d\'elles-mêmes.',
     });
   }
 
@@ -167,6 +176,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     checks,
     ok: blocking.length === 0,
+    cronRun,
     summary: blocking.length === 0
       ? 'Rien ne bloque : les envois partent au rythme des garde-fous des boîtes.'
       : blocking.map(check => `${check.label} — ${check.detail}`).join(' '),
