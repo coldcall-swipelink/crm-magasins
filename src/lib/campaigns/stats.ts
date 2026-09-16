@@ -15,6 +15,7 @@
 // pré-chargement d'image = ouverture comptée sans lecture. Le taux se lit
 // comme une tendance, jamais comme une mesure exacte.
 
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export type Funnel = {
@@ -36,7 +37,7 @@ function rate(part: number, total: number): number {
 }
 
 /** Nombre de leads distincts vérifiant une condition sur leurs messages. */
-async function distinctLeads(where: Parameters<typeof prisma.campaignMessage.findMany>[0] extends undefined ? never : NonNullable<Parameters<typeof prisma.campaignMessage.groupBy>[0]>['where']): Promise<number> {
+async function distinctLeads(where: Prisma.CampaignMessageWhereInput): Promise<number> {
   const rows = await prisma.campaignMessage.groupBy({ by: ['leadId'], where });
   return rows.length;
 }

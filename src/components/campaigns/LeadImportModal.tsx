@@ -56,7 +56,15 @@ export default function LeadImportModal({ userName, onClose, onDone }: {
     }
   };
 
+  /** Au-delà, la requête dépasse la taille admise par l'hébergeur (4,5 Mo). */
+  const MAX_BYTES = 4_000_000;
+
   const onFile = async (file: File) => {
+    if (file.size > MAX_BYTES) {
+      toast(`Fichier trop lourd (${Math.round(file.size / 1_000_000)} Mo, maximum 4 Mo). `
+        + 'Découpez-le en plusieurs fichiers.', 'error');
+      return;
+    }
     const text = await file.text();
     setContent(text);
     setFilename(file.name);

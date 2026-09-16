@@ -103,27 +103,42 @@ export function suggestMapping(headers: string[]): LeadMapping {
   const mapping: LeadMapping = {};
   const taken = new Set<string>();
 
-  // Deux passes : d'abord les correspondances exactes (« Email » → email),
-  // ensuite les approchantes (« Email pro » → email), pour qu'une colonne
-  // exacte ne se fasse pas voler sa place par une colonne approchante.
-  for (const exact of [true, false]) {
-    for (const header of headers) {
-      if (mapping[header]) continue;
-      const normalized = normalizeHeader(header);
-      if (!normalized) continue;
-
-      for (const field of LEAD_FIELDS) {
-        if (taken.has(field.key)) continue;
-        const match = field.aliases.some(alias => {
-          const a = normalizeHeader(alias);
-          return exact ? normalized === a : normalized.includes(a);
-        });
-        if (match) {
-          mapping[header] = field.key;
-          taken.add(field.key);
-          break;
-        }
+  // Première passe : les correspondances exactes (« Email » → email). Elles
+  // priment, pour qu'une colonne exacte ne se fasse pas voler sa place par une
+  // colonne seulement approchante.
+  for (const header of headers) {
+    const normalized = normalizeHeader(header);
+    if (!normalized) continue;
+    for (const field of LEAD_FIELDS) {
+      if (taken.has(field.key)) continue;
+      if (field.aliases.some(alias => normalizeHeader(alias) === normalized)) {
+        mapping[header] = field.key;
+        taken.add(field.key);
+        break;
       }
+    }
+  }
+
+  // Seconde passe : les approchantes (« Email pro » → email). On retient
+  // l'alias le PLUS LONG qui apparaît dans l'en-tête, sinon « Nom de
+  // l'entreprise » filerait vers « Nom » (3 lettres) au lieu d'« entreprise ».
+  for (const header of headers) {
+    if (mapping[header]) continue;
+    const normalized = normalizeHeader(header);
+    if (!normalized) continue;
+
+    let best: { key: LeadFieldKey; length: number } | null = null;
+    for (const field of LEAD_FIELDS) {
+      if (taken.has(field.key)) continue;
+      for (const alias of field.aliases) {
+        const a = normalizeHeader(alias);
+        if (!normalized.includes(a)) continue;
+        if (!best || a.length > best.length) best = { key: field.key, length: a.length };
+      }
+    }
+    if (best) {
+      mapping[header] = best.key;
+      taken.add(best.key);
     }
   }
 
