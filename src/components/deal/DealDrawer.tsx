@@ -1714,6 +1714,35 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 </span>
                 {deal.isPV ? 'PV' : 'PC'}
               </button>
+              {/* « Citable en référence » : ce client accepte d'être nommé auprès
+                  d'un magasin voisin de la même enseigne. C'est cette case, et
+                  elle seule, qui autorise le bloc « déjà avec Swipelink dans
+                  votre région » du parcours boucher (cf. src/lib/pv/references.ts).
+                  Décochée, l'affaire n'est jamais citée nulle part. */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!deal.citableReference}
+                onClick={() => patchDeal(
+                  { citableReference: !deal.citableReference },
+                  !deal.citableReference
+                    ? 'Client citable en référence'
+                    : 'Client retiré des références',
+                )}
+                title={deal.citableReference
+                  ? 'Ce client accepte d’être cité en référence auprès des magasins voisins de son enseigne'
+                  : 'Ce client n’est cité nulle part. À cocher seulement s’il a donné son accord.'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none',
+                  background: deal.citableReference ? '#eef2ff' : '#f8fafc',
+                  border: `1px solid ${deal.citableReference ? '#c7d2fe' : '#e2e8f0'}`,
+                  borderRadius: 999, padding: '4px 9px',
+                  fontSize: 11, fontWeight: 700, color: deal.citableReference ? '#4338ca' : '#94a3b8',
+                }}
+              >
+                <span aria-hidden="true">{deal.citableReference ? '★' : '☆'}</span>
+                Citable
+              </button>
               <select value={deal.priority} onChange={e => patchDeal({ priority: e.target.value })} style={{ ...inp, width: 'auto', padding: '5px 8px', fontSize: 11, background: '#f8fafc' }}>
                 {PRIORITIES.map(p => <option key={p}>{p}</option>)}
               </select>

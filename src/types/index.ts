@@ -178,6 +178,9 @@ export interface Deal {
   childDeals?:              { id: string; dealValue?: number | null }[];
   priority:                 Priority;
   isPV?:                    boolean;
+  /** Le client accepte d'être cité en référence auprès d'un magasin voisin
+   *  (bloc « déjà avec Swipelink dans votre région » du parcours boucher). */
+  citableReference?:        boolean;
   paymentMode?:             'virement' | 'stripe';
   position:                 number;
   isNewFromLastImport:      boolean;

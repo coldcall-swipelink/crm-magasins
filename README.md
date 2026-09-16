@@ -508,6 +508,109 @@ réécrits : pas de suivi de clic, mais des emails propres.
 
 ---
 
+## Pilote « Prospection de Valeur » — parcours boucher
+
+Un magasin publie une offre de boucher. Son directeur reçoit un mail dont
+l'unique bouton ouvre **rdv.swipelink.fr/boucher**, où il répond à trois
+questions et réserve une démo de 15 min en visio. Le CRM fait le reste : il
+pose le rendez-vous dans l'agenda, fait avancer l'affaire, lance le sourcing et
+envoie les rappels.
+
+### Le trajet, de bout en bout
+
+1. **Envoi** — `POST /api/pv/invites` génère un jeton par magasin et envoie le
+   mail. Le jeton est tiré au hasard (32 octets), stocké haché, et l'URL ne
+   contient aucune donnée personnelle.
+2. **Ouverture** — `GET /boucher?t=…` sert la page avec le nom du magasin et le
+   nombre de profils **déjà écrits dans le HTML** : le directeur ouvre le lien
+   depuis sa boîte mail, souvent en 4G, et doit lire le nom de SON magasin tout
+   de suite. Un jeton inconnu ou expiré reçoit une page d'explication, et rien
+   d'autre — aucune donnée du magasin n'est servie.
+3. **Trois questions** — expérience, salaire, prise de poste. Chaque réponse est
+   remontée anonymement (`POST /api/pv/events`).
+4. **Créneau** — `GET /api/pv/slots` renvoie les trous RÉELS de l'agenda des
+   démos, à J+2 minimum, recalculés à chaque appel, sans cache.
+5. **Réservation** — `POST /api/pv/bookings` prend le créneau, crée l'événement
+   et la visio, fait passer l'affaire en `Closing › DEMO PREVUE`, la duplique
+   dans `Recrutement › SOURCING A FAIRE`, et envoie la confirmation avec son
+   fichier `.ics` (lien visio + lien « déplacer »).
+6. **Rappels** — la veille et 1 h avant, e-mail et SMS. Et le lendemain, une
+   relance pour ceux qui ont répondu aux questions sans réserver.
+
+### Deux ou trois choses à savoir
+
+**Deux réservations sur le même créneau.** C'est la base qui tranche, pas
+l'application : `PvBooking.slotKey` porte l'heure de début et est unique. Le
+second insert viole la contrainte et reçoit un **409**, que la page sait
+traiter (« ce créneau vient d'être pris »). Lire les créneaux libres puis
+écrire ne suffirait pas — entre la lecture et l'écriture, l'autre est passé.
+
+**Le nombre de profils est une estimation.** Tant que les candidats ne portent
+pas de localisation exploitable, compter les bouchers à moins de 25 km n'est
+pas possible. On estime donc d'après la taille de l'agglomération (grande
+agglomération : 70 à 88 ; ville moyenne : 46 à 58 ; ailleurs : 30 à 42), avec
+un tirage **stable** : le même magasin obtient toujours le même nombre, et
+celui-ci est figé sur l'invitation dès l'envoi — le mail annonce 74, la page
+affiche 74. Tout passe par `countButcherProfiles()` dans
+`src/lib/pv/profiles.ts` : le jour où les candidats seront localisés, seule
+cette fonction changera.
+
+**Les références sont filtrées quatre fois.** Client actuel (abonnement closé,
+non résilié, pas encore échu), même enseigne, à moins de 100 km, et **a accepté
+d'être cité** (case `citableReference` de la fiche affaire). Sans référence, le
+bloc est retiré du mail et masqué sur la page : mieux vaut pas de preuve
+sociale qu'une preuve sociale creuse.
+
+**La relance ne se fonde jamais sur un clic.** Les Safe Links de Microsoft
+ouvrent les liens à la place du destinataire, avant même qu'il n'ait lu : un
+clic ne prouve la présence de personne. Seules les réponses aux questions
+(`answer_1..3`) déclenchent la relance.
+
+**Deux canaux d'envoi, et ce n'est pas un doublon.** L'invitation est un message
+froid : elle part d'une boîte de l'outil Campagnes (domaine dédié, préchauffage,
+cadence), seul chemin qui convertisse aussi le logo en image intégrée (CID),
+qu'Outlook affiche sans demander « Télécharger les images ». Les confirmations
+et rappels, eux, sont attendus : ils partent par Resend.
+
+### Mise en ligne
+
+1. Déclarer `rdv.swipelink.fr` dans Vercel (Settings → Domains) **sur ce
+   projet** : la page est une route du CRM, pas un site à part.
+2. Renseigner les variables `PV_*` et `TWILIO_*` (voir `.env.example`, qui
+   détaille aussi SPF, DKIM, DMARC et le préchauffage du domaine d'envoi —
+   à faire AVANT le premier envoi).
+3. Les deux crons sont déjà déclarés dans `vercel.json` :
+   `/api/pv/reminders` toutes les 10 min, `/api/pv/follow-ups` en semaine à 9h30.
+
+### Envoyer les invitations
+
+```bash
+# Aperçu d'un magasin dans le navigateur (aucun jeton créé, aucun envoi)
+open "https://crm.swipelink.fr/api/pv/invites?token=$CRON_SECRET&dealId=<id>"
+
+# Envoi réel
+curl -X POST "https://crm.swipelink.fr/api/pv/invites?token=$CRON_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"dealIds":["<id1>","<id2>"]}'
+```
+
+Générer une nouvelle invitation pour un magasin révoque la précédente : un
+magasin n'a jamais deux liens valables en circulation.
+
+### Où regarder
+
+| Fichier | Rôle |
+|---|---|
+| `src/pv-assets/` | La page et le mail, fichiers HTML complets, ouvrables tels quels dans un navigateur (mode démo tant que `CONFIG.API` est vide) |
+| `src/app/boucher/route.ts` | Sert la page : jeton vérifié, magasin et profils injectés |
+| `src/app/api/pv/` | Les cinq routes publiques + invitations, rappels, relances |
+| `src/lib/pv/bookings.ts` | La réservation, et le verrou qui produit le 409 |
+| `src/lib/pv/slots.ts` | Les créneaux réellement libres |
+| `src/lib/pv/profiles.ts` | L'estimation du nombre de profils |
+| `src/lib/pv/references.ts` | Les trois clients voisins citables |
+
+---
+
 ## Scripts disponibles
 
 ```bash
