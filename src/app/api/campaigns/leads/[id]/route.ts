@@ -73,9 +73,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   // Répercussion sur l'affaire liée : jamais en silence. Tant que l'écran n'a
-  // pas confirmé, on refuse en décrivant ce qui serait modifié de l'autre côté.
+  // pas tranché, on refuse en décrivant ce qui serait modifié de l'autre côté.
+  //
+  // Deux réponses possibles ensuite : « both » applique des deux côtés,
+  // « side » n'enregistre que le lead et laisse l'affaire en l'état. Les deux
+  // sont des décisions explicites — l'absence de choix reste un refus.
   const link = await previewLeadToDeal(params.id, body);
-  if (link && body.confirmLink !== true) {
+  const linkMode: 'both' | 'side' | null = body.linkMode === 'side'
+    ? 'side'
+    : (body.linkMode === 'both' || body.confirmLink === true) ? 'both' : null;
+
+  if (link && !linkMode) {
     return NextResponse.json({ requiresConfirmation: true, link }, { status: 409 });
   }
   if (body.customFields && typeof body.customFields === 'object') {
@@ -107,7 +115,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     };
   }
 
-  if (link && existing.dealId) await applyLeadToDeal(link, existing.dealId);
+  if (link && linkMode === 'both' && existing.dealId) await applyLeadToDeal(link, existing.dealId);
 
   const lead = await prisma.lead.update({
     where: { id: params.id },
@@ -121,7 +129,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     ...FULL_LEAD,
   });
 
-  if (link) {
+  if (link && linkMode === 'both') {
     const applied = link.impacts.filter(impact => !impact.blocked);
     if (applied.length > 0) {
       await prisma.leadEvent.create({

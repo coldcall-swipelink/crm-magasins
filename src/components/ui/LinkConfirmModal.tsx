@@ -27,11 +27,18 @@ export type LinkPreview = {
   impacts: LinkImpact[];
 };
 
+/**
+ * Comment appliquer la modification :
+ *   'both' — des deux côtés, lead et affaire ;
+ *   'side' — seulement là où l'on se trouve, l'autre fiche reste en l'état.
+ */
+export type LinkMode = 'both' | 'side';
+
 export default function LinkConfirmModal({ link, dark = false, busy = false, onConfirm, onCancel }: {
   link: LinkPreview;
   dark?: boolean;
   busy?: boolean;
-  onConfirm: () => void;
+  onConfirm: (mode: LinkMode) => void;
   onCancel: () => void;
 }) {
   const c = dark
@@ -44,6 +51,10 @@ export default function LinkConfirmModal({ link, dark = false, busy = false, onC
 
   const applicable = link.impacts.filter(impact => !impact.blocked);
   const blocked = link.impacts.filter(impact => impact.blocked);
+
+  // « Ce côté-ci » dépend d'où l'on modifie : une répercussion vers l'affaire
+  // signifie qu'on est sur le lead, et inversement.
+  const here = link.direction === 'toDeal' ? 'le lead' : "l'affaire";
 
   return (
     <div onClick={onCancel} style={{
@@ -91,21 +102,43 @@ export default function LinkConfirmModal({ link, dark = false, busy = false, onC
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button onClick={onConfirm} disabled={busy} style={{
-            padding: '8px 15px', borderRadius: 8, border: 'none', background: c.primary,
-            color: '#fff', fontWeight: 600, fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer',
-            opacity: busy ? 0.6 : 1,
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+          {applicable.length > 0 && (
+            <button onClick={() => onConfirm('both')} disabled={busy} style={{
+              padding: '8px 15px', borderRadius: 8, border: 'none', background: c.primary,
+              color: '#fff', fontWeight: 600, fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.6 : 1,
+            }}>
+              {busy ? 'Enregistrement…' : 'Appliquer des deux côtés'}
+            </button>
+          )}
+
+          {/* L'autre fiche reste en l'état : les deux divergeront sur ce champ,
+              et c'est un choix, pas un accident. */}
+          <button onClick={() => onConfirm('side')} disabled={busy} style={{
+            padding: '8px 15px', borderRadius: 8,
+            border: `1px solid ${applicable.length > 0 ? c.border : 'transparent'}`,
+            background: applicable.length > 0 ? (dark ? '#1c1f2a' : '#f1f5f9') : c.primary,
+            color: applicable.length > 0 ? c.text : '#fff',
+            fontWeight: applicable.length > 0 ? 500 : 600,
+            fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
           }}>
-            {busy ? 'Enregistrement…'
-              : applicable.length > 0 ? 'Appliquer des deux côtés' : 'Enregistrer sans répercuter'}
+            {applicable.length > 0 ? `Ne modifier que ${here}` : 'Enregistrer sans répercuter'}
           </button>
+
           <button onClick={onCancel} disabled={busy} style={{
             padding: '8px 15px', borderRadius: 8, border: `1px solid ${c.border}`,
-            background: dark ? '#1c1f2a' : '#f1f5f9', color: c.text, fontWeight: 500,
-            fontSize: 13, cursor: 'pointer',
+            background: 'transparent', color: c.muted, fontWeight: 500,
+            fontSize: 13, cursor: 'pointer', marginLeft: 'auto',
           }}>Annuler</button>
         </div>
+
+        {applicable.length > 0 && (
+          <div style={{ fontSize: 11.5, color: c.faint, marginTop: 10, lineHeight: 1.6 }}>
+            « Ne modifier que {here} » enregistre votre saisie sans toucher à l&apos;autre fiche :
+            les deux divergeront sur {applicable.length > 1 ? 'ces champs' : 'ce champ'}.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -150,8 +150,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Un lead de prospection peut venir de cette affaire : les champs de
     // contact qu'ils partagent se répercutent, mais jamais sans que l'écran
     // l'ait montré et fait confirmer (cf. src/lib/campaigns/crmLink.ts).
+    // « both » applique des deux côtés, « side » n'enregistre que l'affaire.
+    // Sans choix explicite, la modification est refusée.
     const link = await previewDealToLead(params.id, body);
-    if (link && body.confirmLink !== true) {
+    const linkMode: 'both' | 'side' | null = body.linkMode === 'side'
+      ? 'side'
+      : (body.linkMode === 'both' || body.confirmLink === true) ? 'both' : null;
+
+    if (link && !linkMode) {
       return NextResponse.json({ requiresConfirmation: true, link }, { status: 409 });
     }
 
@@ -275,8 +281,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
 
-    // Répercussion confirmée sur le lead de prospection issu de cette affaire.
-    if (link) {
+    // Répercussion sur le lead de prospection issu de cette affaire, si elle a
+    // été choisie (« des deux côtés »).
+    if (link && linkMode === 'both') {
       await applyDealToLead(link, link.leadId, body.userName);
     }
 

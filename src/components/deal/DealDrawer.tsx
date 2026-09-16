@@ -3,7 +3,7 @@ import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'rea
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
-import LinkConfirmModal, { type LinkPreview } from '@/components/ui/LinkConfirmModal';
+import LinkConfirmModal, { type LinkMode, type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import AvailabilityModal from '@/components/deal/AvailabilityModal';
 import DealCallCalendar from '@/components/deal/DealCallCalendar';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -653,19 +653,24 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     fetchDeal(); onUpdated(); if (msg) toast(msg);
   };
 
-  /** Deuxième passage après confirmation : la répercussion est autorisée. */
-  const confirmLink = async () => {
+  /**
+   * Deuxième passage, une fois le choix fait : appliquer des deux côtés, ou
+   * n'enregistrer que l'affaire en laissant le lead en l'état.
+   */
+  const confirmLink = async (mode: LinkMode) => {
     if (!pendingLink) return;
     setConfirmingLink(true);
     try {
       const res = await fetch(`/api/deals/${dealId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...pendingLink.data, confirmLink: true, userName: currentUser?.name || '' }),
+        body: JSON.stringify({ ...pendingLink.data, linkMode: mode, userName: currentUser?.name || '' }),
       });
       if (!res.ok) { toast('Modification refusée', 'error'); return; }
       setPendingLink(null);
       fetchDeal(); onUpdated();
-      toast(pendingLink.msg || "Modification appliquée à l'affaire et au lead");
+      toast(pendingLink.msg || (mode === 'both'
+        ? "Modification appliquée à l'affaire et au lead"
+        : "Modification enregistrée sur l'affaire seulement"));
     } finally {
       setConfirmingLink(false);
     }

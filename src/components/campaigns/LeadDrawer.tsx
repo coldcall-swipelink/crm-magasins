@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
-import LinkConfirmModal, { type LinkPreview } from '@/components/ui/LinkConfirmModal';
+import LinkConfirmModal, { type LinkMode, type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, inp, label } from './ui';
 
