@@ -7,12 +7,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
+import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import LeadDrawer, { type LeadRow } from './LeadDrawer';
 import DealImportModal from './DealImportModal';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
-import { btnDef, btnPri, inp } from './ui';
+import { T, btnDanger, btnDef, btnPri, btnXs, inp } from './ui';
 
 
 export default function LeadsPanel() {
@@ -29,6 +30,9 @@ export default function LeadsPanel() {
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [fromCrm, setFromCrm] = useState(false);
+  // Sélection multiple : les identifiants cochés, toutes pages confondues.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -58,6 +62,53 @@ export default function LeadsPanel() {
 
   const totalAll = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
+  const toggle = (id: string) => setPicked(current => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  /** Coche ou décoche toute la page affichée. */
+  const togglePage = () => {
+    const ids = leads.map(lead => lead.id);
+    const allPicked = ids.every(id => picked.has(id));
+    setPicked(current => {
+      const next = new Set(current);
+      for (const id of ids) { if (allPicked) next.delete(id); else next.add(id); }
+      return next;
+    });
+  };
+
+  const removePicked = async () => {
+    const ids = Array.from(picked);
+    if (ids.length === 0) return;
+    // Suppression irréversible : on annonce ce qu'elle emporte avant, pas après.
+    if (!confirm(
+      `Supprimer ${ids.length} lead(s) ?\n\n`
+      + 'Leurs notes, leur historique, leurs inscriptions en campagne et les emails '
+      + 'qui leur ont été envoyés seront supprimés avec eux. Cette action est définitive.',
+    )) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/campaigns/leads/bulk-delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || 'Suppression impossible', 'error'); return; }
+
+      toast(`${data.deleted} lead(s) supprimé(s)`
+        + (data.enrollments ? ` · ${data.enrollments} inscription(s)` : '')
+        + (data.messages ? ` · ${data.messages} email(s) d'historique` : ''));
+      setPicked(new Set());
+      if (selected && ids.includes(selected)) setSelected(null);
+      load();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '18px 24px' }}>
@@ -80,6 +131,23 @@ export default function LeadsPanel() {
           ))}
         </div>
 
+        {picked.size > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+            background: T.primarySoft, border: '1px solid rgba(59,113,245,.38)',
+            borderRadius: 9, padding: '9px 14px',
+          }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: T.primaryText }}>
+              {picked.size} lead{picked.size > 1 ? 's' : ''} sélectionné{picked.size > 1 ? 's' : ''}
+            </span>
+            <button style={btnXs} onClick={() => setPicked(new Set())}>Tout décocher</button>
+            <button style={{ ...btnDanger, marginLeft: 'auto', opacity: deleting ? 0.6 : 1 }}
+              disabled={deleting} onClick={removePicked}>
+              {deleting ? 'Suppression…' : `Supprimer ${picked.size} lead${picked.size > 1 ? 's' : ''}`}
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
         ) : leads.length === 0 ? (
@@ -91,6 +159,11 @@ export default function LeadsPanel() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
+                  <th style={{ ...th, width: 34, paddingRight: 0 }}>
+                    <input type="checkbox" title="Tout cocher sur cette page"
+                      checked={leads.length > 0 && leads.every(lead => picked.has(lead.id))}
+                      onChange={togglePage} />
+                  </th>
                   <th style={th}>Contact</th>
                   <th style={th}>Enseigne</th>
                   <th style={th}>Poste</th>
@@ -103,6 +176,10 @@ export default function LeadsPanel() {
                 {leads.map(lead => (
                   <tr key={lead.id} onClick={() => setSelected(lead.id)}
                     style={{ borderTop: '1px solid #222634', cursor: 'pointer', background: selected === lead.id ? 'rgba(59,113,245,.16)' : undefined }}>
+                    {/* La case ne doit pas ouvrir la fiche : on arrête le clic ici. */}
+                    <td style={{ ...td, paddingRight: 0 }} onClick={event => event.stopPropagation()}>
+                      <input type="checkbox" checked={picked.has(lead.id)} onChange={() => toggle(lead.id)} />
+                    </td>
                     <td style={td}>
                       <div style={{ fontWeight: 600 }}>
                         {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || '—'}

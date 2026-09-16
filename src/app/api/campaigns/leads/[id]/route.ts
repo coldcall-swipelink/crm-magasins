@@ -10,7 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isLeadStatus, statusLabel } from '@/lib/campaigns/leadFields';
+import { isLeadStatus, isValidEmail, normalizeEmail, statusLabel } from '@/lib/campaigns/leadFields';
+import { applyLeadToDeal, previewLeadToDeal } from '@/lib/campaigns/crmLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +58,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const value = String(body[key] ?? '').trim();
     (data as Record<string, unknown>)[key] = value || null;
   }
+
+  // L'email identifie le lead : il se corrige, mais sous conditions.
+  if (body.email !== undefined) {
+    const email = normalizeEmail(body.email);
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'Email invalide' }, { status: 400 });
+    }
+    if (email !== existing.email) {
+      const taken = await prisma.lead.findUnique({ where: { email }, select: { id: true } });
+      if (taken) return NextResponse.json({ error: 'Un autre lead porte déjà cette adresse' }, { status: 409 });
+      data.email = email;
+    }
+  }
+
+  // Répercussion sur l'affaire liée : jamais en silence. Tant que l'écran n'a
+  // pas tranché, on refuse en décrivant ce qui serait modifié de l'autre côté.
+  //
+  // Deux réponses possibles ensuite : « both » applique des deux côtés,
+  // « side » n'enregistre que le lead et laisse l'affaire en l'état. Les deux
+  // sont des décisions explicites — l'absence de choix reste un refus.
+  const link = await previewLeadToDeal(params.id, body);
+  const linkMode: 'both' | 'side' | null = body.linkMode === 'side'
+    ? 'side'
+    : (body.linkMode === 'both' || body.confirmLink === true) ? 'both' : null;
+
+  if (link && !linkMode) {
+    return NextResponse.json({ requiresConfirmation: true, link }, { status: 409 });
+  }
   if (body.customFields && typeof body.customFields === 'object') {
     data.customFields = body.customFields as Prisma.InputJsonValue;
   }
@@ -86,6 +115,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     };
   }
 
+  if (link && linkMode === 'both' && existing.dealId) await applyLeadToDeal(link, existing.dealId);
+
   const lead = await prisma.lead.update({
     where: { id: params.id },
     data: {
@@ -98,7 +129,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     ...FULL_LEAD,
   });
 
-  return NextResponse.json({ lead });
+  if (link && linkMode === 'both') {
+    const applied = link.impacts.filter(impact => !impact.blocked);
+    if (applied.length > 0) {
+      await prisma.leadEvent.create({
+        data: {
+          leadId: params.id,
+          type: 'updated',
+          userName,
+          label: `Répercuté sur ${link.target} : ${applied
+            .map(impact => `${impact.label} → « ${impact.to || 'vide'} »`).join(', ')}`,
+        },
+      });
+    }
+  }
+
+  return NextResponse.json({ lead, link });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
