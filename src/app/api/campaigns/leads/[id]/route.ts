@@ -115,7 +115,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     };
   }
 
-  if (link && linkMode === 'both' && existing.dealId) await applyLeadToDeal(link, existing.dealId);
+  // On passe par l'identifiant porté par l'aperçu : le lien a pu être retrouvé
+  // par l'adresse, et le lead n'en portait alors pas encore la trace.
+  if (link && linkMode === 'both') await applyLeadToDeal(link, link.dealId);
 
   const lead = await prisma.lead.update({
     where: { id: params.id },

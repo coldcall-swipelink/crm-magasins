@@ -68,6 +68,67 @@ export type LinkPreview = {
 
 const text = (value: unknown): string => (value == null ? '' : String(value)).trim();
 
+/** Ce dont la liaison a besoin d'un lead. */
+type LinkedLead = {
+  id: string; email: string; civility: string | null; lastName: string | null;
+  jobTitle: string | null; phone: string | null;
+};
+
+const LEAD_SELECT = {
+  id: true, email: true, civility: true, lastName: true, jobTitle: true, phone: true,
+} as const;
+
+/**
+ * Le lead correspondant à une affaire.
+ *
+ * D'abord par le rattachement explicite (Lead.dealId), posé à la reprise
+ * depuis le CRM. À défaut par l'ADRESSE : un lead importé d'un fichier CSV
+ * porte la même adresse que l'affaire sans avoir jamais été rattaché — et
+ * c'est bien le même contact. On enregistre alors le rattachement au passage,
+ * pour que les fois suivantes soient immédiates.
+ */
+async function findLinkedLead(dealId: string, dealEmail: string): Promise<LinkedLead | null> {
+  const linked = await prisma.lead.findFirst({ where: { dealId }, select: LEAD_SELECT });
+  if (linked) return linked;
+
+  const email = normalizeEmail(dealEmail);
+  if (!email) return null;
+
+  const byEmail = await prisma.lead.findUnique({ where: { email }, select: LEAD_SELECT });
+  if (!byEmail) return null;
+
+  await prisma.lead.update({ where: { id: byEmail.id }, data: { dealId } }).catch(() => {
+    /* le rattachement est un confort : son échec ne doit pas bloquer la liaison */
+  });
+  return byEmail;
+}
+
+/**
+ * L'affaire correspondant à un lead : rattachement explicite, sinon l'affaire
+ * qui porte la même adresse de contact.
+ */
+async function findLinkedDeal(leadId: string, dealId: string | null, leadEmail: string) {
+  const select = {
+    id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
+    contactPosition: true, contactPhone: true,
+    store: { select: { name: true, brand: { select: { name: true } } } },
+  } as const;
+
+  if (dealId) {
+    const linked = await prisma.deal.findUnique({ where: { id: dealId }, select });
+    if (linked) return linked;
+  }
+
+  const email = normalizeEmail(leadEmail);
+  if (!email) return null;
+
+  const byEmail = await prisma.deal.findFirst({ where: { dealEmail: email }, select });
+  if (!byEmail) return null;
+
+  await prisma.lead.update({ where: { id: leadId }, data: { dealId: byEmail.id } }).catch(() => {});
+  return byEmail;
+}
+
 /**
  * Comment nommer l'affaire dans la fenêtre de confirmation.
  * Le nom du magasin porte souvent déjà l'enseigne (« Carrefour Lille ») : la
@@ -92,7 +153,7 @@ function dealLabel(brand?: string | null, store?: string | null): string {
 export async function previewLeadToDeal(
   leadId: string,
   changes: Record<string, unknown>,
-): Promise<LinkPreview | null> {
+): Promise<(LinkPreview & { dealId: string }) | null> {
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     select: {
@@ -100,16 +161,9 @@ export async function previewLeadToDeal(
       email: true, civility: true, lastName: true, jobTitle: true, phone: true,
     },
   });
-  if (!lead?.dealId) return null;
+  if (!lead) return null;
 
-  const deal = await prisma.deal.findUnique({
-    where: { id: lead.dealId },
-    select: {
-      id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
-      contactPosition: true, contactPhone: true,
-      store: { select: { name: true, brand: { select: { name: true } } } },
-    },
-  });
+  const deal = await findLinkedDeal(leadId, lead.dealId, lead.email);
   if (!deal) return null;
 
   const impacts: LinkImpact[] = [];
@@ -139,6 +193,9 @@ export async function previewLeadToDeal(
   if (impacts.length === 0) return null;
 
   return {
+    // L'identifiant voyage avec l'aperçu : le lien a pu être retrouvé par
+    // l'adresse, auquel cas l'appelant ne le connaît pas encore.
+    dealId: deal.id,
     target: dealLabel(deal.store?.brand?.name, deal.store?.name),
     direction: 'toDeal',
     impacts,
@@ -163,15 +220,6 @@ export async function previewDealToLead(
   dealId: string,
   changes: Record<string, unknown>,
 ): Promise<(LinkPreview & { leadId: string }) | null> {
-  const lead = await prisma.lead.findFirst({
-    where: { dealId },
-    select: {
-      id: true, email: true, civility: true, lastName: true,
-      jobTitle: true, phone: true,
-    },
-  });
-  if (!lead) return null;
-
   // Valeurs actuelles de l'affaire : une répercussion ne part que d'un
   // changement réel, pas d'un écart déjà présent entre les deux fiches.
   const deal = await prisma.deal.findUnique({
@@ -182,6 +230,9 @@ export async function previewDealToLead(
     },
   });
   if (!deal) return null;
+
+  const lead = await findLinkedLead(dealId, deal.dealEmail);
+  if (!lead) return null;
 
   const impacts: LinkImpact[] = [];
   for (const field of LINKED_FIELDS) {

@@ -96,8 +96,26 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       },
     });
     if (!deal) return NextResponse.json({ error: 'Affaire non trouvée' }, { status: 404 });
+
+    // Lead de prospection correspondant, s'il existe : rattaché explicitement,
+    // ou simplement porteur de la même adresse de contact. La fiche l'affiche,
+    // pour qu'on sache d'un coup d'œil si une modification se répercutera.
+    const campaignLead = await prisma.lead.findFirst({
+      where: {
+        OR: [
+          { dealId: params.id },
+          ...(deal.dealEmail ? [{ email: deal.dealEmail.trim().toLowerCase() }] : []),
+        ],
+      },
+      select: { id: true, email: true, civility: true, lastName: true, status: true },
+    });
+
     // « Faite par » : déduit des déplacements vers DEMO FAITE (cf. withDemoDone).
-    return NextResponse.json({ ...deal, demoBookings: withDemoDone(deal.demoBookings, deal.moves) });
+    return NextResponse.json({
+      ...deal,
+      demoBookings: withDemoDone(deal.demoBookings, deal.moves),
+      campaignLead,
+    });
   } catch (err) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
