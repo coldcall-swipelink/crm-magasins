@@ -11,6 +11,14 @@
     {
       "path": "/api/campaigns/sync-replies",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/pv/reminders",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/pv/follow-ups",
+      "schedule": "30 9 * * 1-5"
     }
   ]
 }

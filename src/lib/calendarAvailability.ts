@@ -83,8 +83,9 @@ function offsetMinutes(instant: Date, tz: string): number {
   return (lire(tz) - lire('UTC')) / 60000;
 }
 
-/** Instant absolu correspondant à une heure LOCALE du fuseau de travail. */
-function fromLocalParts(y: number, m: number, d: number, h: number, min: number, tz: string): Date {
+/** Instant absolu correspondant à une heure LOCALE du fuseau de travail.
+ *  Exportée : la grille de créneaux du parcours PV fait la même bascule. */
+export function fromLocalParts(y: number, m: number, d: number, h: number, min: number, tz: string): Date {
   // Première approximation en supposant UTC, puis correction par le décalage
   // réellement en vigueur à cet instant-là (gère les changements d'heure).
   const approx = new Date(Date.UTC(y, m - 1, d, h, min));
@@ -93,7 +94,7 @@ function fromLocalParts(y: number, m: number, d: number, h: number, min: number,
 }
 
 /** Composantes de date telles que lues dans le fuseau de travail. */
-function localParts(instant: Date, tz: string): { y: number; m: number; d: number; weekday: number } {
+export function localParts(instant: Date, tz: string): { y: number; m: number; d: number; weekday: number } {
   const p = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
   }).formatToParts(instant);
@@ -114,13 +115,18 @@ function localParts(instant: Date, tz: string): { y: number; m: number; d: numbe
  * Sont ignorés : les événements annulés, ceux marqués « disponible »
  * (transparency = transparent, typiquement les rappels d'anniversaire), et
  * ceux auxquels on a répondu non.
+ *
+ * Exportée : le parcours « 2 CV de bouchers » (src/lib/pv/slots.ts) lit les mêmes
+ * occupations pour ne proposer que des créneaux réellement libres, sur l'agenda
+ * qu'on lui indique.
  */
-async function fetchBusy(
+export async function fetchBusyRanges(
   timeMin: Date,
   timeMax: Date,
+  calendar?: string,
 ): Promise<Array<{ start: string; end: string; summary: string }>> {
   const token = await getGoogleAccessToken();
-  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+  const calendarId = calendar || process.env.GOOGLE_CALENDAR_ID || 'primary';
 
   const params = new URLSearchParams({
     timeMin: timeMin.toISOString(),
@@ -221,7 +227,7 @@ export async function getWeekAvailability(weekStart?: string): Promise<Availabil
   let busy: Array<{ start: number; end: number; summary: string }> = [];
   if (resultat.configured) {
     try {
-      busy = (await fetchBusy(timeMin, timeMax)).map(b => ({
+      busy = (await fetchBusyRanges(timeMin, timeMax)).map(b => ({
         start: new Date(b.start).getTime(),
         end: new Date(b.end).getTime(),
         summary: b.summary,

@@ -211,6 +211,21 @@ model Deal {
   // EmailLog entrant). Alimente la pastille « A répondu » des cartes du
   // pipeline sans avoir à compter les emails de chaque affaire.
   lastEmailReplyAt          DateTime?
+  // ─── Pilote « Prospection de Valeur » : parcours boucher ──────────────────
+  // Le magasin accepte d'être cité en référence auprès d'un prospect voisin.
+  // Sans cette case, l'affaire n'apparaît JAMAIS dans le bloc « déjà avec
+  // Swipelink dans votre région » d'un autre magasin.
+  citableReference          Boolean             @default(false)
+  // Réponses du parcours, recopiées depuis PvInvite au moment de la
+  // réservation. Miroir dénormalisé, comme demoDate : la source reste
+  // l'invitation, mais la fiche affaire et les filtres les lisent ici.
+  pvExperience              String              @default("")
+  pvSalaire                 String              @default("")
+  pvPriseDePoste            String              @default("")
+  // E-mail confirmé par le directeur sur la page (il a pu corriger celui du
+  // magasin) et acceptation des CGU au moment de la réservation.
+  pvEmailValidatedAt        DateTime?
+  pvCguAcceptedAt           DateTime?
   collaboratorId            String?
   collaborator              Collaborator?       @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
@@ -234,6 +249,8 @@ model Deal {
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
   // valeurs, pour les cartes, totaux de colonnes et le dashboard.
   subscriptions             Subscription[]
+  // Invitations « 2 CV de bouchers » envoyées à ce magasin.
+  pvInvites                 PvInvite[]
 
   // Postgres n'indexe pas automatiquement les clés étrangères. Sans ces index,
   // charger un pipeline (GET /api/deals?pipelineId=…) balaie toute la table
@@ -1262,4 +1279,153 @@ model OfferTriggerHit {
   // Une offre ne déclenche qu'une fois par règle.
   @@unique([triggerId, jobOfferId])
   @@index([triggerId, createdAt])
+}
+
+// ─── Pilote « Prospection de Valeur » : parcours boucher ──────────────────────
+//
+// Un magasin publie une offre de boucher → son directeur reçoit un mail dont
+// l'unique bouton ouvre rdv.swipelink.fr/boucher?t=<jeton>. Sur cette page il
+// répond à trois questions et réserve une démo de 15 min en visio.
+//
+// Trois tables portent tout le parcours :
+//   PvInvite  — l'invitation d'un magasin : le jeton, sa validité, et ce que le
+//               directeur a répondu ;
+//   PvBooking — la démo réservée, et le VERROU qui interdit deux réservations
+//               sur le même créneau ;
+//   PvEvent   — l'entonnoir, anonyme, qui dit où les gens s'arrêtent.
+
+/// Invitation envoyée à un magasin, identifiée par un jeton à usage unique.
+///
+/// Le jeton n'est JAMAIS stocké en clair : seul son empreinte SHA-256 vit ici
+/// (`tokenHash`). Une fuite de la base ne permet donc pas de rouvrir les pages
+/// des magasins. L'URL, elle, ne contient aucune donnée personnelle — juste le
+/// jeton, qui ne dit rien de qui le porte.
+model PvInvite {
+  id     String @id @default(cuid())
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 (hexadécimal) du jeton envoyé dans l'URL. Clé de recherche : la
+  /// résolution d'un jeton est un seul accès par index, sans déchiffrement.
+  tokenHash   String    @unique
+  /// Le même jeton, CHIFFRÉ (AES-256-GCM, clé CAMPAIGN_SECRET_KEY — cf.
+  /// src/lib/campaigns/crypto.ts).
+  ///
+  /// Pourquoi le garder alors que l'empreinte suffit à ouvrir la page : parce
+  /// qu'un rappel ou une relance doit contenir un lien QUI MARCHE, et que le
+  /// lien déjà envoyé (mail, invitation d'agenda) doit continuer de marcher.
+  /// Sans cette copie, la seule solution serait d'émettre un nouveau jeton à
+  /// chaque envoi, ce qui casserait le lien « Déplacer le rendez-vous » posé
+  /// dans l'agenda du directeur.
+  ///
+  /// La clé vit dans l'environnement, jamais en base : qui lirait la table
+  /// n'obtiendrait toujours aucun jeton utilisable. Vide si le chiffrement
+  /// n'est pas configuré — on retombe alors sur l'émission d'un jeton neuf.
+  tokenCipher String    @default("")
+  expiresAt   DateTime
+  /// Renseignée quand l'invitation est retirée à la main (désinscription,
+  /// erreur d'envoi). Un jeton révoqué est traité comme expiré.
+  revokedAt   DateTime?
+
+  /// Nombre de profils annoncé. FIGÉ à la création : le mail et la page doivent
+  /// afficher le même nombre, aujourd'hui comme dans trois semaines.
+  nbProfils Int @default(0)
+
+  /// Envoi du mail : date de départ et identifiant du message.
+  sentAt    DateTime?
+  messageId String    @default("")
+
+  // ─── Réponses du parcours (remplies au fil des écrans) ────────────────────
+  experience     String    @default("")
+  salaire        String    @default("")
+  salaireType    String    @default("")
+  priseDePoste   String    @default("")
+  /// Adresse validée à l'écran 4 (celle du magasin, ou celle qu'il a corrigée).
+  email          String    @default("")
+  emailCorrected Boolean   @default(false)
+  cguAcceptedAt  DateTime?
+
+  /// Demande de rappel (« aucun créneau ne me convient »).
+  callbackPhone String    @default("")
+  callbackAt    DateTime?
+
+  /// Relance J+1 des parcours commencés sans réservation : date d'envoi, pour
+  /// ne relancer qu'une fois.
+  followUpAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking PvBooking?
+  events  PvEvent[]
+
+  @@index([dealId])
+  @@index([expiresAt])
+}
+
+/// Démo réservée depuis le parcours.
+///
+/// LE VERROU DES CRÉNEAUX : `slotKey` porte l'heure de début du créneau et est
+/// UNIQUE. Deux réservations simultanées sur le même créneau ne peuvent donc pas
+/// aboutir toutes les deux — la seconde viole la contrainte et reçoit un 409.
+/// C'est la base qui tranche, pas un « lire puis écrire » applicatif, qui
+/// laisserait passer les deux dans l'intervalle.
+///
+/// Une démo déplacée ou annulée doit libérer son créneau sans perdre sa trace :
+/// on remplace alors `slotKey` par « libre:<id> », valeur unique qui ne
+/// correspond à aucun créneau. (Postgres sait faire un index unique partiel,
+/// mais Prisma ne sait pas le décrire : cette astuce obtient la même garantie
+/// dans le schéma lui-même.)
+model PvBooking {
+  id       String   @id @default(cuid())
+  inviteId String   @unique
+  invite   PvInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  dealId   String
+
+  /// Début du créneau en clé unique (ISO-8601, ex. « 2026-09-24T09:00:00.000Z »),
+  /// ou « libre:<id> » quand la réservation ne tient plus le créneau.
+  slotKey String   @unique
+  startAt DateTime
+  endAt   DateTime
+
+  /// booked · cancelled
+  status String @default("booked")
+
+  googleEventId String @default("")
+  meetUrl       String @default("")
+
+  /// Rappels déjà partis (la veille, puis 1 h avant) : une date renseignée vaut
+  /// « déjà envoyé », ce qui rend le passage du planificateur rejouable.
+  remindedDayBeforeAt  DateTime?
+  remindedHourBeforeAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startAt])
+  @@index([dealId])
+  @@index([status, startAt])
+}
+
+/// Étape franchie dans le parcours (page_view, answer_1..3, email_edit,
+/// slot_select, booking_ok, booking_err, callback_open, callback_ok).
+///
+/// Anonyme : aucune donnée personnelle, seulement l'invitation concernée et
+/// l'instant. Sert à deux choses — mesurer où l'on perd les directeurs, et
+/// savoir qui relancer le lendemain. La relance se fonde sur les `answer_*` et
+/// JAMAIS sur l'ouverture du mail : les Safe Links de Microsoft cliquent les
+/// liens à la place du destinataire, un simple clic ne prouve donc rien.
+model PvEvent {
+  id         String   @id @default(cuid())
+  inviteId   String
+  invite     PvInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  event      String
+  step       Int      @default(0)
+  /// Instant vécu côté navigateur (peut différer de createdAt si l'envoi a
+  /// traîné — sendBeacon part parfois à la fermeture de l'onglet).
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([inviteId, createdAt])
+  @@index([event, createdAt])
 }

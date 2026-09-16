@@ -64,7 +64,12 @@ export function imapCredentials(mailbox: Mailbox): { user: string; pass: string 
  * voient d'un mauvais œil. `maxMessages` force une reconnexion régulière,
  * certains serveurs coupant les sessions trop longues.
  */
-export function createTransport(mailbox: Mailbox): Transporter {
+export function createTransport(
+  mailbox: Mailbox,
+  /** Options nodemailer supplémentaires. Sert au mail « 2 CV de bouchers », qui
+   *  demande `attachDataUrls` pour convertir son logo en image intégrée (CID). */
+  extra: Record<string, unknown> = {},
+): Transporter {
   return nodemailer.createTransport({
     host: mailbox.smtpHost,
     port: mailbox.smtpPort,
@@ -76,6 +81,7 @@ export function createTransport(mailbox: Mailbox): Transporter {
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
     socketTimeout: 30_000,
+    ...extra,
   });
 }
 
