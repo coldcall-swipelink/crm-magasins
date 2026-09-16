@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
+import DealImportModal from './DealImportModal';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
 import LeadPickerModal from './LeadPickerModal';
@@ -43,7 +44,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
   const [loading, setLoading] = useState(true);
   // Quelle fenêtre d'ajout est ouverte : aucune, le choix parmi les leads
   // existants, la saisie manuelle, ou l'import de fichier.
-  const [adding, setAdding] = useState<'pick' | 'manual' | 'import' | null>(null);
+  const [adding, setAdding] = useState<'pick' | 'manual' | 'import' | 'crm' | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +88,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
           <button style={btnPri} onClick={() => setAdding('pick')}>+ Depuis mes leads</button>
           <button style={btnDef} onClick={() => setAdding('manual')}>+ Nouveau lead</button>
           <button style={btnDef} onClick={() => setAdding('import')}>+ Importer un CSV</button>
+          <button style={btnDef} onClick={() => setAdding('crm')}>+ Depuis le CRM</button>
         </div>
       </div>
 
@@ -191,6 +193,10 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
       )}
       {adding === 'import' && (
         <LeadImportModal campaignId={campaignId} userName={user?.name} onClose={() => setAdding(null)}
+          onDone={() => { load(); onChanged(); }} />
+      )}
+      {adding === 'crm' && (
+        <DealImportModal campaignId={campaignId} userName={user?.name} onClose={() => setAdding(null)}
           onDone={() => { load(); onChanged(); }} />
       )}
     </div>
