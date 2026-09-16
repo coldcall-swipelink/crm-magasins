@@ -22,12 +22,30 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {
-  const mailboxes = await prisma.mailbox.findMany({ orderBy: { createdAt: 'asc' } });
-  return NextResponse.json({
-    mailboxes: mailboxes.map(toPublicMailbox),
-    encryptionReady: isEncryptionConfigured(),
-    presets: PROVIDER_PRESETS,
-  });
+  try {
+    const mailboxes = await prisma.mailbox.findMany({ orderBy: { createdAt: 'asc' } });
+    return NextResponse.json({
+      mailboxes: mailboxes.map(toPublicMailbox),
+      encryptionReady: isEncryptionConfigured(),
+      // Conservés dans la réponse pour compatibilité, mais l'interface lit
+      // désormais les mêmes constantes en local : la liste des fournisseurs
+      // doit s'afficher même quand cet appel échoue.
+      presets: PROVIDER_PRESETS,
+    });
+  } catch (err) {
+    // Cas de loin le plus fréquent : la table n'existe pas encore, parce que le
+    // schéma n'a pas été propagé après le déploiement. On le dit, plutôt que de
+    // laisser l'écran vide sans explication.
+    const message = err instanceof Error ? err.message : String(err);
+    const missingTable = /does not exist|P2021|relation .* does not exist/i.test(message);
+    console.error('[GET /api/campaigns/mailboxes]', err);
+    return NextResponse.json({
+      error: missingTable
+        ? 'Les tables de l\'outil Campagnes sont absentes de la base : le schéma n\'a pas été '
+          + 'propagé après le déploiement (npx prisma db push, ou /api/admin/db-sync).'
+        : message.slice(0, 300),
+    }, { status: 503 });
+  }
 }
 
 export async function POST(req: NextRequest) {

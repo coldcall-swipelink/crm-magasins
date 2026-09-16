@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { CAMPAIGN_SCHEMA_STATEMENTS } from '@/lib/campaigns/schemaSql';
 
 // Route de synchronisation de schéma EXÉCUTÉE PAR LE RUNTIME (qui joint la base,
 // contrairement au build). Strictement additif : CREATE TABLE / ADD COLUMN /
@@ -349,6 +350,10 @@ const STATEMENTS: string[] = [
   // La table PaymentLinkConfig d'une version précédente n'est plus utilisée.
   // Elle n'est pas supprimée ici (cette route reste strictement additive) ; elle
   // peut être retirée à la main si elle existe.
+
+  // Tables de l'outil Campagnes (boîtes d'envoi, leads, séquences). Engendrées
+  // depuis le schéma Prisma, cf. src/lib/campaigns/schemaSql.ts.
+  ...CAMPAIGN_SCHEMA_STATEMENTS,
 ];
 
 export async function GET(req: NextRequest) {
