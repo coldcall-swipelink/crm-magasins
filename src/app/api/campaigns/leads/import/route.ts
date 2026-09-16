@@ -6,6 +6,9 @@
 //   POST { filename, content }                    → APERÇU : en-têtes détectés,
 //         correspondance proposée, 5 premières lignes, volume, doublons.
 //   POST { filename, content, mapping, commit }   → IMPORT réel.
+//   POST { …, commit, campaignId }                → IMPORT puis inscription
+//         immédiate dans la campagne : « importer ce fichier dans cette
+//         campagne » se fait en une seule opération.
 //
 // Le fichier est transmis en texte brut et lu côté serveur : la correspondance
 // des colonnes et les règles de déduplication vivent au même endroit que
@@ -14,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { parseLeadCsv } from '@/lib/campaigns/csv';
+import { enrollLeads } from '@/lib/campaigns/engine';
 import {
   LEAD_FIELDS, applyMapping, importLeads, isValidEmail, suggestMapping,
   type LeadMapping,
@@ -109,6 +113,22 @@ export async function POST(req: NextRequest) {
     updateExisting: body.updateExisting !== false,
     userName: body.userName ? String(body.userName).trim() : undefined,
   });
+
+  // Import depuis une campagne : on enchaîne sur l'inscription, sans repasser
+  // par l'écran des leads. Les leads déjà connus du fichier en font partie.
+  if (body.campaignId) {
+    try {
+      const enrolled = await enrollLeads(String(body.campaignId), report.leadIds);
+      return NextResponse.json({ report, enrolled }, { status: 201 });
+    } catch (err) {
+      // L'import, lui, a bien eu lieu : on le dit, plutôt que de laisser croire
+      // à un échec complet.
+      return NextResponse.json({
+        report,
+        enrollError: err instanceof Error ? err.message : String(err),
+      }, { status: 201 });
+    }
+  }
 
   return NextResponse.json({ report }, { status: 201 });
 }

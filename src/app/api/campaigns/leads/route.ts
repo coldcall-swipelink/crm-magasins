@@ -2,6 +2,8 @@
 //
 //   GET  /api/campaigns/leads?q=…&status=…&page=1  → liste filtrée, paginée
 //   POST /api/campaigns/leads                      → création manuelle
+//   POST /api/campaigns/leads { …, campaignId }    → création PUIS inscription
+//         dans la campagne : c'est la saisie d'un lead depuis une campagne.
 //
 // La liste sert l'écran « Leads » de l'onglet Campagnes. Elle renvoie aussi le
 // décompte par statut, pour que les filtres affichent leur volume sans un
@@ -11,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isLeadStatus, isValidEmail, normalizeEmail } from '@/lib/campaigns/leadFields';
+import { enrollLeads } from '@/lib/campaigns/engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,13 +75,28 @@ export async function POST(req: NextRequest) {
   const email = normalizeEmail(body.email || '');
   if (!isValidEmail(email)) return NextResponse.json({ error: 'Email invalide' }, { status: 400 });
 
-  const exists = await prisma.lead.findUnique({ where: { email }, select: { id: true } });
-  if (exists) return NextResponse.json({ error: 'Ce lead existe déjà', leadId: exists.id }, { status: 409 });
+  const campaignId = body.campaignId ? String(body.campaignId) : null;
 
   const text = (value: unknown) => {
     const v = String(value ?? '').trim();
     return v || null;
   };
+
+  const exists = await prisma.lead.findUnique({ where: { email }, select: { id: true } });
+  if (exists) {
+    // Saisi depuis une campagne, un lead déjà connu n'est pas une erreur :
+    // on l'inscrit, c'était l'intention. Depuis l'écran des leads en revanche,
+    // le doublon se signale.
+    if (!campaignId) {
+      return NextResponse.json({ error: 'Ce lead existe déjà', leadId: exists.id }, { status: 409 });
+    }
+    try {
+      const enrolled = await enrollLeads(campaignId, [exists.id]);
+      return NextResponse.json({ lead: { id: exists.id, email }, existed: true, enrolled });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 422 });
+    }
+  }
 
   const lead = await prisma.lead.create({
     data: {
@@ -104,6 +122,19 @@ export async function POST(req: NextRequest) {
       },
     },
   });
+
+  if (campaignId) {
+    try {
+      const enrolled = await enrollLeads(campaignId, [lead.id]);
+      return NextResponse.json({ lead, enrolled }, { status: 201 });
+    } catch (err) {
+      // Le lead est créé : il ne faut pas laisser croire le contraire.
+      return NextResponse.json({
+        lead,
+        enrollError: err instanceof Error ? err.message : String(err),
+      }, { status: 201 });
+    }
+  }
 
   return NextResponse.json({ lead }, { status: 201 });
 }

@@ -24,8 +24,10 @@ type Preview = {
   stats: { rows: number; valid: number; invalid: number; duplicates: number; known: number; new: number };
 };
 
-export default function LeadImportModal({ userName, onClose, onDone }: {
+export default function LeadImportModal({ userName, campaignId, onClose, onDone }: {
   userName?: string;
+  /** Renseigné : les leads du fichier sont inscrits dans cette campagne. */
+  campaignId?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -81,12 +83,17 @@ export default function LeadImportModal({ userName, onClose, onDone }: {
       const res = await fetch('/api/campaigns/leads/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, content, mapping, source, updateExisting, commit: true, userName }),
+        body: JSON.stringify({ filename, content, mapping, source, updateExisting, commit: true, userName, campaignId }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || 'Import impossible', 'error'); return; }
       const r = data.report;
       toast(`${r.created} lead(s) créé(s), ${r.updated} mis à jour, ${r.skipped} ignoré(s)`);
+      if (data.enrollError) toast(`Import fait, mais inscription impossible : ${data.enrollError}`, 'error');
+      else if (data.enrolled) {
+        toast(`${data.enrolled.enrolled} lead(s) inscrit(s) dans la campagne`
+          + (data.enrolled.skipped ? ` · ${data.enrolled.skipped} écarté(s)` : ''));
+      }
       onDone();
       onClose();
     } finally {
@@ -100,10 +107,13 @@ export default function LeadImportModal({ userName, onClose, onDone }: {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}
       onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 'min(980px, 100%)', maxHeight: '90vh', overflow: 'auto', padding: 22 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Importer des leads</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+          {campaignId ? 'Importer des leads dans la campagne' : 'Importer des leads'}
+        </div>
         <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
           Fichier CSV ou TSV, avec une ligne d&apos;en-tête. Seul l&apos;email est obligatoire ;
           les autres colonnes deviennent des variables de personnalisation.
+          {campaignId && ' Les leads du fichier seront inscrits dans la campagne dans la foulée.'}
         </div>
 
         {!preview ? (
