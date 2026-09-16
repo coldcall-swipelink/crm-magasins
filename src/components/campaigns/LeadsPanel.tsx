@@ -41,6 +41,10 @@ export default function LeadsPanel() {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  // Message d'erreur de la dernière lecture. Une liste vide et une lecture
+  // tombée se ressemblent à l'écran : il faut les distinguer, sinon une panne
+  // se lit comme une perte de données.
+  const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [fromCrm, setFromCrm] = useState(false);
@@ -58,11 +62,22 @@ export default function LeadsPanel() {
       if (pipelineId) params.set('pipelineId', pipelineId);
       if (columnId) params.set('columnId', columnId);
       const res = await fetch(`/api/campaigns/leads?${params}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data) {
+        // On ne touche pas à la liste affichée : mieux vaut laisser la
+        // précédente à l'écran, avec le bandeau d'erreur, que de la vider.
+        setError(data?.error || `Lecture des leads impossible (erreur ${res.status}).`);
+        return;
+      }
+
+      setError(null);
       setLeads(data.leads || []);
       setCounts(data.statusCounts || {});
       setTotal(data.total || 0);
       setPages(data.pages || 1);
+    } catch (err) {
+      setError(`Lecture des leads impossible : ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -206,9 +221,23 @@ export default function LeadsPanel() {
           </div>
         )}
 
+        {error && (
+          <div style={{
+            background: 'rgba(248,113,113,.10)', border: '1px solid rgba(248,113,113,.42)',
+            borderRadius: 10, padding: '12px 15px', marginBottom: 14,
+            fontSize: 12.5, color: '#fca5a5', lineHeight: 1.6,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 3 }}>La liste n&apos;a pas pu être lue</div>
+            {error}
+            <div style={{ marginTop: 8 }}>
+              <button style={btnXs} onClick={load}>Réessayer</button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
-        ) : leads.length === 0 ? (
+        ) : error ? null : leads.length === 0 ? (
           <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
             {search || status || pipelineId || columnId
               ? 'Aucun lead ne correspond à ce filtre.'
