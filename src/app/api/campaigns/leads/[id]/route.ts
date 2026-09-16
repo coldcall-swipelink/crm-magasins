@@ -19,6 +19,17 @@ const FULL_LEAD = {
     notes:  { orderBy: { createdAt: 'desc' } },
     events: { orderBy: { createdAt: 'desc' }, take: 100 },
     import: { select: { id: true, filename: true, createdAt: true } },
+    // Séquences en cours ou passées du lead : la fiche doit permettre de
+    // l'arrêter sans passer par la campagne.
+    enrollments: {
+      orderBy: { createdAt: 'desc' },
+      include: {
+        campaign: { select: { id: true, name: true, status: true } },
+        mailbox:  { select: { email: true } },
+      },
+    },
+    // Ses réponses, telles qu'elles ont été relevées dans les boîtes.
+    replies: { orderBy: { receivedAt: 'desc' }, take: 10 },
   },
 } satisfies Prisma.LeadDefaultArgs;
 

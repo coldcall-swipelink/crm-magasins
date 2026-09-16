@@ -10,10 +10,12 @@
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import CampaignsPanel from '@/components/campaigns/CampaignsPanel';
+import DashboardPanel from '@/components/campaigns/DashboardPanel';
 import LeadsPanel from '@/components/campaigns/LeadsPanel';
 import MailboxesPanel from '@/components/campaigns/MailboxesPanel';
 
 const TABS = [
+  { key: 'overview',  label: "Vue d'ensemble" },
   { key: 'campaigns', label: 'Campagnes' },
   { key: 'leads',     label: 'Leads' },
   { key: 'mailboxes', label: "Boîtes d'envoi" },
@@ -22,7 +24,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 export default function CampagnesPage() {
-  const [tab, setTab] = useState<TabKey>('campaigns');
+  const [tab, setTab] = useState<TabKey>('overview');
 
   return (
     <AppLayout>
@@ -45,6 +47,7 @@ export default function CampagnesPage() {
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {tab === 'overview' && <DashboardPanel onOpenCampaigns={() => setTab('campaigns')} />}
           {tab === 'leads' && <LeadsPanel />}
           {tab === 'mailboxes' && <MailboxesPanel />}
           {tab === 'campaigns' && <CampaignsPanel onGoToMailboxes={() => setTab('mailboxes')} />}

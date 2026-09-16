@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
+import { ENROLLMENT_STATUS, STOP_REASONS } from './ui';
 
 const inp: React.CSSProperties = { width: '100%', padding: '6px 9px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 12.5, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12.5 };
@@ -25,10 +26,20 @@ export interface LeadRow {
   createdAt: string;
 }
 
+type Enrollment = {
+  id: string; status: string; stopReason: string | null; sentSteps: number; nextSendAt: string | null;
+  campaign: { id: string; name: string; status: string };
+  mailbox: { email: string } | null;
+};
+
+type Reply = { id: string; subject: string; snippet: string; receivedAt: string };
+
 type FullLead = LeadRow & {
   notes: Array<{ id: string; body: string; userName: string | null; createdAt: string }>;
   events: Array<{ id: string; type: string; label: string; userName: string | null; createdAt: string }>;
   import: { id: string; filename: string; createdAt: string } | null;
+  enrollments: Enrollment[];
+  replies: Reply[];
 };
 
 const EDITABLE = [
@@ -89,6 +100,19 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
     if (!res.ok) { toast('Note non enregistrée', 'error'); return; }
     setNote('');
     load();
+  };
+
+  /** Pilotage d'UNE séquence depuis la fiche du lead. */
+  const actOnEnrollment = async (enrollment: Enrollment, action: 'pause' | 'resume' | 'stop') => {
+    const res = await fetch(`/api/campaigns/${enrollment.campaign.id}/enrollments/${enrollment.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, userName }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || 'Action impossible', 'error'); return; }
+    load();
+    onChanged();
   };
 
   const remove = async () => {
@@ -165,6 +189,64 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {lead.enrollments.length > 0 && (
+          <>
+            <div style={label}>CAMPAGNES</div>
+            {lead.enrollments.map(enrollment => {
+              const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#64748b' };
+              return (
+                <div key={enrollment.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {enrollment.campaign.name}
+                    </span>
+                    <span style={{ padding: '1px 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 600, color: state.color, background: `${state.color}18` }}>
+                      {state.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+                    {enrollment.sentSteps} email{enrollment.sentSteps > 1 ? 's' : ''} envoyé{enrollment.sentSteps > 1 ? 's' : ''}
+                    {enrollment.mailbox ? ` · ${enrollment.mailbox.email}` : ''}
+                    {enrollment.stopReason ? ` · ${STOP_REASONS[enrollment.stopReason] || enrollment.stopReason}` : ''}
+                    {enrollment.nextSendAt && enrollment.status === 'active'
+                      ? ` · prochain le ${formatDate(enrollment.nextSendAt)}`
+                      : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
+                    {enrollment.status === 'active' && (
+                      <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5 }}
+                        onClick={() => actOnEnrollment(enrollment, 'pause')}>Pause</button>
+                    )}
+                    {(enrollment.status === 'paused' || enrollment.status === 'stopped') && (
+                      <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5 }}
+                        onClick={() => actOnEnrollment(enrollment, 'resume')}>Reprendre</button>
+                    )}
+                    {enrollment.status !== 'stopped' && enrollment.status !== 'finished' && (
+                      <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}
+                        onClick={() => actOnEnrollment(enrollment, 'stop')}>Arrêter pour ce lead</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ height: 10 }} />
+          </>
+        )}
+
+        {lead.replies.length > 0 && (
+          <>
+            <div style={label}>RÉPONSES REÇUES</div>
+            {lead.replies.map(reply => (
+              <div key={reply.id} style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{reply.subject || '(sans objet)'}</div>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{reply.snippet.slice(0, 260)}</div>
+                <div style={{ fontSize: 10.5, color: '#7c3aed', marginTop: 3 }}>{formatDate(reply.receivedAt)}</div>
+              </div>
+            ))}
+            <div style={{ height: 10 }} />
           </>
         )}
 

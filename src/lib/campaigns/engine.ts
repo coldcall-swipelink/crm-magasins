@@ -50,6 +50,18 @@ export async function runDueSends(options: { budgetMs?: number; now?: Date } = {
 
   const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [] };
 
+  // Reprise après incident : une inscription laissée « sending » par un passage
+  // interrompu (fonction coupée, redéploiement) resterait bloquée pour
+  // toujours. Au-delà du délai ci-dessous, aucun envoi ne peut être encore en
+  // cours : on la remet en file.
+  const stale = await prisma.campaignEnrollment.updateMany({
+    where: { status: 'sending', updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } },
+    data: { status: 'active' },
+  });
+  if (stale.count > 0) {
+    console.warn(`[campaigns/engine] ${stale.count} inscription(s) remise(s) en file après interruption`);
+  }
+
   const mailboxes = await prisma.mailbox.findMany({ where: { active: true } });
   if (mailboxes.length === 0) {
     result.skipped.push({ mailbox: '—', reason: 'Aucune boîte active' });
@@ -65,16 +77,6 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
   if (!isSendWindowOpen(mailbox, now)) {
     result.skipped.push({ mailbox: mailbox.email, reason: 'Hors plage horaire' });
     return;
-  }
-
-  // Espacement hérité du passage précédent : la boîte peut être « en repos ».
-  if (mailbox.nextSendAt && mailbox.nextSendAt.getTime() > Date.now()) {
-    const wait = mailbox.nextSendAt.getTime() - Date.now();
-    if (Date.now() + wait > deadline) {
-      result.skipped.push({ mailbox: mailbox.email, reason: 'Délai entre deux envois non écoulé' });
-      return;
-    }
-    await sleep(wait);
   }
 
   const cap = dailyCap(mailbox, now);
@@ -94,22 +96,60 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
   const transport = createTransport(mailbox);
   try {
     while (remaining > 0 && Date.now() < deadline) {
+      // 1. Y a-t-il seulement quelque chose à envoyer ? Inutile de réserver un
+      //    créneau — et de faire patienter la boîte — pour une file vide.
+      const pending = await prisma.campaignEnrollment.findFirst({
+        where: {
+          mailboxId: mailbox.id, status: 'active', nextSendAt: { lte: new Date() },
+          campaign: { status: 'running' },
+        },
+        select: { id: true },
+      });
+      if (!pending) break;
+
+      // 2. Réservation du créneau d'envoi de la boîte. C'est ce qui empêche
+      //    deux passages simultanés (cron qui se chevauche, appel manuel) de
+      //    doubler la cadence : le premier avance `nextSendAt`, le second voit
+      //    la boîte occupée et attend son tour.
+      const delay = randomDelayMs(mailbox);
+      const at = new Date();
+      const slot = await prisma.mailbox.updateMany({
+        where: { id: mailbox.id, OR: [{ nextSendAt: null }, { nextSendAt: { lte: at } }] },
+        data: { nextSendAt: new Date(at.getTime() + delay) },
+      });
+
+      if (slot.count === 0) {
+        // Créneau pris : on attend qu'il se libère, si le budget le permet.
+        const fresh = await prisma.mailbox.findUnique({
+          where: { id: mailbox.id }, select: { nextSendAt: true },
+        });
+        const wait = (fresh?.nextSendAt?.getTime() ?? Date.now()) - Date.now();
+        if (wait <= 0) continue;
+        if (Date.now() + wait > deadline) {
+          result.skipped.push({ mailbox: mailbox.email, reason: 'Délai entre deux envois non écoulé' });
+          break;
+        }
+        await sleep(wait);
+        continue;
+      }
+
+      // 3. Envoi.
       const enrollment = await claimNextEnrollment(mailbox.id);
       if (!enrollment) break;
 
       const outcome = await sendEnrollmentStep(enrollment, mailbox, transport);
       if (outcome.kind === 'sent') { result.sent++; remaining--; }
       else if (outcome.kind === 'failed') { result.failed++; result.errors.push({ enrollmentId: enrollment.id, message: outcome.message }); }
-      else if (outcome.kind === 'finished') { result.finished++; continue; }   // rien n'est parti
-      else if (outcome.kind === 'stopped') { result.stopped++; continue; }
+      else {
+        // Rien n'est parti (séquence terminée, ou lead écarté entre-temps) :
+        // le créneau réservé est rendu, le lead suivant n'a pas à attendre un
+        // délai d'envoi pour un email qui n'a jamais existé.
+        if (outcome.kind === 'finished') result.finished++; else result.stopped++;
+        await prisma.mailbox.update({ where: { id: mailbox.id }, data: { nextSendAt: new Date() } });
+        continue;
+      }
 
-      // Repos avant le message suivant, mémorisé en base pour que le passage
-      // d'après en tienne compte même si celui-ci s'arrête maintenant.
-      const delay = randomDelayMs(mailbox);
-      await prisma.mailbox.update({
-        where: { id: mailbox.id },
-        data: { nextSendAt: new Date(Date.now() + delay) },
-      });
+      // 4. Respect de l'espacement avant le message suivant.
       if (Date.now() + delay >= deadline) break;
       await sleep(delay);
     }
