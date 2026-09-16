@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import LeadDrawer, { type LeadRow } from './LeadDrawer';
+import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
 
 const inp: React.CSSProperties = { padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
@@ -27,6 +28,7 @@ export default function LeadsPanel() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -63,7 +65,8 @@ export default function LeadsPanel() {
           <input style={{ ...inp, width: 280 }} placeholder="Rechercher (email, nom, enseigne…)"
             value={query} onChange={e => setQuery(e.target.value)} />
           <div style={{ fontSize: 12, color: '#64748b' }}>{total} lead{total > 1 ? 's' : ''}</div>
-          <button style={{ ...btnPri, marginLeft: 'auto' }} onClick={() => setImporting(true)}>+ Importer des leads</button>
+          <button style={{ ...btnDef, marginLeft: 'auto' }} onClick={() => setCreating(true)}>+ Nouveau lead</button>
+          <button style={btnPri} onClick={() => setImporting(true)}>+ Importer un CSV</button>
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -144,6 +147,10 @@ export default function LeadsPanel() {
 
       {importing && (
         <LeadImportModal userName={user?.name} onClose={() => setImporting(false)} onDone={load} />
+      )}
+
+      {creating && (
+        <LeadFormModal userName={user?.name} onClose={() => setCreating(false)} onSaved={load} />
       )}
     </div>
   );

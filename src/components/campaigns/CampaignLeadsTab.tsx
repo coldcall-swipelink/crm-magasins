@@ -5,14 +5,18 @@
 // reprendre ou arrêter la séquence d'un seul lead sans toucher aux autres ni
 // à la campagne.
 //
-// L'ajout de leads reprend la recherche de l'écran Leads : on filtre, on voit
-// combien de contacts correspondent, on inscrit.
+// Trois façons d'ajouter des leads, parce que les trois usages existent :
+//   • depuis les leads déjà en base, en cochant (ou d'un bloc par recherche) ;
+//   • à la main, pour le contact qu'on vient d'avoir au téléphone ;
+//   • par fichier CSV, importé ET inscrit dans la foulée.
 
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
-import { LEAD_STATUSES } from '@/lib/campaigns/leadFields';
-import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, btnXs, card, inp, label } from './ui';
+import LeadFormModal from './LeadFormModal';
+import LeadImportModal from './LeadImportModal';
+import LeadPickerModal from './LeadPickerModal';
+import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, btnXs } from './ui';
 
 type Enrollment = {
   id: string;
@@ -37,7 +41,9 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
+  // Quelle fenêtre d'ajout est ouverte : aucune, le choix parmi les leads
+  // existants, la saisie manuelle, ou l'import de fichier.
+  const [adding, setAdding] = useState<'pick' | 'manual' | 'import' | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,7 +83,11 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
           <Chip key={key} label={item.label} count={counts[key] || 0} active={status === key}
             color={item.color} onClick={() => { setStatus(key); setPage(1); }} />
         ))}
-        <button style={{ ...btnPri, marginLeft: 'auto' }} onClick={() => setAdding(true)}>+ Ajouter des leads</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button style={btnPri} onClick={() => setAdding('pick')}>+ Depuis mes leads</button>
+          <button style={btnDef} onClick={() => setAdding('manual')}>+ Nouveau lead</button>
+          <button style={btnDef} onClick={() => setAdding('import')}>+ Importer un CSV</button>
+        </div>
       </div>
 
       {loading ? (
@@ -171,88 +181,18 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
         )}
       </div>
 
-      {adding && (
-        <AddLeadsModal campaignId={campaignId} onClose={() => setAdding(false)}
+      {adding === 'pick' && (
+        <LeadPickerModal campaignId={campaignId} onClose={() => setAdding(null)}
           onDone={() => { load(); onChanged(); }} />
       )}
-    </div>
-  );
-}
-
-/** Sélection de leads à inscrire, par recherche et par statut. */
-function AddLeadsModal({ campaignId, onClose, onDone }: {
-  campaignId: string; onClose: () => void; onDone: () => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('new');
-  const [matches, setMatches] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  // Décompte en direct : on sait ce qu'on s'apprête à inscrire.
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      const params = new URLSearchParams();
-      if (query.trim()) params.set('q', query.trim());
-      if (status) params.set('status', status);
-      const res = await fetch(`/api/campaigns/leads?${params}`);
-      const data = await res.json();
-      setMatches(data.total ?? 0);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query, status]);
-
-  const enroll = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/campaigns/${campaignId}/enrollments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter: { q: query.trim() || undefined, status: status || undefined } }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast(data.error || 'Inscription impossible', 'error'); return; }
-
-      const reasons = Object.entries(data.reasons || {}).map(([reason, count]) => `${count} ${reason}`).join(', ');
-      toast(`${data.enrolled} lead(s) inscrit(s)${data.skipped ? ` · ${data.skipped} écarté(s) (${reasons})` : ''}`);
-      onDone();
-      onClose();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}
-      onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(560px, 100%)' }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Ajouter des leads à la campagne</div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
-          Les désinscrits, adresses mortes et leads déjà inscrits sont écartés automatiquement.
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={label}>Recherche (email, nom, enseigne…)</label>
-          <input style={inp} value={query} onChange={event => setQuery(event.target.value)} placeholder="Laisser vide pour tout prendre" />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={label}>Statut des leads</label>
-          <select style={inp} value={status} onChange={event => setStatus(event.target.value)}>
-            <option value="">Tous les statuts</option>
-            {LEAD_STATUSES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
-        </div>
-
-        <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#3730a3', marginBottom: 16 }}>
-          {matches === null ? 'Calcul…' : `${matches} lead(s) correspondent à cette sélection.`}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ ...btnPri, opacity: busy || !matches ? 0.6 : 1 }} disabled={busy || !matches} onClick={enroll}>
-            {busy ? 'Inscription…' : 'Inscrire ces leads'}
-          </button>
-          <button style={btnDef} onClick={onClose}>Annuler</button>
-        </div>
-      </div>
+      {adding === 'manual' && (
+        <LeadFormModal campaignId={campaignId} userName={user?.name} onClose={() => setAdding(null)}
+          onSaved={() => { load(); onChanged(); }} />
+      )}
+      {adding === 'import' && (
+        <LeadImportModal campaignId={campaignId} userName={user?.name} onClose={() => setAdding(null)}
+          onDone={() => { load(); onChanged(); }} />
+      )}
     </div>
   );
 }

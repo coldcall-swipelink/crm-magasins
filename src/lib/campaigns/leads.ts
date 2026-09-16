@@ -37,6 +37,13 @@ export type ImportReport = {
   skipped: number;
   /** Lignes écartées, avec leur numéro dans le fichier et la raison. */
   rejected: Array<{ line: number; email: string; reason: string }>;
+  /**
+   * Identifiants de tous les leads du fichier reconnus en base — créés, mis à
+   * jour ou simplement retrouvés. C'est ce qui permet d'inscrire directement
+   * un import dans une campagne : « importer ce fichier DANS cette campagne »
+   * en une seule opération, au lieu d'importer puis de rechercher.
+   */
+  leadIds: string[];
 };
 
 /** Champs standard renseignés par la ligne (les vides ne sont pas écrits). */
@@ -107,6 +114,7 @@ export async function importLeads(options: ImportOptions): Promise<ImportReport>
   let updated = 0;
   let skipped = 0;
   const events: Prisma.LeadEventCreateManyInput[] = [];
+  const leadIds: string[] = [];
 
   for (let i = 0; i < inputs.length; i += CHUNK) {
     const chunk = inputs.slice(i, i + CHUNK);
@@ -148,6 +156,10 @@ export async function importLeads(options: ImportOptions): Promise<ImportReport>
     }));
 
     for (const result of results) {
+      // Retenu quel que soit le sort de la ligne : un lead « ignoré » parce
+      // qu'il existait déjà reste un lead que l'on veut pouvoir inscrire.
+      leadIds.push(result.id);
+
       if (result.outcome === 'created') created++;
       else if (result.outcome === 'updated') updated++;
       else { skipped++; continue; }
@@ -181,5 +193,6 @@ export async function importLeads(options: ImportOptions): Promise<ImportReport>
     skipped,
     // Bilan lisible : on ne renvoie pas 4 000 lignes fautives à l'écran.
     rejected: rejected.slice(0, 50),
+    leadIds,
   };
 }
