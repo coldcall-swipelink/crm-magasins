@@ -224,6 +224,17 @@ export interface Deal {
     actions:   number;
     childDeals?: number;
   };
+
+  /**
+   * Lead de prospection correspondant à cette affaire, s'il existe : rattaché
+   * explicitement, ou porteur de la même adresse de contact. Les champs de
+   * contact sont partagés entre les deux (cf. src/lib/campaigns/crmLink.ts) ;
+   * la fiche l'affiche pour qu'on le sache avant de saisir.
+   */
+  campaignLead?: {
+    id: string; email: string;
+    civility: string | null; lastName: string | null; status: string;
+  } | null;
 }
 
 export interface ImportBatch {

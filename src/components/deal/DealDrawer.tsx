@@ -1921,6 +1921,27 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
             </div>
 
             <div style={sectionTitle}>Contact</div>
+
+            {/* Lien avec la prospection : affiché en permanence, pour qu'on
+                sache AVANT de saisir si la modification se répercutera. */}
+            {deal.campaignLead ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10,
+                background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8,
+                padding: '7px 11px', fontSize: 11.5, color: '#3730a3',
+              }}>
+                <span>🔗</span>
+                <span>
+                  Lié au lead de prospection{' '}
+                  <strong>{[deal.campaignLead.civility, deal.campaignLead.lastName].filter(Boolean).join(' ') || deal.campaignLead.email}</strong>.
+                  Civilité, nom, email, téléphone et poste sont partagés.
+                </span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                Aucun lead de prospection lié à cette affaire.
+              </div>
+            )}
             <div style={{ marginBottom: 18 }}>
               <div style={{ marginBottom: 9 }}>
                 <label style={labelStyle}>Civilité</label>
