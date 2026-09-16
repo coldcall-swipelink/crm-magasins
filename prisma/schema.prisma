@@ -1023,10 +1023,12 @@ model Campaign {
   // List-Unsubscribe. Vivement conseillé en prospection à froid.
   addUnsubscribe Boolean @default(true)
 
-  steps       CampaignStep[]
-  mailboxes   CampaignMailbox[]
-  enrollments CampaignEnrollment[]
-  messages    CampaignMessage[]
+  steps         CampaignStep[]
+  mailboxes     CampaignMailbox[]
+  enrollments   CampaignEnrollment[]
+  messages      CampaignMessage[]
+  // Règles qui inscrivent automatiquement dans cette campagne (cf. OfferTrigger).
+  offerTriggers OfferTrigger[]
 
   userName   String?
   startedAt  DateTime?
@@ -1185,4 +1187,79 @@ model CampaignReply {
   // Déduplication entre deux relevés.
   @@unique([mailboxId, messageId])
   @@index([leadId, receivedAt])
+}
+
+// ─── Déclencheurs sur offres d'emploi ────────────────────────────────────
+//
+// « Quand une offre de boucher sort sur une affaire, inscris son contact dans
+// la campagne dédiée aux bouchers. »
+//
+// Les offres relevées par l'import (JobOffer) disent ce que le magasin
+// recherche AUJOURD'HUI. C'est le meilleur moment pour l'aborder, et le sujet
+// de l'email dépend du métier recherché : une règle relie donc un intitulé
+// d'offre à une campagne.
+//
+// Deux garde-fous portés par le modèle :
+//   • une règle ne regarde que les offres apparues APRÈS elle (`since`), pour
+//     qu'activer une règle ne déclenche pas un envoi sur tout l'historique ;
+//   • chaque correspondance est enregistrée (OfferTriggerHit) avec une
+//     contrainte d'unicité : une offre n'inscrit jamais deux fois.
+model OfferTrigger {
+  id         String   @id @default(cuid())
+  name       String
+  // Termes cherchés dans l'intitulé de l'offre, séparés par des virgules ou
+  // des retours à la ligne. Comparaison sans casse ni accent, en début de mot
+  // (« boucher » trouve boucher, bouchère, boucherie).
+  keywords   String   @default("")
+  // Termes qui annulent la correspondance (« apprenti », « alternance »).
+  exclude    String   @default("")
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // Une règle en pause ne déclenche plus rien, sans être perdue.
+  active     Boolean  @default(true)
+
+  // Périmètre facultatif : n'agir que sur un pipeline et/ou une enseigne.
+  pipelineId String?
+  brandId    String?
+
+  // Plancher temporel : les offres relevées avant cette date sont ignorées.
+  // Posé à la création ; la reprise de l'historique le recule explicitement.
+  since DateTime @default(now())
+
+  lastRunAt     DateTime?
+  matchedCount  Int       @default(0)
+  enrolledCount Int       @default(0)
+
+  hits      OfferTriggerHit[]
+  userName  String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([active])
+}
+
+// Une offre déjà passée devant une règle, et ce qui en est sorti.
+//
+// La ligne est écrite même quand rien n'a pu être inscrit (pas d'adresse, lead
+// désinscrit…) : c'est ce qui rend le déclencheur explicable, et c'est aussi ce
+// qui garantit qu'on ne réessaiera pas indéfiniment la même offre.
+model OfferTriggerHit {
+  id         String       @id @default(cuid())
+  triggerId  String
+  trigger    OfferTrigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  jobOfferId String
+  dealId     String
+  leadId     String?
+  // enrolled · lead_created · skipped · failed
+  outcome    String
+  // Pourquoi, quand ce n'est pas une inscription.
+  reason     String       @default("")
+  // Recopiés pour que le journal reste lisible même si l'offre disparaît.
+  offerTitle String       @default("")
+  storeName  String       @default("")
+  createdAt  DateTime     @default(now())
+
+  // Une offre ne déclenche qu'une fois par règle.
+  @@unique([triggerId, jobOfferId])
+  @@index([triggerId, createdAt])
 }

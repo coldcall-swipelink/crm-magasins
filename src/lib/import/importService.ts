@@ -15,6 +15,7 @@ import { parseCsv, mapCsvRow, parseImportDate, type MappedRow } from './csvParse
 import { buildDeduplicationKey, normalizeStoreName } from './deduplication';
 import { buildOfferFingerprint } from './fingerprint';
 import { cleanJobTitle } from './jobTitle';
+import { runOfferTriggers } from '@/lib/campaigns/offerTriggers';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded } from '@/lib/demoBooking';
 
@@ -132,6 +133,8 @@ export type ImportResult = {
   newOffers:       number;
   movedToCall:     number;
   createdNotes:    number;
+  /** Contacts inscrits en campagne par les déclencheurs sur offres. */
+  triggered?:      number;
   errorCount:      number;
   errors:          Array<{ row: number; message: string }>;
 };
@@ -454,10 +457,28 @@ export async function runMappedImport(
     },
   });
 
+  // ── 7. Déclencheurs sur offres ───────────────────────────────────────────
+  // Les nouvelles annonces viennent d'arriver : c'est maintenant qu'une offre
+  // de boucher doit partir dans la campagne bouchers, pas au prochain tour de
+  // cron. Sans effet tant qu'aucune règle n'existe.
+  //
+  // Jamais bloquant : un import réussi ne doit pas être rapporté en échec
+  // parce qu'une campagne n'a plus de boîte d'envoi active.
+  let triggered = 0;
+  if (newOffers > 0) {
+    try {
+      const runs = await runOfferTriggers({});
+      triggered = runs.reduce((sum, run) => sum + run.enrolled, 0);
+    } catch (err) {
+      console.error('[import] déclencheurs sur offres', err);
+    }
+  }
+
   return {
     batchId: batch.id, fileName,
     totalRows: entries.length,
     createdDeals, updatedDeals, newOffers, movedToCall, createdNotes,
+    triggered,
     errorCount: errors.length, errors,
   };
 }

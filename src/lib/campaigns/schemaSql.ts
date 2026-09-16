@@ -312,4 +312,53 @@ END $$;`,
   // Filtre « pipeline / étape » de l'écran Leads : il cherche les leads d'une
   // liste d'affaires.
   `CREATE INDEX IF NOT EXISTS "Lead_dealId_idx" ON "Lead"("dealId");`,
+
+  // Déclencheurs sur offres d'emploi : « une offre de boucher sort → le contact
+  // part dans la campagne bouchers ».
+  `CREATE TABLE IF NOT EXISTS "OfferTrigger" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "keywords" TEXT NOT NULL DEFAULT '',
+    "exclude" TEXT NOT NULL DEFAULT '',
+    "campaignId" TEXT NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "pipelineId" TEXT,
+    "brandId" TEXT,
+    "since" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastRunAt" TIMESTAMP(3),
+    "matchedCount" INTEGER NOT NULL DEFAULT 0,
+    "enrolledCount" INTEGER NOT NULL DEFAULT 0,
+    "userName" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OfferTrigger_pkey" PRIMARY KEY ("id")
+  );`,
+  `CREATE TABLE IF NOT EXISTS "OfferTriggerHit" (
+    "id" TEXT NOT NULL,
+    "triggerId" TEXT NOT NULL,
+    "jobOfferId" TEXT NOT NULL,
+    "dealId" TEXT NOT NULL,
+    "leadId" TEXT,
+    "outcome" TEXT NOT NULL,
+    "reason" TEXT NOT NULL DEFAULT '',
+    "offerTitle" TEXT NOT NULL DEFAULT '',
+    "storeName" TEXT NOT NULL DEFAULT '',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OfferTriggerHit_pkey" PRIMARY KEY ("id")
+  );`,
+  `CREATE INDEX IF NOT EXISTS "OfferTrigger_active_idx" ON "OfferTrigger"("active");`,
+  `CREATE INDEX IF NOT EXISTS "OfferTriggerHit_triggerId_createdAt_idx" ON "OfferTriggerHit"("triggerId", "createdAt");`,
+  // C'est cette contrainte qui garantit qu'une offre n'inscrit jamais deux
+  // fois, y compris si deux passages se chevauchent.
+  `CREATE UNIQUE INDEX IF NOT EXISTS "OfferTriggerHit_triggerId_jobOfferId_key" ON "OfferTriggerHit"("triggerId", "jobOfferId");`,
+  `DO $$ BEGIN
+  ALTER TABLE "OfferTrigger" ADD CONSTRAINT "OfferTrigger_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;`,
+  `DO $$ BEGIN
+  ALTER TABLE "OfferTriggerHit" ADD CONSTRAINT "OfferTriggerHit_triggerId_fkey" FOREIGN KEY ("triggerId") REFERENCES "OfferTrigger"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;`,
 ];

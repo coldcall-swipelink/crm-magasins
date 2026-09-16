@@ -61,6 +61,44 @@ export type DealImportReport = {
   leadIds: string[];
 };
 
+/**
+ * Ce qu'on lit d'une affaire pour en faire un lead. Isolé pour que la reprise
+ * en masse et la reprise d'une seule affaire (cf. ensureLeadForDeal) ne
+ * puissent pas diverger : une colonne ajoutée ici l'est des deux côtés.
+ */
+const DEAL_SELECT = {
+  id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
+  contactCalling: true, contactPosition: true,
+  store: { select: { name: true, city: true, brand: { select: { name: true } } } },
+} satisfies Prisma.DealSelect;
+
+type SelectedDeal = {
+  id: string;
+  dealEmail: string;
+  contactCivilite: string;
+  contactLastName: string;
+  contactCalling: string;
+  contactPosition: string;
+  store: { name: string; city: string; brand: { name: string } | null } | null;
+};
+
+/** Mise à plat d'une affaire. Renvoie null si l'adresse est inexploitable. */
+function toDealLead(deal: SelectedDeal): DealLead | null {
+  const email = normalizeEmail(deal.dealEmail);
+  if (!isValidEmail(email)) return null;
+  return {
+    dealId: deal.id,
+    email,
+    civility: normalizeCivility(deal.contactCivilite || ''),
+    lastName: (deal.contactLastName || '').trim(),
+    contactCalling: (deal.contactCalling || '').trim(),
+    company: (deal.store?.brand?.name || '').trim(),
+    jobTitle: (deal.contactPosition || '').trim(),
+    city: (deal.store?.city || '').trim(),
+    store: (deal.store?.name || '').trim(),
+  };
+}
+
 /** Affaires à reprendre, mises à plat. Dédoublonnées sur l'email. */
 async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals: number; withEmail: number }> {
   const scope: Prisma.DealWhereInput = {
@@ -80,11 +118,7 @@ async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals
       // jamais de lead.
       dealEmail: { not: '' },
     },
-    select: {
-      id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
-      contactCalling: true, contactPosition: true,
-      store: { select: { name: true, city: true, brand: { select: { name: true } } } },
-    },
+    select: DEAL_SELECT,
     orderBy: { createdAt: 'desc' },
   });
 
@@ -92,24 +126,13 @@ async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals
   let withEmail = 0;
 
   for (const deal of deals) {
-    const email = normalizeEmail(deal.dealEmail);
-    if (!isValidEmail(email)) continue;
+    const item = toDealLead(deal);
+    if (!item) continue;
     withEmail++;
     // Deux affaires peuvent porter le même contact (groupe de magasins) : la
     // plus récente l'emporte, c'est elle qu'on a saisie en dernier.
-    if (byEmail.has(email)) continue;
-
-    byEmail.set(email, {
-      dealId: deal.id,
-      email,
-      civility: normalizeCivility(deal.contactCivilite || ''),
-      lastName: (deal.contactLastName || '').trim(),
-      contactCalling: (deal.contactCalling || '').trim(),
-      company: (deal.store?.brand?.name || '').trim(),
-      jobTitle: (deal.contactPosition || '').trim(),
-      city: (deal.store?.city || '').trim(),
-      store: (deal.store?.name || '').trim(),
-    });
+    if (byEmail.has(item.email)) continue;
+    byEmail.set(item.email, item);
   }
 
   return { all: Array.from(byEmail.values()), deals: total, withEmail };
@@ -292,4 +315,65 @@ export async function importDealLeads(options: DealScope & {
   });
 
   return report;
+}
+
+/**
+ * Le lead d'une affaire, créé si besoin.
+ *
+ * Utilisé par les déclencheurs sur offres : quand une offre correspond à une
+ * règle, il faut un lead à inscrire, et l'affaire n'en a pas toujours un — elle
+ * n'est peut-être jamais passée par la reprise depuis le CRM. Plutôt que de
+ * laisser la règle sans effet, on reprend l'affaire à ce moment-là, exactement
+ * comme le ferait l'import.
+ *
+ * Renvoie `null` avec la raison quand c'est impossible (affaire sans adresse
+ * exploitable) : l'appelant en fait une ligne de journal plutôt qu'une erreur.
+ */
+export async function ensureLeadForDeal(dealId: string, userName?: string): Promise<
+  { leadId: string; created: boolean } | { leadId: null; reason: string }
+> {
+  // Rattachement explicite d'abord : c'est le lien posé par la reprise.
+  const linked = await prisma.lead.findFirst({ where: { dealId }, select: { id: true } });
+  if (linked) return { leadId: linked.id, created: false };
+
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: DEAL_SELECT });
+  if (!deal) return { leadId: null, reason: 'Affaire introuvable' };
+
+  const item = toDealLead(deal);
+  if (!item) {
+    return { leadId: null, reason: "L'affaire n'a pas d'adresse email exploitable" };
+  }
+
+  // À défaut de rattachement, l'adresse : un lead importé d'un fichier porte
+  // la même adresse que l'affaire sans jamais avoir été relié. On enregistre
+  // le rattachement au passage.
+  const byEmail = await prisma.lead.findUnique({ where: { email: item.email }, select: { id: true } });
+  if (byEmail) {
+    await prisma.lead.update({ where: { id: byEmail.id }, data: { dealId } }).catch(() => {});
+    return { leadId: byEmail.id, created: false };
+  }
+
+  const lead = await prisma.lead.create({
+    data: {
+      email: item.email,
+      civility: item.civility || null,
+      lastName: item.lastName || null,
+      contactCalling: item.contactCalling || null,
+      company: item.company || null,
+      jobTitle: item.jobTitle || null,
+      city: item.city || null,
+      customFields: (item.store ? { magasin: item.store } : {}) as Prisma.InputJsonValue,
+      source: 'CRM — offre détectée',
+      dealId: item.dealId,
+      events: {
+        create: {
+          type: 'imported',
+          label: "Repris depuis une affaire du CRM (offre détectée)",
+          userName: userName || null,
+        },
+      },
+    },
+    select: { id: true },
+  });
+  return { leadId: lead.id, created: true };
 }
