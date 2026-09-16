@@ -3,12 +3,13 @@
 //
 // Onglet « Campagnes » : l'outil de séquences d'emails.
 //
-// Livré par étapes. Aujourd'hui : les leads (import, suivi un par un) et les
-// boîtes d'envoi (connexion SMTP/IMAP directe à Google Workspace et OVH).
-// À suivre : les séquences et leur moteur d'envoi, puis les tableaux de bord.
+// Trois écrans : les campagnes (séquences d'emails et leur suivi), les leads
+// (import, statuts, notes) et les boîtes d'envoi (connexion SMTP/IMAP directe
+// à Google Workspace et OVH).
 
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import CampaignsPanel from '@/components/campaigns/CampaignsPanel';
 import LeadsPanel from '@/components/campaigns/LeadsPanel';
 import MailboxesPanel from '@/components/campaigns/MailboxesPanel';
 
@@ -21,7 +22,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key'];
 
 export default function CampagnesPage() {
-  const [tab, setTab] = useState<TabKey>('leads');
+  const [tab, setTab] = useState<TabKey>('campaigns');
 
   return (
     <AppLayout>
@@ -46,29 +47,9 @@ export default function CampagnesPage() {
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {tab === 'leads' && <LeadsPanel />}
           {tab === 'mailboxes' && <MailboxesPanel />}
-          {tab === 'campaigns' && <CampaignsPlaceholder onGoToMailboxes={() => setTab('mailboxes')} />}
+          {tab === 'campaigns' && <CampaignsPanel onGoToMailboxes={() => setTab('mailboxes')} />}
         </div>
       </div>
     </AppLayout>
-  );
-}
-
-/** Étape suivante du chantier : le moteur de séquences. */
-function CampaignsPlaceholder({ onGoToMailboxes }: { onGoToMailboxes: () => void }) {
-  return (
-    <div style={{ padding: '40px 24px', maxWidth: 640 }}>
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Séquences d&apos;emails — en cours de développement</div>
-        <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
-          Les briques nécessaires sont en place : les <strong>leads</strong> avec leurs champs
-          personnalisés, et les <strong>boîtes d&apos;envoi</strong> connectées en direct.
-          L&apos;étape suivante ajoute la création de campagnes (étapes, délais d&apos;attente,
-          arrêt automatique dès qu&apos;un lead répond), puis les tableaux de bord.
-        </div>
-        <button onClick={onGoToMailboxes} style={{ marginTop: 16, padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontSize: 13, cursor: 'pointer' }}>
-          Connecter une boîte d&apos;envoi
-        </button>
-      </div>
-    </div>
   );
 }

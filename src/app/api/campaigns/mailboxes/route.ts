@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   const check = await checkMailbox({
     ...draft,
-    id: 'draft', imapCursor: null, imapValidity: null, active: true,
+    id: 'draft', imapCursor: null, imapValidity: null, active: true, nextSendAt: null,
     lastCheckAt: null, lastCheckOk: null, lastError: null, lastSyncAt: null,
     warmupStartedAt: null, createdAt: new Date(), updatedAt: new Date(),
   });

@@ -852,8 +852,17 @@ model Mailbox {
   lastError   String?
   lastSyncAt  DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Espacement des envois : heure à partir de laquelle cette boîte peut
+  // renvoyer. Tenue par le moteur, qui tire un délai aléatoire après chaque
+  // envoi — deux passages simultanés ne peuvent donc pas doubler la cadence.
+  nextSendAt DateTime?
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  campaigns   CampaignMailbox[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+  replies     CampaignReply[]
 
   @@index([active])
 }
@@ -910,8 +919,11 @@ model Lead {
   unsubscribedAt  DateTime?
   bouncedAt       DateTime?
 
-  notes  LeadNote[]
-  events LeadEvent[]
+  notes       LeadNote[]
+  events      LeadEvent[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+  replies     CampaignReply[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -968,4 +980,199 @@ model LeadEvent {
   createdAt DateTime @default(now())
 
   @@index([leadId, createdAt])
+}
+
+// ─── Campagnes : séquences, inscriptions, messages ─────────────────────────
+//
+// Étape 2 du chantier. Le vocabulaire :
+//   • Campaign   — une séquence, ses réglages et ses boîtes d'envoi ;
+//   • CampaignStep — une étape de la séquence (un email + son délai d'attente) ;
+//   • Enrollment — UN lead DANS une campagne. C'est l'objet que l'on arrête
+//     individuellement : stopper un lead ne touche pas les autres ;
+//   • CampaignMessage — un email réellement parti (ou en échec), qui porte le
+//     suivi d'ouverture.
+//
+// Le moteur (src/lib/campaigns/engine.ts) ne regarde jamais une campagne dans
+// son ensemble : il relève les inscriptions dont l'heure est venue, boîte par
+// boîte, en respectant les garde-fous de chacune.
+
+model Campaign {
+  id          String @id @default(cuid())
+  name        String
+  description String @default("")
+  // draft (jamais lancée) · running · paused · finished · archived
+  status      String @default("draft")
+
+  // Arrêt automatique de la séquence dès qu'un lead répond. C'est le
+  // comportement attendu d'un outil de prospection ; désactivable au cas où.
+  stopOnReply    Boolean @default(true)
+  // Pixel de suivi d'ouverture. Les liens ne sont pas réécrits (pas de suivi
+  // de clic) : les emails restent propres pour la délivrabilité.
+  trackOpens     Boolean @default(true)
+  // Lien de désinscription ajouté en bas de chaque email + en-tête
+  // List-Unsubscribe. Vivement conseillé en prospection à froid.
+  addUnsubscribe Boolean @default(true)
+
+  steps       CampaignStep[]
+  mailboxes   CampaignMailbox[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+
+  userName   String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+}
+
+// Boîtes utilisées par une campagne. Plusieurs boîtes = rotation : chaque lead
+// reçoit toute la séquence depuis UNE seule d'entre elles (le fil reste
+// cohérent), mais le volume se répartit entre elles.
+model CampaignMailbox {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mailboxId  String
+  mailbox    Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, mailboxId])
+}
+
+// Une étape de la séquence : le délai d'attente, puis l'email.
+model CampaignStep {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // Rang dans la séquence, à partir de 1.
+  position   Int
+  // Attente AVANT cette étape, comptée depuis l'envoi précédent (0 pour la
+  // première, qui part dès l'inscription). En heures : « 3 jours » = 72.
+  delayHours Int      @default(0)
+
+  subject       String  @default("")
+  // Deux corps : le texte simple (converti en HTML sobre à l'envoi, le plus
+  // sûr pour la délivrabilité) et le HTML libre pour un email commercial.
+  // `useHtml` dit lequel part réellement.
+  bodyText      String  @default("")
+  bodyHtml      String  @default("")
+  useHtml       Boolean @default(false)
+  // Relance dans le MÊME fil que l'email précédent (« Re: … », en-têtes
+  // In-Reply-To / References). Décoché : nouvel email indépendant.
+  replyToThread Boolean @default(true)
+
+  messages  CampaignMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([campaignId, position])
+}
+
+// Un lead inscrit dans une campagne : l'unité de pilotage du moteur.
+model CampaignEnrollment {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // active · paused · finished · stopped
+  status     String  @default("active")
+  // Pourquoi l'inscription s'est arrêtée : replied · manual · unsubscribed ·
+  // bounced · failed · completed. Affiché tel quel dans la fiche campagne.
+  stopReason String?
+
+  // Nombre d'étapes déjà envoyées (0 = rien n'est encore parti).
+  sentSteps  Int       @default(0)
+  // Heure du prochain envoi. C'est LE champ que relève le moteur.
+  nextSendAt DateTime?
+
+  // Boîte affectée à ce lead, tirée à l'inscription et conservée : toute la
+  // séquence part de la même adresse, sinon le fil de discussion se casse.
+  mailboxId       String?
+  mailbox         Mailbox? @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+  // Message-ID et sujet du premier email : servent à accrocher les relances
+  // au même fil de discussion.
+  threadMessageId String?
+  threadSubject   String?
+
+  messages CampaignMessage[]
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Un lead ne peut être inscrit qu'une fois dans une même campagne.
+  @@unique([campaignId, leadId])
+  // File du moteur : « les inscriptions actives dont l'heure est venue ».
+  @@index([status, nextSendAt])
+  @@index([campaignId, status])
+}
+
+// Un email de campagne réellement parti (ou tenté).
+model CampaignMessage {
+  id           String             @id @default(cuid())
+  campaignId   String
+  campaign     Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollmentId String
+  enrollment   CampaignEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId       String?
+  step         CampaignStep?      @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  leadId       String
+  lead         Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  mailboxId    String?
+  mailbox      Mailbox?           @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+
+  stepPosition Int     @default(1)
+  // sent · failed
+  status       String  @default("sent")
+  toAddress    String
+  fromAddress  String
+  subject      String
+  bodyHtml     String
+  // Message-ID RFC 5322 de l'email envoyé : point d'accroche des relances ET
+  // du rattachement des réponses.
+  messageId    String?
+  error        String?
+
+  // Suivi d'ouverture : identifiant du pixel (jamais l'id du message, qui ne
+  // doit pas circuler dans une URL publique).
+  trackingId String    @unique @default(cuid())
+  openedAt   DateTime?
+  openCount  Int       @default(0)
+  repliedAt  DateTime?
+
+  sentAt DateTime @default(now())
+
+  // Tableaux de bord : « les messages d'une campagne sur une période ».
+  @@index([campaignId, sentAt])
+  @@index([messageId])
+  @@index([leadId])
+}
+
+// Une réponse reçue sur une boîte d'envoi, relevée en IMAP.
+// Conservée telle quelle : c'est la preuve de l'arrêt d'une séquence, et
+// l'extrait s'affiche dans la fiche du lead.
+model CampaignReply {
+  id         String   @id @default(cuid())
+  mailboxId  String?
+  mailbox    Mailbox? @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId String?
+
+  fromAddress String
+  subject     String   @default("")
+  snippet     String   @default("")
+  messageId   String?
+  inReplyTo   String?
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Déduplication entre deux relevés.
+  @@unique([mailboxId, messageId])
+  @@index([leadId, receivedAt])
 }
