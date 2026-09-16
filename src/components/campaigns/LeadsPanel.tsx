@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import LeadDrawer, { type LeadRow } from './LeadDrawer';
+import DealImportModal from './DealImportModal';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
 import { btnDef, btnPri, inp } from './ui';
@@ -27,6 +28,7 @@ export default function LeadsPanel() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [fromCrm, setFromCrm] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -63,7 +65,8 @@ export default function LeadsPanel() {
           <input style={{ ...inp, width: 280 }} placeholder="Rechercher (email, nom, enseigne…)"
             value={query} onChange={e => setQuery(e.target.value)} />
           <div style={{ fontSize: 12, color: '#9aa1b4' }}>{total} lead{total > 1 ? 's' : ''}</div>
-          <button style={{ ...btnDef, marginLeft: 'auto' }} onClick={() => setCreating(true)}>+ Nouveau lead</button>
+          <button style={{ ...btnDef, marginLeft: 'auto' }} onClick={() => setFromCrm(true)}>Importer depuis le CRM</button>
+          <button style={btnDef} onClick={() => setCreating(true)}>+ Nouveau lead</button>
           <button style={btnPri} onClick={() => setImporting(true)}>+ Importer un CSV</button>
         </div>
 
@@ -149,6 +152,10 @@ export default function LeadsPanel() {
 
       {creating && (
         <LeadFormModal userName={user?.name} onClose={() => setCreating(false)} onSaved={load} />
+      )}
+
+      {fromCrm && (
+        <DealImportModal userName={user?.name} onClose={() => setFromCrm(false)} onDone={load} />
       )}
     </div>
   );

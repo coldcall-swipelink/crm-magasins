@@ -163,7 +163,7 @@ export function isValidEmail(value: string): boolean {
 }
 
 /** Civilité ramenée à une forme courte et homogène (M. / Mme). */
-function normalizeCivility(value: string): string {
+export function normalizeCivility(value: string): string {
   const v = normalizeHeader(value);
   if (!v) return '';
   if (/^(m|mr|monsieur|mister|sir)$/.test(v)) return 'M.';
