@@ -7,8 +7,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { campaignStats } from '@/lib/campaigns/stats';
+import { runDueSends } from '@/lib/campaigns/engine';
 
 export const dynamic = 'force-dynamic';
+// Le lancement déclenche un premier passage du moteur : il lui faut du temps.
+export const maxDuration = 60;
 
 const VALID_STATUS = ['draft', 'running', 'paused', 'finished', 'archived'];
 
@@ -96,7 +99,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     },
   });
 
-  return NextResponse.json({ campaign });
+  // Lancement : la première salve part immédiatement, sans attendre le cron.
+  // « Lancer la campagne » doit produire un effet visible tout de suite.
+  let sent = 0;
+  if (data.status === 'running') {
+    try {
+      const result = await runDueSends({
+        budgetMs: 20_000,
+        mailboxIds: campaign.mailboxes.map(link => link.mailboxId),
+      });
+      sent = result.sent;
+    } catch (err) {
+      console.error('[campaigns/PATCH] première salve', err);
+    }
+  }
+
+  return NextResponse.json({ campaign, sent });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

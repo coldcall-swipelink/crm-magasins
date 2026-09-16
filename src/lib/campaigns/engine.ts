@@ -26,6 +26,17 @@ import {
 /** Budget de temps d'un passage, en millisecondes (marge sous maxDuration). */
 const DEFAULT_BUDGET_MS = 240_000;
 
+/** Clé AppSetting où l'on note l'heure du dernier passage du moteur. */
+export const LAST_RUN_KEY = 'campaigns:lastRunAt';
+
+/** Heure du dernier passage du moteur, ou null s'il n'a jamais tourné. */
+export async function lastEngineRun(): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: LAST_RUN_KEY } });
+  if (!row?.value) return null;
+  const date = new Date(row.value);
+  return isNaN(date.getTime()) ? null : date;
+}
+
 export type RunResult = {
   sent: number;
   failed: number;
@@ -43,12 +54,23 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  * Les boîtes travaillent en parallèle (elles sont indépendantes), les envois
  * d'une même boîte restent séquentiels et espacés.
  */
-export async function runDueSends(options: { budgetMs?: number; now?: Date } = {}): Promise<RunResult> {
+export async function runDueSends(
+  options: { budgetMs?: number; now?: Date; mailboxIds?: string[] } = {},
+): Promise<RunResult> {
   const budgetMs = options.budgetMs ?? DEFAULT_BUDGET_MS;
   const deadline = Date.now() + budgetMs;
   const now = options.now ?? new Date();
 
   const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [] };
+
+  // Battement de cœur : sans cette trace, un planificateur qui ne tourne pas
+  // est invisible — l'interface montre une file qui n'avance pas, sans dire
+  // que personne ne la relève. C'est le premier diagnostic à faire.
+  await prisma.appSetting.upsert({
+    where: { key: LAST_RUN_KEY },
+    update: { value: now.toISOString() },
+    create: { key: LAST_RUN_KEY, value: now.toISOString() },
+  }).catch(() => { /* la trace ne doit jamais empêcher un envoi */ });
 
   // Reprise après incident : une inscription laissée « sending » par un passage
   // interrompu (fonction coupée, redéploiement) resterait bloquée pour
@@ -62,7 +84,14 @@ export async function runDueSends(options: { budgetMs?: number; now?: Date } = {
     console.warn(`[campaigns/engine] ${stale.count} inscription(s) remise(s) en file après interruption`);
   }
 
-  const mailboxes = await prisma.mailbox.findMany({ where: { active: true } });
+  const mailboxes = await prisma.mailbox.findMany({
+    where: {
+      active: true,
+      // Envoi immédiat déclenché depuis une campagne : on ne relève que SES
+      // boîtes, pour ne pas faire attendre l'utilisateur sur la file des autres.
+      ...(options.mailboxIds?.length ? { id: { in: options.mailboxIds } } : {}),
+    },
+  });
   if (mailboxes.length === 0) {
     result.skipped.push({ mailbox: '—', reason: 'Aucune boîte active' });
     return result;

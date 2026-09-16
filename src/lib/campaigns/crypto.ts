@@ -78,12 +78,23 @@ export function decryptSecret(stored: string): string {
   }
   const [, ivB64, tagB64, dataB64] = parts;
 
-  const decipher = createDecipheriv(ALGO, k, Buffer.from(ivB64, 'base64'));
-  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
-  return Buffer.concat([
-    decipher.update(Buffer.from(dataB64, 'base64')),
-    decipher.final(),
-  ]).toString('utf8');
+  try {
+    const decipher = createDecipheriv(ALGO, k, Buffer.from(ivB64, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+    return Buffer.concat([
+      decipher.update(Buffer.from(dataB64, 'base64')),
+      decipher.final(),
+    ]).toString('utf8');
+  } catch {
+    // GCM refuse le déchiffrement : la clé n'est pas celle qui a servi à
+    // chiffrer. Le message brut (« Unsupported state or unable to authenticate
+    // data ») n'aide personne ; celui-ci dit quoi faire.
+    throw new Error(
+      "Mot de passe illisible : il a été chiffré avec une autre valeur de CAMPAIGN_SECRET_KEY. "
+      + 'Vérifiez que la clé est bien la même dans tous les environnements, puis ressaisissez le '
+      + 'mot de passe de cette boîte.',
+    );
+  }
 }
 
 /**

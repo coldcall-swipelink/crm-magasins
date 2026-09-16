@@ -104,7 +104,9 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
       if (!res.ok) { toast(data.error || 'Inscription impossible', 'error'); return; }
 
       const reasons = Object.entries(data.reasons || {}).map(([reason, count]) => `${count} ${reason}`).join(', ');
-      toast(`${data.enrolled} lead(s) inscrit(s)${data.skipped ? ` · ${data.skipped} écarté(s) : ${reasons}` : ''}`);
+      toast(`${data.enrolled} lead(s) inscrit(s)`
+        + (data.skipped ? ` · ${data.skipped} écarté(s) : ${reasons}` : '')
+        + (data.sent ? ` · ${data.sent} email(s) déjà parti(s)` : ''));
       onDone();
       onClose();
     } finally {
