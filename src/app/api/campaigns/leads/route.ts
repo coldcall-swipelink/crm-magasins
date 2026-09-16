@@ -28,6 +28,33 @@ export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 50;
 
 export async function GET(req: NextRequest) {
+  try {
+    return await listLeads(req);
+  } catch (err) {
+    // Une liste qui échoue ne doit JAMAIS ressembler à une liste vide : dire
+    // « aucun lead » quand la requête est tombée, c'est annoncer une perte de
+    // données qui n'a pas eu lieu. On renvoie l'erreur telle quelle, à charge
+    // pour l'écran de l'afficher.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[GET /api/campaigns/leads]', err);
+
+    // Cas connu : le schéma de la base est en retard sur le code déployé (une
+    // colonne ajoutée par une mise en production dont la synchronisation n'a
+    // pas abouti). Les leads sont intacts — seule la lecture échoue.
+    const missingColumn = /column .* does not exist|P2022/i.test(message);
+    return NextResponse.json({
+      error: missingColumn
+        ? "La base est en retard sur l'application : une colonne ajoutée par la "
+          + 'dernière mise en production manque encore. Vos leads sont intacts, '
+          + "ils ne peuvent simplement pas être lus. Ouvrez /api/admin/db-sync?token=sync-crm-2026 "
+          + 'pour rattraper le schéma, puis rechargez cette page.'
+        : `Lecture des leads impossible : ${message}`,
+      detail: message,
+    }, { status: 500 });
+  }
+}
+
+async function listLeads(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const q = (params.get('q') || '').trim();
   const status = (params.get('status') || '').trim();
