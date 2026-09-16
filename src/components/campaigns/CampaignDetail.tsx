@@ -13,6 +13,7 @@ import { toast } from '@/components/ui/Toast';
 import SequenceEditor, { type Step } from './SequenceEditor';
 import CampaignLeadsTab from './CampaignLeadsTab';
 import CampaignStatsTab, { type Stats } from './CampaignStatsTab';
+import MessagesHistory from './MessagesHistory';
 import { CAMPAIGN_STATUS, btnDef, btnPri, btnXs, card, inp, label } from './ui';
 
 type Campaign = {
@@ -28,6 +29,7 @@ type MailboxOption = { id: string; email: string; displayName: string; active: b
 const TABS = [
   { key: 'sequence', label: 'Séquence' },
   { key: 'leads',    label: 'Leads' },
+  { key: 'history',  label: 'Historique' },
   { key: 'stats',    label: 'Statistiques' },
   { key: 'settings', label: 'Réglages' },
 ] as const;
@@ -134,6 +136,7 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
 
       {tab === 'sequence' && <SequenceEditor campaignId={campaignId} steps={campaign.steps} onChanged={load} />}
       {tab === 'leads' && <CampaignLeadsTab campaignId={campaignId} onChanged={load} />}
+      {tab === 'history' && <MessagesHistory campaignId={campaignId} />}
       {tab === 'stats' && <CampaignStatsTab stats={stats} trackOpens={campaign.trackOpens} />}
       {tab === 'settings' && (
         <SettingsTab campaign={campaign} mailboxes={mailboxes} onPatch={patch} onDelete={remove} />
