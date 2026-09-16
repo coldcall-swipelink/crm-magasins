@@ -3,9 +3,10 @@
 //
 // Onglet « Campagnes » : l'outil de séquences d'emails.
 //
-// Trois écrans : les campagnes (séquences d'emails et leur suivi), les leads
-// (import, statuts, notes) et les boîtes d'envoi (connexion SMTP/IMAP directe
-// à Google Workspace et OVH).
+// Cinq écrans : la vue d'ensemble, les campagnes (séquences d'emails et leur
+// suivi), les leads (import, statuts, notes), l'historique des emails — partis
+// et à venir, toutes campagnes confondues — et les boîtes d'envoi (connexion
+// SMTP/IMAP directe à Google Workspace et OVH).
 
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
@@ -13,11 +14,13 @@ import CampaignsPanel from '@/components/campaigns/CampaignsPanel';
 import DashboardPanel from '@/components/campaigns/DashboardPanel';
 import LeadsPanel from '@/components/campaigns/LeadsPanel';
 import MailboxesPanel from '@/components/campaigns/MailboxesPanel';
+import MessagesHistory from '@/components/campaigns/MessagesHistory';
 
 const TABS = [
   { key: 'overview',  label: "Vue d'ensemble" },
   { key: 'campaigns', label: 'Campagnes' },
   { key: 'leads',     label: 'Leads' },
+  { key: 'history',   label: 'Historique' },
   { key: 'mailboxes', label: "Boîtes d'envoi" },
 ] as const;
 
@@ -49,6 +52,7 @@ export default function CampagnesPage() {
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {tab === 'overview' && <DashboardPanel onOpenCampaigns={() => setTab('campaigns')} />}
           {tab === 'leads' && <LeadsPanel />}
+          {tab === 'history' && <MessagesHistory />}
           {tab === 'mailboxes' && <MailboxesPanel />}
           {tab === 'campaigns' && <CampaignsPanel onGoToMailboxes={() => setTab('mailboxes')} />}
         </div>
