@@ -14,6 +14,7 @@ const NAV = [
   { href: '/carte',     label: 'Carte',         icon: '🗺️' },
   { href: '/import',    label: 'Importer CSV',  icon: '📥' },
   { href: '/offres-recues', label: 'Offres reçues', icon: '📨' },
+  { href: '/campagnes', label: 'Campagnes',     icon: '📣' },
   { href: '/history',   label: 'Historique',    icon: '🕐' },
   { href: '/actions',   label: 'Actions',       icon: '✅' },
   { href: '/settings',  label: 'Paramètres',    icon: '⚙️' },

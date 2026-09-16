@@ -3,6 +3,14 @@
     {
       "path": "/api/emails/send-scheduled",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/campaigns/run",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/campaigns/sync-replies",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

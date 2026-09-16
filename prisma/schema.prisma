@@ -17,26 +17,26 @@ model Brand {
 }
 
 model Store {
-  id               String   @id @default(cuid())
-  brandId          String?
-  brand            Brand?   @relation(fields: [brandId], references: [id])
-  name             String
-  normalizedName   String
-  city             String   @default("")
-  postalCode       String   @default("")
-  department       String   @default("")
-  address          String   @default("")
-  phone            String   @default("")
-  email            String   @default("")
-  siret            String   @default("")
-  externalId       String   @default("")
-  deduplicationKey String   @unique
+  id                String      @id @default(cuid())
+  brandId           String?
+  brand             Brand?      @relation(fields: [brandId], references: [id])
+  name              String
+  normalizedName    String
+  city              String      @default("")
+  postalCode        String      @default("")
+  department        String      @default("")
+  address           String      @default("")
+  phone             String      @default("")
+  email             String      @default("")
+  siret             String      @default("")
+  externalId        String      @default("")
+  deduplicationKey  String      @unique
   // Coordonnées GPS issues du géocodage de l'adresse (API BAN data.gouv).
   // Mises en cache pour éviter de re-géocoder à chaque ouverture de la carte.
-  latitude         Float?
-  longitude        Float?
-  geocodedAt       DateTime?
-  geocodeQuery     String   @default("")
+  latitude          Float?
+  longitude         Float?
+  geocodedAt        DateTime?
+  geocodeQuery      String      @default("")
   // ── Recherche automatique du numéro de téléphone (cf. src/lib/phone) ──
   // Le numéro du magasin est retrouvé sur OpenStreetMap puis, à défaut, sur la
   // fiche Google de l'établissement. Ces colonnes gardent la trace de la
@@ -47,15 +47,15 @@ model Store {
   //                       | "introuvable" | "erreur"
   //   phoneCandidates   : numéros proposés + indices de correspondance, servant
   //                       à la file de revue (statut "a_verifier").
-  phoneSource       String   @default("")
-  phoneLookupStatus String   @default("")
+  phoneSource       String      @default("")
+  phoneLookupStatus String      @default("")
   phoneLookupAt     DateTime?
   phoneCandidates   Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deal             Deal?
-  jobOffers        JobOffer[]
-  importRows       ImportRow[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deal              Deal?
+  jobOffers         JobOffer[]
+  importRows        ImportRow[]
 
   @@index([phoneLookupStatus])
 }
@@ -85,25 +85,27 @@ model SubscriptionType {
 // qui est connecté, qui suit un deal, à qui une action est assignée et qui
 // rédige une note.
 model User {
-  id              String   @id @default(cuid())
-  name            String   @unique
+  id                  String         @id @default(cuid())
+  name                String         @unique
   // Identifiants de connexion. Optionnels pour ne pas casser les utilisateurs
   // historiques créés à la volée (assignation d'affaires) sans compte : seuls
   // les comptes disposant d'un email + passwordHash peuvent se connecter.
-  email           String?  @unique
-  passwordHash    String?  // hash scrypt « salt:hash » — jamais renvoyé au client
-  color           String   @default("#6366f1")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  assignedDeals   Deal[]
-  assignedActions Action[]
-  authoredNotes   Note[]
-  callLogs        CallLog[]
-  dealMoves       DealMove[]
-  demoBookings    DemoBooking[] @relation("DemoBookedBy")
-  demosDone       DemoBooking[] @relation("DemoDoneBy")
+  email               String?        @unique
+  passwordHash        String? // hash scrypt « salt:hash » — jamais renvoyé au client
+  color               String         @default("#6366f1")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  assignedDeals       Deal[]
+  assignedActions     Action[]
+  authoredNotes       Note[]
+  callLogs            CallLog[]
+  dealMoves           DealMove[]
+  demoBookings        DemoBooking[]  @relation("DemoBookedBy")
+  demosDone           DemoBooking[]  @relation("DemoDoneBy")
   closedSubscriptions Subscription[]
-  closingEvents   ClosingEvent[]
+  closingEvents       ClosingEvent[]
+  // Leads de prospection (outil Campagnes) dont l'utilisateur a la charge.
+  campaignLeads       Lead[]
 }
 
 model Pipeline {
@@ -113,9 +115,9 @@ model Pipeline {
   color     String   @default("#6366f1")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  columns   PipelineColumn[]
-  deals     Deal[]
+
+  columns PipelineColumn[]
+  deals   Deal[]
 }
 
 model PipelineColumn {
@@ -128,50 +130,50 @@ model PipelineColumn {
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
-  deals      Deal[]
+
+  deals Deal[]
 }
 
 model Deal {
-  id                        String   @id @default(cuid())
+  id                        String              @id @default(cuid())
   pipelineId                String
-  pipeline                  Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  storeId                   String   @unique
-  store                     Store    @relation(fields: [storeId], references: [id])
+  pipeline                  Pipeline            @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  storeId                   String              @unique
+  store                     Store               @relation(fields: [storeId], references: [id])
   columnId                  String
-  column                    PipelineColumn @relation(fields: [columnId], references: [id])
+  column                    PipelineColumn      @relation(fields: [columnId], references: [id])
   previousColumnId          String?
   // Regroupement d'affaires : un « gros » deal peut en absorber d'autres
   // (autres magasins d'un même groupe). Un sous-deal disparaît du pipeline et
   // reste accessible via son parent ou la recherche. Limité à un seul niveau.
   parentDealId              String?
-  parentDeal                Deal?    @relation("DealHierarchy", fields: [parentDealId], references: [id], onDelete: SetNull)
-  childDeals                Deal[]   @relation("DealHierarchy")
-  priority                  String   @default("normale")
+  parentDeal                Deal?               @relation("DealHierarchy", fields: [parentDealId], references: [id], onDelete: SetNull)
+  childDeals                Deal[]              @relation("DealHierarchy")
+  priority                  String              @default("normale")
   // Tag commercial : true = Prospection de Valeur (PV), false = Prospection
   // Classique (PC). Affiché sous forme de puce à cocher sur chaque affaire.
-  isPV                      Boolean  @default(true)
+  isPV                      Boolean             @default(true)
   // Mode de paiement choisi pour les affaires en étape « SMARTLINKÉ » :
   // "stripe" (par défaut) ou "virement". Affiché sous forme d'interrupteur sur
   // la fiche affaire uniquement quand l'affaire est dans cette étape.
-  paymentMode               String   @default("stripe")
-  position                  Int      @default(0)
-  isNewFromLastImport       Boolean  @default(false)
-  hasNewOfferFromLastImport Boolean  @default(false)
-  isPresentInLastImport     Boolean  @default(true)
+  paymentMode               String              @default("stripe")
+  position                  Int                 @default(0)
+  isNewFromLastImport       Boolean             @default(false)
+  hasNewOfferFromLastImport Boolean             @default(false)
+  isPresentInLastImport     Boolean             @default(true)
   movedToCallAt             DateTime?
   lastImportAt              DateTime?
-  directeur                 String   @default("")
-  contactCalling            String   @default("")
+  directeur                 String              @default("")
+  contactCalling            String              @default("")
   // Fonction du contact calling, choisie directement depuis la deal card.
-  contactPosition           String   @default("")
-  dealEmail                 String   @default("")
-  contactCivilite           String   @default("Monsieur")
-  contactLastName           String   @default("")
+  contactPosition           String              @default("")
+  dealEmail                 String              @default("")
+  contactCivilite           String              @default("Monsieur")
+  contactLastName           String              @default("")
   // Numéro de téléphone du contact, saisi manuellement sur la fiche affaire.
   // Masqué par défaut : il faut cliquer sur « Afficher le numéro » pour le
   // dévoiler, et ce clic est comptabilisé comme un appel (cf. CallLog).
-  contactPhone              String   @default("")
+  contactPhone              String              @default("")
   dealValue                 Float?
   demoDate                  DateTime?
   // Date du DERNIER booking de démo (dernière entrée dans « DEMO PREVUE » du
@@ -185,11 +187,11 @@ model Deal {
   closingDate               DateTime?
   // ----- Abonnement (onglet « Abonnement » de la fiche affaire) -----
   // Nom du type d'abonnement choisi (liste configurable dans Paramètres).
-  subscriptionType          String   @default("")
+  subscriptionType          String              @default("")
   // Cadence de paiement : "comptant" (par défaut) ou "mensuel".
-  paymentTiming             String   @default("comptant")
+  paymentTiming             String              @default("comptant")
   // Durée totale de l'abonnement en mois (1 an = 12 par défaut).
-  subscriptionMonths        Int      @default(12)
+  subscriptionMonths        Int                 @default(12)
   // Date de fin calculée automatiquement = closingDate + subscriptionMonths.
   subscriptionEndDate       DateTime?
   googleEventId             String?
@@ -199,7 +201,7 @@ model Deal {
   supabaseOrganizationId    String?
   // True quand l'utilisateur a géré manuellement les organisations rattachées :
   // on n'exécute alors plus le rattachement automatique par nom.
-  supabaseOrgManual         Boolean  @default(false)
+  supabaseOrgManual         Boolean             @default(false)
   // Date du premier relevé des offres produit (Supabase) rattachées à l'affaire.
   // Sert de ligne de base : les offres déjà présentes lors de ce premier relevé
   // sont marquées « lues » (pré-existantes) ; seules les offres créées ENSUITE
@@ -210,11 +212,11 @@ model Deal {
   // pipeline sans avoir à compter les emails de chaque affaire.
   lastEmailReplyAt          DateTime?
   collaboratorId            String?
-  collaborator              Collaborator? @relation(fields: [collaboratorId], references: [id])
+  collaborator              Collaborator?       @relation(fields: [collaboratorId], references: [id])
   assignedUserId            String?
-  assignedUser              User?    @relation(fields: [assignedUserId], references: [id])
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  assignedUser              User?               @relation(fields: [assignedUserId], references: [id])
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
   jobOffers                 JobOffer[]
   actions                   Action[]
   notes                     Note[]
@@ -244,16 +246,16 @@ model Deal {
 // porte sa propre valeur, son type, son mode/cadence de paiement, sa date de
 // closing et sa durée (→ date de fin calculée).
 model Subscription {
-  id                  String   @id @default(cuid())
+  id                  String        @id @default(cuid())
   dealId              String
-  deal                Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  position            Int      @default(0)
+  deal                Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  position            Int           @default(0)
   value               Float?
-  subscriptionType    String   @default("")
-  paymentMode         String   @default("stripe")
-  paymentTiming       String   @default("comptant")
+  subscriptionType    String        @default("")
+  paymentMode         String        @default("stripe")
+  paymentTiming       String        @default("comptant")
   closingDate         DateTime?
-  subscriptionMonths  Int      @default(12)
+  subscriptionMonths  Int           @default(12)
   subscriptionEndDate DateTime?
   // Qui a closé ce contrat. Choisi dans la liste déroulante de la pop-up
   // « Date de closing » (déplacement vers SMARTLINKÉ) : le closeur n'est pas
@@ -261,17 +263,17 @@ model Subscription {
   // est figé, comme partout ailleurs, pour que la statistique reste lisible si
   // le compte est renommé ou supprimé.
   closedByUserId      String?
-  closedByUser        User?    @relation(fields: [closedByUserId], references: [id], onDelete: SetNull)
-  closedByName        String   @default("")
+  closedByUser        User?         @relation(fields: [closedByUserId], references: [id], onDelete: SetNull)
+  closedByName        String        @default("")
   // CHURN : abonnement résilié. Quand true, la valeur de l'abonnement est
   // exclue du MRR et de toutes les autres données du Dashboard (route de closing
   // et analyses de l'assistant IA).
-  churned             Boolean  @default(false)
+  churned             Boolean       @default(false)
   // Date de résiliation (churn), saisie via la pop-up au cochage de la case.
   // Sert à rattacher le client perdu à la bonne période pour le taux de churn.
   churnedAt           DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
   // Trace du closing (table ClosingEvent) : au plus une ligne par abonnement,
   // créée quand sa date de closing est renseignée pour la première fois.
   closingEvent        ClosingEvent?
@@ -280,26 +282,26 @@ model Subscription {
 }
 
 model JobOffer {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   dealId          String
-  deal            Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deal            Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
   storeId         String
-  store           Store    @relation(fields: [storeId], references: [id])
+  store           Store       @relation(fields: [storeId], references: [id])
   importBatchId   String
   importBatch     ImportBatch @relation(fields: [importBatchId], references: [id])
-  externalOfferId String   @default("")
-  title           String   @default("")
-  jobTitle        String   @default("")
-  contractType    String   @default("")
-  salary          String   @default("")
-  source          String   @default("")
-  url             String   @default("")
-  publishedAt     String   @default("")
-  fingerprint     String   @unique
-  firstSeenAt     DateTime @default(now())
-  lastSeenAt      DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  externalOfferId String      @default("")
+  title           String      @default("")
+  jobTitle        String      @default("")
+  contractType    String      @default("")
+  salary          String      @default("")
+  source          String      @default("")
+  url             String      @default("")
+  publishedAt     String      @default("")
+  fingerprint     String      @unique
+  firstSeenAt     DateTime    @default(now())
+  lastSeenAt      DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   // Les offres sont systématiquement lues par affaire (cartes du pipeline,
   // fiche affaire) : sans index, chaque chargement balaie toute la table.
@@ -308,51 +310,51 @@ model JobOffer {
 }
 
 model ImportBatch {
-  id                String   @id @default(cuid())
-  fileName          String
-  importedAt        DateTime @default(now())
-  totalRows         Int      @default(0)
-  createdDeals      Int      @default(0)
-  updatedDeals      Int      @default(0)
-  newOffers         Int      @default(0)
-  movedToCall       Int      @default(0)
-  errorCount        Int      @default(0)
-  createdAt         DateTime @default(now())
-  importRows        ImportRow[]
-  jobOffers         JobOffer[]
+  id           String      @id @default(cuid())
+  fileName     String
+  importedAt   DateTime    @default(now())
+  totalRows    Int         @default(0)
+  createdDeals Int         @default(0)
+  updatedDeals Int         @default(0)
+  newOffers    Int         @default(0)
+  movedToCall  Int         @default(0)
+  errorCount   Int         @default(0)
+  createdAt    DateTime    @default(now())
+  importRows   ImportRow[]
+  jobOffers    JobOffer[]
 }
 
 model ImportRow {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   importBatchId String
   importBatch   ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
   rowNumber     Int
   rawData       Json
-  status        String   @default("ok")
-  errorMessage  String   @default("")
+  status        String      @default("ok")
+  errorMessage  String      @default("")
   storeId       String?
-  store         Store?   @relation(fields: [storeId], references: [id])
+  store         Store?      @relation(fields: [storeId], references: [id])
   dealId        String?
-  deal          Deal?    @relation(fields: [dealId], references: [id])
-  createdAt     DateTime @default(now())
+  deal          Deal?       @relation(fields: [dealId], references: [id])
+  createdAt     DateTime    @default(now())
 }
 
 model Action {
-  id          String    @id @default(cuid())
-  dealId      String
-  deal        Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  title       String
-  type        String    @default("Appeler")
-  dueDate     DateTime  @db.Timestamptz
-  dueTime     String    @default("")
-  status      String    @default("todo")
-  priority    String    @default("normale")
-  note        String    @default("")
-  completedAt DateTime?
+  id             String    @id @default(cuid())
+  dealId         String
+  deal           Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  title          String
+  type           String    @default("Appeler")
+  dueDate        DateTime  @db.Timestamptz
+  dueTime        String    @default("")
+  status         String    @default("todo")
+  priority       String    @default("normale")
+  note           String    @default("")
+  completedAt    DateTime?
   assignedUserId String?
-  assignedUser   User?   @relation(fields: [assignedUserId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  assignedUser   User?     @relation(fields: [assignedUserId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Lues par affaire (prochaine action sur la carte) et par échéance
   // (page « Actions »).
@@ -387,40 +389,40 @@ model EmailTemplate {
 //   direction = "inbound"  → réponse reçue du contact, captée par Resend
 //                            Inbound (cf. src/lib/emailReplies.ts).
 model EmailLog {
-  id         String         @id @default(cuid())
-  dealId     String
-  deal       Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  templateId String?
-  template   EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  id          String         @id @default(cuid())
+  dealId      String
+  deal        Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  templateId  String?
+  template    EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   // "outbound" (défaut, = tout l'historique existant) ou "inbound".
-  direction  String         @default("outbound")
+  direction   String         @default("outbound")
   // Expéditeur. Sur un email entrant, c'est le contact qui a répondu ; sur un
   // email sortant, l'adresse @swipelink.fr utilisée. Null sur l'historique
   // antérieur à ce champ.
   fromAddress String?
-  to         String
+  to          String
   // Adresses en copie (Cc), séparées par des virgules. Null si aucune.
-  cc         String?
-  subject    String
-  body       String
+  cc          String?
+  subject     String
+  body        String
   // Sortant  : "scheduled" (programmé, pas encore parti) → "sending" (en cours
   //            d'envoi) → "sent" → "opened" ; "failed" si Resend a refusé.
   // Entrant  : "received".
-  status     String         @default("sent")
+  status      String         @default("sent")
   // Envoi programmé : heure visée. L'email est écrit en base dès la rédaction
   // et part au premier passage de /api/emails/send-scheduled postérieur à
   // cette date. Null pour un envoi immédiat.
   scheduledAt DateTime?
   // Id Resend de l'email (sortant ou entrant) — sert à la déduplication.
-  resendId   String?
+  resendId    String?
   // Message-ID RFC 5322 de l'email et, pour une réponse, celui du message
   // auquel elle répond. Permet de rattacher une réponse à son envoi.
-  messageId  String?
-  inReplyTo  String?
-  openedAt   DateTime?
+  messageId   String?
+  inReplyTo   String?
+  openedAt    DateTime?
   // Date de l'événement : envoi pour un sortant, réception pour un entrant.
-  sentAt     DateTime       @default(now())
-  createdAt  DateTime       @default(now())
+  sentAt      DateTime       @default(now())
+  createdAt   DateTime       @default(now())
 
   // La frise de la fiche affaire lit tous les emails d'une affaire triés par
   // date : sans index, chaque ouverture balaie toute la table.
@@ -491,24 +493,24 @@ model DealMove {
 // compter les démos bookées par utilisateur sur une période et de garder la
 // trace des démos qui ont fini en no-show.
 model DemoBooking {
-  id        String   @id @default(cuid())
-  dealId    String
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  dealId       String
+  deal         Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
   // Auteur du booking = utilisateur qui a déplacé l'affaire dans la colonne.
   // Null pour un déplacement automatique ou un compte supprimé depuis.
-  userId    String?
-  user      User?    @relation("DemoBookedBy", fields: [userId], references: [id], onDelete: SetNull)
+  userId       String?
+  user         User?     @relation("DemoBookedBy", fields: [userId], references: [id], onDelete: SetNull)
   // Nom figé à l'enregistrement : la statistique reste lisible même si le
   // compte est renommé ou supprimé.
-  userName  String   @default("")
+  userName     String    @default("")
   // Date à laquelle la démo a été bookée (= entrée dans la colonne).
-  bookedAt  DateTime @default(now())
+  bookedAt     DateTime  @default(now())
   // Date de la démo elle-même. Photographiée à la création puis maintenue à
   // jour tant que la ligne est le booking le plus récent de l'affaire (la date
   // est souvent renseignée sur la fiche juste après le déplacement).
-  demoDate  DateTime?
+  demoDate     DateTime?
   // Case « NO SHOW » de la fiche affaire : le contact n'est pas venu.
-  noShow    Boolean  @default(false)
+  noShow       Boolean   @default(false)
   // Qui a FAIT la démo, et quand. Rempli au passage de l'affaire dans
   // « DEMO FAITE » ou « ABSENT DEMO » : celui qui déplace la carte est celui
   // qui était devant le client. Vide tant que la démo n'a pas eu lieu ; jamais
@@ -516,11 +518,11 @@ model DemoBooking {
   // dénouement). doneByName est figé, comme userName, pour que l'historique
   // reste lisible si le compte est renommé ou supprimé.
   doneByUserId String?
-  doneByUser   User?    @relation("DemoDoneBy", fields: [doneByUserId], references: [id], onDelete: SetNull)
-  doneByName   String   @default("")
+  doneByUser   User?     @relation("DemoDoneBy", fields: [doneByUserId], references: [id], onDelete: SetNull)
+  doneByName   String    @default("")
   doneAt       DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([dealId, bookedAt])
   @@index([bookedAt])
@@ -541,36 +543,36 @@ model DemoBooking {
 // la ligne existante au lieu d'en ajouter une (sinon le même contrat compterait
 // deux fois) ; effacer la date de closing supprime la ligne.
 model ClosingEvent {
-  id             String   @id @default(cuid())
-  dealId         String
-  deal           Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  dealId           String
+  deal             Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
   // Abonnement closé. Obligatoire : c'est lui qui porte le contrat, et la ligne
   // n'a pas de sens sans lui — supprimer l'abonnement supprime donc l'évènement.
-  subscriptionId String   @unique
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionId   String       @unique
+  subscription     Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   // Qui a closé : le closeur choisi dans la pop-up (ou corrigé sur la fiche),
   // pas l'utilisateur qui a déplacé la carte. Null pour un closing enregistré
   // sans closeur, ou dont le compte a été supprimé depuis. userName est figé à
   // l'enregistrement pour que la statistique reste lisible dans ces deux cas.
-  userId         String?
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userName       String   @default("")
+  userId           String?
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName         String       @default("")
   // Date du closing telle qu'elle a été saisie (date commerciale du contrat).
-  closingDate    DateTime
+  closingDate      DateTime
   // Photographie de l'abonnement au moment du closing : évite de rejouer une
   // jointure pour lire un montant, et garde la trace de ce qui a été signé même
   // si l'abonnement est modifié ensuite.
-  value          Float?
-  subscriptionType String @default("")
+  value            Float?
+  subscriptionType String       @default("")
   // D'où vient l'enregistrement : "pipeline" (pop-up au passage en SMARTLINKÉ),
   // "fiche" (onglet Abonnement) ou "backfill" (reprise de l'historique).
-  source         String   @default("pipeline")
+  source           String       @default("pipeline")
   // Quand le closing a été enregistré dans le CRM. Distinct de closingDate, qui
   // est la date commerciale : c'est cet horodatage qui situe l'évènement dans
   // le fil d'activité de la fiche.
-  recordedAt     DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  recordedAt       DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@index([dealId, closingDate])
   @@index([closingDate])
@@ -762,4 +764,415 @@ model InboxOffer {
 
   @@index([inboxId])
   @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  OUTIL CAMPAGNES — séquences d'emails (onglet « Campagnes »)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Étape 1 du chantier : les boîtes d'envoi et les leads. Les campagnes et
+// séquences proprement dites arrivent à l'étape suivante et viendront se
+// greffer sur ces deux socles.
+//
+// Principe général : le CRM n'envoie PAS par un routeur transactionnel (Resend)
+// mais directement depuis de vraies boîtes (Google Workspace, OVH), en SMTP.
+// Les réponses sont relevées en IMAP sur ces mêmes boîtes — exactement comme
+// le relevé déjà en place pour les affaires (cf. src/lib/emailInbox.ts), mais
+// paramétré en base plutôt qu'en variables d'environnement, pour qu'une
+// nouvelle adresse s'ajoute depuis l'interface sans redéploiement.
+
+// Une boîte d'envoi : les identifiants SMTP (départ) et IMAP (réponses) d'une
+// adresse réelle, plus ses garde-fous d'envoi (quota, délais, plage horaire).
+//
+// Les mots de passe sont chiffrés en base (AES-256-GCM, cf.
+// src/lib/campaigns/crypto.ts) et ne ressortent JAMAIS par l'API.
+model Mailbox {
+  id          String @id @default(cuid())
+  // Adresse réelle de la boîte — sert d'identité et d'expéditeur.
+  email       String @unique
+  // Nom affiché par le destinataire : « Bilal Yacouti - Swipelink ».
+  displayName String @default("")
+  // « google » (Google Workspace / Gmail), « ovh » (MX Plan) ou « custom ».
+  // Ne sert qu'à pré-remplir les serveurs : le fonctionnement est identique.
+  provider    String @default("custom")
+
+  // ─── SMTP : le départ des emails ───────────────────────────────────────
+  smtpHost   String
+  smtpPort   Int     @default(465)
+  // true = TLS implicite (port 465) ; false = STARTTLS (port 587).
+  smtpSecure Boolean @default(true)
+  // Identifiant SMTP, en pratique l'adresse elle-même.
+  smtpUser   String
+  // Mot de passe d'application (Google) ou mot de passe de la boîte (OVH),
+  // chiffré. Jamais renvoyé au client.
+  smtpSecret String
+
+  // ─── IMAP : la détection des réponses ──────────────────────────────────
+  // Facultatif : sans IMAP, la boîte envoie mais l'arrêt automatique sur
+  // réponse ne peut pas fonctionner pour elle (on le signale dans l'interface).
+  imapHost     String?
+  imapPort     Int     @default(993)
+  imapUser     String?
+  // Vide = mêmes identifiants que le SMTP (cas le plus courant).
+  imapSecret   String?
+  imapFolder   String  @default("INBOX")
+  // Curseur de relevé : dernier UID traité dans le dossier surveillé. Évite de
+  // relire toute la boîte à chaque passage.
+  imapCursor   Int?
+  imapValidity Int? // UIDVALIDITY : s'il change, le curseur est rejoué à zéro
+
+  // ─── Garde-fous d'envoi (anti-spam / réputation) ───────────────────────
+  // Nombre maximal d'emails partant de cette boîte par jour.
+  dailyLimit      Int       @default(80)
+  // Espacement aléatoire entre deux envois, en secondes : le moteur tire une
+  // valeur entre les deux bornes pour ne pas produire de cadence mécanique.
+  minDelaySec     Int       @default(90)
+  maxDelaySec     Int       @default(300)
+  // Plage horaire d'envoi (heures locales du fuseau ci-dessous) et jours
+  // autorisés au format ISO (1 = lundi … 7 = dimanche).
+  sendStartHour   Int       @default(8)
+  sendEndHour     Int       @default(19)
+  sendDays        String    @default("1,2,3,4,5")
+  timezone        String    @default("Europe/Paris")
+  // Montée en charge : plafond du premier jour, augmenté chaque jour de
+  // `warmupStep` jusqu'à `dailyLimit`. 0 = pas de montée en charge.
+  warmupStart     Int       @default(0)
+  warmupStep      Int       @default(5)
+  warmupStartedAt DateTime?
+
+  // Signature HTML ajoutée en bas des emails partis de cette boîte.
+  signatureHtml String?
+
+  // Une boîte inactive n'envoie plus et n'est plus relevée, sans être perdue.
+  active      Boolean   @default(true)
+  // Dernier test de connexion : date et message d'erreur éventuel. Affichés
+  // dans l'interface pour qu'un mot de passe expiré se voie tout de suite.
+  lastCheckAt DateTime?
+  lastCheckOk Boolean?
+  lastError   String?
+  lastSyncAt  DateTime?
+
+  // Espacement des envois : heure à partir de laquelle cette boîte peut
+  // renvoyer. Tenue par le moteur, qui tire un délai aléatoire après chaque
+  // envoi — deux passages simultanés ne peuvent donc pas doubler la cadence.
+  nextSendAt DateTime?
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  campaigns   CampaignMailbox[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+  replies     CampaignReply[]
+
+  @@index([active])
+}
+
+// Un lead prospecté par l'outil Campagnes.
+//
+// Volontairement indépendant de `Deal` : un lead est un contact froid, il n'a
+// rien à faire dans le pipeline tant qu'il n'a pas manifesté d'intérêt. Le
+// champ `dealId` est réservé au rattachement au CRM (bouton « convertir en
+// affaire »), qui sera branché dans un second temps.
+model Lead {
+  id    String @id @default(cuid())
+  // Seul champ obligatoire. Normalisé en minuscules : c'est la clé de
+  // déduplication entre deux imports.
+  email String @unique
+
+  // Champs usuels, tous facultatifs. Ils alimentent les variables de
+  // personnalisation ({{prenom}}, {{enseigne}}…) dans les emails.
+  civility     String?
+  firstName    String?
+  lastName     String?
+  jobTitle     String?
+  company      String? // enseigne / société
+  phone        String?
+  website      String?
+  city         String?
+  country      String?
+  // Toutes les autres colonnes du fichier importé, telles quelles :
+  // { "effectif": "12", "ca": "1.4M" }. Utilisables comme variables.
+  customFields Json    @default("{}")
+
+  // Cycle de vie commercial, piloté à la main depuis la fiche lead :
+  //   new · contacted · replied · interested · not_interested ·
+  //   unsubscribed · bounced · customer
+  status   String    @default("new")
+  statusAt DateTime?
+  // Utilisateur du CRM à qui le lead est attribué (facultatif).
+  ownerId  String?
+  owner    User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  // Provenance : lot d'import ou saisie manuelle.
+  source   String?
+  importId String?
+  import   LeadImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
+
+  // Rattachement au CRM — réservé, non exploité pour l'instant.
+  dealId String?
+
+  // Jalons entretenus par le moteur d'envoi (étape 2) et par les actions
+  // manuelles. Dénormalisés ici pour que les listes restent rapides.
+  lastContactedAt DateTime?
+  lastOpenedAt    DateTime?
+  lastRepliedAt   DateTime?
+  unsubscribedAt  DateTime?
+  bouncedAt       DateTime?
+
+  notes       LeadNote[]
+  events      LeadEvent[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+  replies     CampaignReply[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Listes filtrées par statut et triées par date : l'index évite un balayage
+  // complet dès que la base dépasse quelques milliers de leads.
+  @@index([status, createdAt])
+  @@index([importId])
+  @@index([company])
+}
+
+// Un lot d'import de leads (un fichier CSV déposé dans l'interface).
+model LeadImport {
+  id        String   @id @default(cuid())
+  filename  String
+  // Correspondance colonne du fichier → champ du lead, telle qu'elle a été
+  // validée à l'écran. Conservée pour pouvoir rejouer ou auditer un import.
+  mapping   Json     @default("{}")
+  total     Int      @default(0)
+  created   Int      @default(0)
+  updated   Int      @default(0)
+  skipped   Int      @default(0)
+  // Nom de l'utilisateur qui a lancé l'import (identité locale du CRM).
+  userName  String?
+  createdAt DateTime @default(now())
+
+  leads Lead[]
+}
+
+// Note libre saisie sur la fiche d'un lead.
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userName  String?
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+// Frise d'activité d'un lead : import, changement de statut, note, envoi,
+// ouverture, réponse, désinscription… Tout ce que la fiche doit raconter.
+model LeadEvent {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  // imported · status_changed · note_added · updated · email_sent ·
+  // email_opened · replied · unsubscribed · bounced · enrolled · stopped
+  type      String
+  label     String   @default("")
+  payload   Json?
+  userName  String?
+  createdAt DateTime @default(now())
+
+  @@index([leadId, createdAt])
+}
+
+// ─── Campagnes : séquences, inscriptions, messages ─────────────────────────
+//
+// Étape 2 du chantier. Le vocabulaire :
+//   • Campaign   — une séquence, ses réglages et ses boîtes d'envoi ;
+//   • CampaignStep — une étape de la séquence (un email + son délai d'attente) ;
+//   • Enrollment — UN lead DANS une campagne. C'est l'objet que l'on arrête
+//     individuellement : stopper un lead ne touche pas les autres ;
+//   • CampaignMessage — un email réellement parti (ou en échec), qui porte le
+//     suivi d'ouverture.
+//
+// Le moteur (src/lib/campaigns/engine.ts) ne regarde jamais une campagne dans
+// son ensemble : il relève les inscriptions dont l'heure est venue, boîte par
+// boîte, en respectant les garde-fous de chacune.
+
+model Campaign {
+  id          String @id @default(cuid())
+  name        String
+  description String @default("")
+  // draft (jamais lancée) · running · paused · finished · archived
+  status      String @default("draft")
+
+  // Arrêt automatique de la séquence dès qu'un lead répond. C'est le
+  // comportement attendu d'un outil de prospection ; désactivable au cas où.
+  stopOnReply    Boolean @default(true)
+  // Pixel de suivi d'ouverture. Les liens ne sont pas réécrits (pas de suivi
+  // de clic) : les emails restent propres pour la délivrabilité.
+  trackOpens     Boolean @default(true)
+  // Lien de désinscription ajouté en bas de chaque email + en-tête
+  // List-Unsubscribe. Vivement conseillé en prospection à froid.
+  addUnsubscribe Boolean @default(true)
+
+  steps       CampaignStep[]
+  mailboxes   CampaignMailbox[]
+  enrollments CampaignEnrollment[]
+  messages    CampaignMessage[]
+
+  userName   String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+}
+
+// Boîtes utilisées par une campagne. Plusieurs boîtes = rotation : chaque lead
+// reçoit toute la séquence depuis UNE seule d'entre elles (le fil reste
+// cohérent), mais le volume se répartit entre elles.
+model CampaignMailbox {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mailboxId  String
+  mailbox    Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, mailboxId])
+}
+
+// Une étape de la séquence : le délai d'attente, puis l'email.
+model CampaignStep {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  // Rang dans la séquence, à partir de 1.
+  position   Int
+  // Attente AVANT cette étape, comptée depuis l'envoi précédent (0 pour la
+  // première, qui part dès l'inscription). En heures : « 3 jours » = 72.
+  delayHours Int      @default(0)
+
+  subject       String  @default("")
+  // Deux corps : le texte simple (converti en HTML sobre à l'envoi, le plus
+  // sûr pour la délivrabilité) et le HTML libre pour un email commercial.
+  // `useHtml` dit lequel part réellement.
+  bodyText      String  @default("")
+  bodyHtml      String  @default("")
+  useHtml       Boolean @default(false)
+  // Relance dans le MÊME fil que l'email précédent (« Re: … », en-têtes
+  // In-Reply-To / References). Décoché : nouvel email indépendant.
+  replyToThread Boolean @default(true)
+
+  messages  CampaignMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([campaignId, position])
+}
+
+// Un lead inscrit dans une campagne : l'unité de pilotage du moteur.
+model CampaignEnrollment {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // active · paused · finished · stopped
+  status     String  @default("active")
+  // Pourquoi l'inscription s'est arrêtée : replied · manual · unsubscribed ·
+  // bounced · failed · completed. Affiché tel quel dans la fiche campagne.
+  stopReason String?
+
+  // Nombre d'étapes déjà envoyées (0 = rien n'est encore parti).
+  sentSteps  Int       @default(0)
+  // Heure du prochain envoi. C'est LE champ que relève le moteur.
+  nextSendAt DateTime?
+
+  // Boîte affectée à ce lead, tirée à l'inscription et conservée : toute la
+  // séquence part de la même adresse, sinon le fil de discussion se casse.
+  mailboxId       String?
+  mailbox         Mailbox? @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+  // Message-ID et sujet du premier email : servent à accrocher les relances
+  // au même fil de discussion.
+  threadMessageId String?
+  threadSubject   String?
+
+  messages CampaignMessage[]
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Un lead ne peut être inscrit qu'une fois dans une même campagne.
+  @@unique([campaignId, leadId])
+  // File du moteur : « les inscriptions actives dont l'heure est venue ».
+  @@index([status, nextSendAt])
+  @@index([campaignId, status])
+}
+
+// Un email de campagne réellement parti (ou tenté).
+model CampaignMessage {
+  id           String             @id @default(cuid())
+  campaignId   String
+  campaign     Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollmentId String
+  enrollment   CampaignEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId       String?
+  step         CampaignStep?      @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  leadId       String
+  lead         Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  mailboxId    String?
+  mailbox      Mailbox?           @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+
+  stepPosition Int     @default(1)
+  // sent · failed
+  status       String  @default("sent")
+  toAddress    String
+  fromAddress  String
+  subject      String
+  bodyHtml     String
+  // Message-ID RFC 5322 de l'email envoyé : point d'accroche des relances ET
+  // du rattachement des réponses.
+  messageId    String?
+  error        String?
+
+  // Suivi d'ouverture : identifiant du pixel (jamais l'id du message, qui ne
+  // doit pas circuler dans une URL publique).
+  trackingId String    @unique @default(cuid())
+  openedAt   DateTime?
+  openCount  Int       @default(0)
+  repliedAt  DateTime?
+
+  sentAt DateTime @default(now())
+
+  // Tableaux de bord : « les messages d'une campagne sur une période ».
+  @@index([campaignId, sentAt])
+  @@index([messageId])
+  @@index([leadId])
+}
+
+// Une réponse reçue sur une boîte d'envoi, relevée en IMAP.
+// Conservée telle quelle : c'est la preuve de l'arrêt d'une séquence, et
+// l'extrait s'affiche dans la fiche du lead.
+model CampaignReply {
+  id         String   @id @default(cuid())
+  mailboxId  String?
+  mailbox    Mailbox? @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId String?
+
+  fromAddress String
+  subject     String   @default("")
+  snippet     String   @default("")
+  messageId   String?
+  inReplyTo   String?
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Déduplication entre deux relevés.
+  @@unique([mailboxId, messageId])
+  @@index([leadId, receivedAt])
 }

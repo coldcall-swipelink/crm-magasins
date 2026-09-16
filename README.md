@@ -419,6 +419,95 @@ plafonner le quota côté Google Cloud avant un gros passage.
 
 ---
 
+## Onglet « Campagnes » — séquences d'emails
+
+Outil de prospection par email intégré au CRM (onglet **Campagnes** du volet
+gauche) : import de leads, séquences d'emails espacés de délais d'attente,
+arrêt automatique dès qu'un lead répond, tableaux de bord.
+
+### Ce qui le distingue du reste du CRM
+
+Les emails d'affaire partent par Resend. Les campagnes, elles, partent **en
+direct depuis de vraies boîtes** (Google Workspace, OVH) en SMTP, et leurs
+réponses sont relevées en IMAP sur ces mêmes boîtes. C'est ce qui permet
+d'utiliser plusieurs domaines, de garder les fils de discussion cohérents, et
+de détecter les réponses sans dépendre d'un routeur tiers.
+
+### Mise en route
+
+1. **Clé de chiffrement.** `CAMPAIGN_SECRET_KEY` (`openssl rand -hex 32`) dans
+   l'environnement : les mots de passe des boîtes sont chiffrés en base
+   (AES-256-GCM) et ne ressortent jamais par l'API. Sans elle, aucune boîte ne
+   peut être enregistrée.
+2. **Adresse publique.** `NEXT_PUBLIC_APP_URL` doit pointer sur l'adresse
+   réelle du CRM : c'est la base des liens de suivi d'ouverture et de
+   désinscription placés dans les emails.
+3. **Connecter une boîte** (Campagnes → Boîtes d'envoi). La connexion SMTP et
+   IMAP est testée AVANT enregistrement : une boîte listée est une boîte qui a
+   déjà fonctionné.
+   - *Google Workspace* : le mot de passe habituel du compte est refusé en
+     SMTP. Il faut un **mot de passe d'application** : activer la validation en
+     deux étapes sur le compte, puis, connecté avec cette adresse, ouvrir
+     <https://myaccount.google.com/apppasswords>, nommer l'application et
+     copier les 16 caractères. Activer aussi l'IMAP (Gmail → Paramètres →
+     Transfert et POP/IMAP), sans quoi les réponses ne remonteront pas.
+     Si la page des mots de passe d'application est inaccessible, c'est que
+     l'administrateur Workspace les a désactivés, ou que le compte est en
+     « Protection avancée ».
+   - *OVH MX Plan* : le mot de passe de la boîte elle-même, celui du webmail —
+     rien à générer. Il se redéfinit dans l'espace client OVH → Web Cloud →
+     Emails → domaine → Comptes e-mail → l'adresse → Modifier le mot de passe.
+4. **Importer des leads** (Campagnes → Leads). CSV ou TSV, seul l'email est
+   obligatoire. Les colonnes non reconnues deviennent des champs personnalisés,
+   donc des variables : une colonne « Effectif du magasin » donne
+   `{{effectif_du_magasin}}`.
+5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
+
+### Garde-fous d'envoi
+
+Chaque boîte porte les siens : quota journalier, délai aléatoire entre deux
+envois, plage horaire et jours autorisés (dans SON fuseau), montée en charge
+progressive. Le moteur ne déroule jamais une campagne d'un bloc : il relève les
+inscriptions dont l'heure est venue, boîte par boîte, dans ces limites.
+
+Quotas indicatifs des fournisseurs : ~2 000 destinataires/jour sur Google
+Workspace (500 en compte gratuit). Réglez le quota du CRM en dessous.
+
+### Traitement lead par lead
+
+Un lead dans une campagne est une **inscription** : c'est l'objet que l'on
+arrête individuellement. Mettre en pause, reprendre ou arrêter un lead — depuis
+l'onglet Leads de la campagne ou depuis sa fiche — ne touche ni les autres
+leads ni l'état de la campagne.
+
+L'arrêt automatique sur réponse repose sur le relevé IMAP. Une réponse
+rattachée à un envoi précis (en-têtes `In-Reply-To` / `References`) n'arrête que
+sa campagne ; une réponse non rattachée arrête toutes les séquences en cours du
+lead. Les désinscriptions et les adresses mortes sortent le lead de toutes ses
+séquences, définitivement.
+
+### Automatisation
+
+Deux crons, déclarés dans `vercel.json`, authentifiés par `CRON_SECRET` :
+
+| Route | Cadence | Rôle |
+| --- | --- | --- |
+| `POST /api/campaigns/run` | 5 min | fait partir les emails dus |
+| `POST /api/campaigns/sync-replies` | 10 min | relève les réponses, applique l'arrêt |
+
+Les deux sont rejouables sans risque de doublon et appelables depuis n'importe
+quel planificateur (N8N…) avec le même jeton.
+
+### Mesure
+
+Le taux d'ouverture repose sur un pixel invisible : une image bloquée ne compte
+pas l'ouverture, un pré-chargement (Apple Mail, proxy Gmail) la compte à tort.
+Il se lit comme une tendance. Le taux de réponse, mesuré sur les réponses
+réellement reçues dans les boîtes, est le chiffre solide. Les liens ne sont pas
+réécrits : pas de suivi de clic, mais des emails propres.
+
+---
+
 ## Scripts disponibles
 
 ```bash
