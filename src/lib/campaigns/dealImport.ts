@@ -17,7 +17,7 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isValidEmail, normalizeCivility, normalizeEmail } from '@/lib/campaigns/leadFields';
+import { isShortCivility, isValidEmail, normalizeCivility, normalizeEmail } from '@/lib/campaigns/leadFields';
 
 /** Ce qu'une affaire apporte à un lead. */
 type DealLead = {
@@ -46,7 +46,12 @@ export type DealImportPreview = {
   sample: DealLead[];
   /** Pipelines disponibles, pour le filtre de l'écran. */
   pipelines: Array<{ id: string; name: string; deals: number }>;
+  /** Enseignes disponibles dans le pipeline choisi, avec leur volume. */
+  brands: Array<{ id: string; name: string; deals: number }>;
 };
+
+/** Périmètre d'une reprise : pipeline et/ou enseigne. */
+export type DealScope = { pipelineId?: string; brandId?: string };
 
 export type DealImportReport = {
   created: number;
@@ -56,8 +61,12 @@ export type DealImportReport = {
 };
 
 /** Affaires à reprendre, mises à plat. Dédoublonnées sur l'email. */
-async function collect(pipelineId?: string): Promise<{ all: DealLead[]; deals: number; withEmail: number }> {
-  const scope = pipelineId ? { pipelineId } : {};
+async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals: number; withEmail: number }> {
+  const scope: Prisma.DealWhereInput = {
+    ...(filter.pipelineId ? { pipelineId: filter.pipelineId } : {}),
+    // L'enseigne n'est pas portée par l'affaire mais par son magasin.
+    ...(filter.brandId ? { store: { brandId: filter.brandId } } : {}),
+  };
   // Total des affaires du périmètre : c'est le dénominateur affiché à l'écran
   // (« 42 affaires avec email sur 310 »). Le compter à part évite de le
   // confondre avec le nombre d'affaires qui portent une adresse.
@@ -104,9 +113,36 @@ async function collect(pipelineId?: string): Promise<{ all: DealLead[]; deals: n
   return { all: Array.from(byEmail.values()), deals: total, withEmail };
 }
 
+/**
+ * Enseignes présentes parmi les affaires exploitables.
+ *
+ * Calculées dans le pipeline choisi mais SANS le filtre d'enseigne : sinon la
+ * liste se réduirait à l'enseigne sélectionnée et on ne pourrait plus en
+ * changer. Prisma ne sachant pas grouper sur un champ de relation, on compte
+ * en mémoire — le volume reste celui des affaires ayant une adresse.
+ */
+async function brandOptions(pipelineId?: string) {
+  const rows = await prisma.deal.findMany({
+    where: { ...(pipelineId ? { pipelineId } : {}), dealEmail: { not: '' } },
+    select: { store: { select: { brandId: true, brand: { select: { name: true } } } } },
+  });
+
+  const tally = new Map<string, { id: string; name: string; deals: number }>();
+  for (const row of rows) {
+    const id = row.store?.brandId;
+    const name = row.store?.brand?.name;
+    if (!id || !name) continue;
+    const entry = tally.get(id) ?? { id, name, deals: 0 };
+    entry.deals++;
+    tally.set(id, entry);
+  }
+  // Les enseignes les plus fournies d'abord : ce sont celles qu'on cherche.
+  return Array.from(tally.values()).sort((a, b) => b.deals - a.deals || a.name.localeCompare(b.name));
+}
+
 /** Ce que donnerait la reprise, sans rien écrire. */
-export async function previewDealLeads(pipelineId?: string): Promise<DealImportPreview> {
-  const { all, deals, withEmail } = await collect(pipelineId);
+export async function previewDealLeads(filter: DealScope = {}): Promise<DealImportPreview> {
+  const { all, deals, withEmail } = await collect(filter);
 
   const emails = all.map(item => item.email);
   const known = emails.length
@@ -114,13 +150,13 @@ export async function previewDealLeads(pipelineId?: string): Promise<DealImportP
     : 0;
 
   // Volume par pipeline, pour que le filtre affiche ses chiffres.
-  const pipelines = await prisma.pipeline.findMany({
-    orderBy: { position: 'asc' },
-    select: {
-      id: true, name: true,
-      _count: { select: { deals: true } },
-    },
-  });
+  const [pipelines, brands] = await Promise.all([
+    prisma.pipeline.findMany({
+      orderBy: { position: 'asc' },
+      select: { id: true, name: true, _count: { select: { deals: true } } },
+    }),
+    brandOptions(filter.pipelineId),
+  ]);
 
   return {
     deals,
@@ -130,6 +166,7 @@ export async function previewDealLeads(pipelineId?: string): Promise<DealImportP
     fresh: all.length - known,
     sample: all.slice(0, 5),
     pipelines: pipelines.map(p => ({ id: p.id, name: p.name, deals: p._count.deals })),
+    brands,
   };
 }
 
@@ -139,16 +176,17 @@ export async function previewDealLeads(pipelineId?: string): Promise<DealImportP
  * `onlyNew` laisse les leads déjà connus strictement intacts — utile pour une
  * reprise régulière, où l'on ne veut ajouter que ce qui est apparu depuis.
  */
-export async function importDealLeads(options: {
-  pipelineId?: string;
+export async function importDealLeads(options: DealScope & {
   onlyNew?: boolean;
   userName?: string;
 } = {}): Promise<DealImportReport> {
-  const { all } = await collect(options.pipelineId);
+  const { all } = await collect({ pipelineId: options.pipelineId, brandId: options.brandId });
 
   const batch = await prisma.leadImport.create({
     data: {
-      filename: options.pipelineId ? 'CRM — affaires du pipeline' : 'CRM — toutes les affaires',
+      filename: options.brandId || options.pipelineId
+        ? 'CRM — affaires filtrées'
+        : 'CRM — toutes les affaires',
       mapping: {
         email: 'dealEmail', civility: 'contactCivilite', lastName: 'contactLastName',
         company: 'store.brand.name', jobTitle: 'contactPosition', city: 'store.city',
@@ -198,7 +236,13 @@ export async function importDealLeads(options: {
 
       // Complément seulement : jamais d'écrasement d'une valeur déjà là.
       const fill: Record<string, unknown> = {};
-      if (!existing.civility && item.civility) fill.civility = item.civility;
+      // La civilité est complétée si elle manque, et RÉÉCRITE si elle porte
+      // encore une abréviation d'une version précédente (« M. » → « Monsieur »).
+      // C'est la seule valeur qu'on se permette de corriger : une civilité
+      // saisie à la main ne prend pas ces formes-là.
+      if ((!existing.civility || isShortCivility(existing.civility)) && item.civility) {
+        fill.civility = item.civility;
+      }
       if (!existing.lastName && item.lastName) fill.lastName = item.lastName;
       if (!existing.company && item.company) fill.company = item.company;
       if (!existing.jobTitle && item.jobTitle) fill.jobTitle = item.jobTitle;

@@ -1,6 +1,7 @@
 // src/app/api/campaigns/leads/import-deals/route.ts
 //
-//   GET  /api/campaigns/leads/import-deals?pipelineId=…   → aperçu, sans écrire
+//   GET  /api/campaigns/leads/import-deals?pipelineId=…&brandId=…  → aperçu,
+//        sans rien écrire
 //   POST /api/campaigns/leads/import-deals                → reprise effective
 //
 // Reprend les contacts des affaires du CRM comme leads de prospection. Les
@@ -19,8 +20,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
-  const pipelineId = (req.nextUrl.searchParams.get('pipelineId') || '').trim() || undefined;
-  return NextResponse.json({ preview: await previewDealLeads(pipelineId) });
+  const params = req.nextUrl.searchParams;
+  const preview = await previewDealLeads({
+    pipelineId: (params.get('pipelineId') || '').trim() || undefined,
+    brandId: (params.get('brandId') || '').trim() || undefined,
+  });
+  return NextResponse.json({ preview });
 }
 
 export async function POST(req: NextRequest) {
@@ -28,6 +33,7 @@ export async function POST(req: NextRequest) {
 
   const report = await importDealLeads({
     pipelineId: body?.pipelineId ? String(body.pipelineId) : undefined,
+    brandId: body?.brandId ? String(body.brandId) : undefined,
     // Par défaut on complète les leads déjà connus ; l'écran permet de ne
     // reprendre que les nouveaux.
     onlyNew: body?.onlyNew === true,

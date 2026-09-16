@@ -162,13 +162,30 @@ export function isValidEmail(value: string): boolean {
   return /^[^\s@,;]+@[^\s@,;]+\.[a-z]{2,}$/i.test(email);
 }
 
-/** Civilité ramenée à une forme courte et homogène (M. / Mme). */
+/**
+ * Civilité ramenée à une forme homogène : « Monsieur » ou « Madame ».
+ *
+ * En toutes lettres, parce que la civilité se retrouve telle quelle dans le
+ * corps des emails ({{civilite}}) : « Bonjour Monsieur Dupont » se lit mieux
+ * que « Bonjour M. Dupont » dans une prise de contact.
+ */
 export function normalizeCivility(value: string): string {
   const v = normalizeHeader(value);
   if (!v) return '';
-  if (/^(m|mr|monsieur|mister|sir)$/.test(v)) return 'M.';
-  if (/^(mme|mrs|ms|madame|miss|mlle|mademoiselle)$/.test(v)) return 'Mme';
+  if (/^(m|mr|monsieur|mister|sir)$/.test(v)) return 'Monsieur';
+  if (/^(mme|mrs|ms|madame|miss|mlle|mademoiselle)$/.test(v)) return 'Madame';
   return value.trim();
+}
+
+/**
+ * Formes abrégées écrites par les versions précédentes de l'outil.
+ * Elles sont remplacées au passage d'un import : sans quoi les emails
+ * mélangeraient « Monsieur » et « M. » selon la date d'import du lead.
+ */
+const SHORT_CIVILITIES = new Set(['m.', 'mme', 'mlle', 'm', 'mr']);
+
+export function isShortCivility(value?: string | null): boolean {
+  return SHORT_CIVILITIES.has((value || '').trim().toLowerCase());
 }
 
 export type LeadInput = {

@@ -21,6 +21,7 @@ type Preview = {
   deals: number; withEmail: number; unique: number; known: number; fresh: number;
   sample: Sample[];
   pipelines: Array<{ id: string; name: string; deals: number }>;
+  brands: Array<{ id: string; name: string; deals: number }>;
 };
 
 /** Correspondance appliquée, affichée telle quelle : aucune surprise. */
@@ -43,15 +44,17 @@ export default function DealImportModal({ userName, campaignId, onClose, onDone 
 }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pipelineId, setPipelineId] = useState('');
+  const [brandId, setBrandId] = useState('');
   const [onlyNew, setOnlyNew] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (pipelineId) params.set('pipelineId', pipelineId);
+    if (brandId) params.set('brandId', brandId);
     const data = await fetch(`/api/campaigns/leads/import-deals?${params}`).then(res => res.json());
     setPreview(data.preview);
-  }, [pipelineId]);
+  }, [pipelineId, brandId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -60,7 +63,11 @@ export default function DealImportModal({ userName, campaignId, onClose, onDone 
     try {
       const res = await fetch('/api/campaigns/leads/import-deals', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pipelineId: pipelineId || undefined, onlyNew, userName, campaignId }),
+        body: JSON.stringify({
+          pipelineId: pipelineId || undefined,
+          brandId: brandId || undefined,
+          onlyNew, userName, campaignId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || 'Reprise impossible', 'error'); return; }
@@ -89,16 +96,34 @@ export default function DealImportModal({ userName, campaignId, onClose, onDone 
           <div style={{ fontSize: 13, color: T.textFaint, padding: '20px 0' }}>Lecture du pipeline…</div>
         ) : (
           <>
-            <div style={{ marginBottom: 14 }}>
-              <label style={label}>Affaires à reprendre</label>
-              <select style={inp} value={pipelineId} onChange={event => setPipelineId(event.target.value)}>
-                <option value="">Tous les pipelines</option>
-                {preview.pipelines.map(pipeline => (
-                  <option key={pipeline.id} value={pipeline.id}>
-                    {pipeline.name} ({pipeline.deals} affaire{pipeline.deals > 1 ? 's' : ''})
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={label}>Pipeline</label>
+                <select style={inp} value={pipelineId} onChange={event => {
+                  setPipelineId(event.target.value);
+                  // La liste des enseignes dépend du pipeline : une enseigne
+                  // absente du nouveau périmètre laisserait un filtre vide.
+                  setBrandId('');
+                }}>
+                  <option value="">Tous les pipelines</option>
+                  {preview.pipelines.map(pipeline => (
+                    <option key={pipeline.id} value={pipeline.id}>
+                      {pipeline.name} ({pipeline.deals} affaire{pipeline.deals > 1 ? 's' : ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={label}>Enseigne</label>
+                <select style={inp} value={brandId} onChange={event => setBrandId(event.target.value)}>
+                  <option value="">Toutes les enseignes</option>
+                  {preview.brands.map(brand => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name} ({brand.deals})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
