@@ -10,11 +10,8 @@
 
 import { useRef, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
+import { btnDef, btnPri, inp, label, modal, overlay } from './ui';
 
-const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
-const label: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
 
 type Field = { key: string; label: string; required: boolean };
 type Preview = {
@@ -104,13 +101,13 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
   const stats = preview?.stats;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}
+    <div style={overlay}
       onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 'min(980px, 100%)', maxHeight: '90vh', overflow: 'auto', padding: 22 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#171a23', borderRadius: 14, width: 'min(980px, 100%)', maxHeight: '90vh', overflow: 'auto', padding: 22 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
           {campaignId ? 'Importer des leads dans la campagne' : 'Importer des leads'}
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: '#9aa1b4', marginBottom: 16 }}>
           Fichier CSV ou TSV, avec une ligne d&apos;en-tête. Seul l&apos;email est obligatoire ;
           les autres colonnes deviennent des variables de personnalisation.
           {campaignId && ' Les leads du fichier seront inscrits dans la campagne dans la foulée.'}
@@ -121,9 +118,9 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file) onFile(file); }}
             onClick={() => fileRef.current?.click()}
-            style={{ border: '1px dashed #cbd5e1', borderRadius: 12, padding: 40, textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}
+            style={{ border: '1px dashed #333a4a', borderRadius: 12, padding: 40, textAlign: 'center', cursor: 'pointer', background: '#1c1f2a' }}
           >
-            <div style={{ fontSize: 13, color: '#475569' }}>
+            <div style={{ fontSize: 13, color: '#b3b9c9' }}>
               {busy ? 'Analyse du fichier…' : 'Glissez un fichier ici, ou cliquez pour le choisir'}
             </div>
             <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv" style={{ display: 'none' }}
@@ -140,16 +137,16 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
               <Stat label="Emails invalides" value={stats!.invalid} warn={stats!.invalid > 0} />
             </div>
 
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7283', letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: 8 }}>
               Correspondance des colonnes
             </div>
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+            <div style={{ border: '1px solid #262b38', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b' }}>Colonne du fichier</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b' }}>Exemple</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', width: 260 }}>Champ du lead</th>
+                  <tr style={{ background: '#1c1f2a', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#9aa1b4' }}>Colonne du fichier</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#9aa1b4' }}>Exemple</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#9aa1b4', width: 260 }}>Champ du lead</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,9 +154,9 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
                     const target = mapping[header] || '';
                     const custom = target.startsWith('custom:');
                     return (
-                      <tr key={header} style={{ borderTop: '1px solid #f1f5f9' }}>
+                      <tr key={header} style={{ borderTop: '1px solid #222634' }}>
                         <td style={{ padding: '7px 12px', fontWeight: 500 }}>{header}</td>
-                        <td style={{ padding: '7px 12px', color: '#94a3b8', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '7px 12px', color: '#6b7283', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {preview.sample[0]?.[header] || '—'}
                         </td>
                         <td style={{ padding: '5px 12px' }}>
@@ -195,7 +192,7 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
                 <label style={label}>Provenance (rangée sur chaque lead)</label>
                 <input style={inp} value={source} onChange={e => setSource(e.target.value)} placeholder="Ex : Salon Franchise 2026" />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#475569', alignSelf: 'end', paddingBottom: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#b3b9c9', alignSelf: 'end', paddingBottom: 8 }}>
                 <input type="checkbox" checked={updateExisting} onChange={e => setUpdateExisting(e.target.checked)} />
                 Compléter les leads déjà connus (sans jamais effacer une valeur existante)
               </label>
@@ -216,12 +213,12 @@ export default function LeadImportModal({ userName, campaignId, onClose, onDone 
 }
 
 function Stat({ label, value, accent, warn }: { label: string; value: number; accent?: boolean; warn?: boolean }) {
-  const color = warn ? '#b91c1c' : accent ? '#4338ca' : '#0f172a';
-  const bg = warn ? '#fef2f2' : accent ? '#eef2ff' : '#f8fafc';
+  const color = warn ? '#f87171' : accent ? '#8fb0ff' : '#e7e9ef';
+  const bg = warn ? 'rgba(239,68,68,.13)' : accent ? 'rgba(59,113,245,.16)' : '#1c1f2a';
   return (
-    <div style={{ background: bg, border: '1px solid #e2e8f0', borderRadius: 9, padding: '8px 14px', minWidth: 110 }}>
+    <div style={{ background: bg, border: '1px solid #262b38', borderRadius: 9, padding: '8px 14px', minWidth: 110 }}>
       <div style={{ fontSize: 17, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: '#64748b' }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: '#9aa1b4' }}>{label}</div>
     </div>
   );
 }

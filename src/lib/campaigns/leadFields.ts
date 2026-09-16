@@ -11,15 +11,17 @@
 
 // ─── Statuts ──────────────────────────────────────────────────────────────
 
+// Couleurs choisies pour rester lisibles sur le fond sombre de l'onglet :
+// elles servent à la fois de texte, de bordure et de teinte de fond.
 export const LEAD_STATUSES = [
-  { key: 'new',            label: 'Nouveau',        color: '#64748b' },
-  { key: 'contacted',      label: 'Contacté',       color: '#0ea5e9' },
-  { key: 'replied',        label: 'A répondu',      color: '#8b5cf6' },
-  { key: 'interested',     label: 'Intéressé',      color: '#16a34a' },
-  { key: 'not_interested', label: 'Pas intéressé',  color: '#dc2626' },
-  { key: 'customer',       label: 'Client',         color: '#047857' },
-  { key: 'unsubscribed',   label: 'Désinscrit',     color: '#b45309' },
-  { key: 'bounced',        label: 'Adresse morte',  color: '#78350f' },
+  { key: 'new',            label: 'Nouveau',        color: '#94a3b8' },
+  { key: 'contacted',      label: 'Contacté',       color: '#38bdf8' },
+  { key: 'replied',        label: 'A répondu',      color: '#a78bfa' },
+  { key: 'interested',     label: 'Intéressé',      color: '#4ade80' },
+  { key: 'not_interested', label: 'Pas intéressé',  color: '#f87171' },
+  { key: 'customer',       label: 'Client',         color: '#2dd4bf' },
+  { key: 'unsubscribed',   label: 'Désinscrit',     color: '#fbbf24' },
+  { key: 'bounced',        label: 'Adresse morte',  color: '#c084fc' },
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number]['key'];

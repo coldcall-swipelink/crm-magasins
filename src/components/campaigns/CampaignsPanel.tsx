@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
 import CampaignDetail from './CampaignDetail';
-import { CAMPAIGN_STATUS, btnDef, btnPri, card, inp, label } from './ui';
+import { CAMPAIGN_STATUS, btnDef, btnPri, card, inp, label, modal, overlay } from './ui';
 
 type CampaignRow = {
   id: string; name: string; description: string; status: string;
@@ -48,7 +48,7 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>Séquences d&apos;emails</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: '#9aa1b4', marginTop: 2 }}>
             Une campagne enchaîne plusieurs emails espacés de délais d&apos;attente, et s&apos;arrête
             d&apos;elle-même pour tout lead qui répond.
           </div>
@@ -57,11 +57,11 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
+        <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
       ) : campaigns.length === 0 ? (
-        <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 32, textAlign: 'center' }}>
+        <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Aucune campagne</div>
-          <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, color: '#9aa1b4', marginBottom: 14 }}>
             Il faut d&apos;abord une boîte d&apos;envoi connectée et des leads importés.
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
@@ -72,7 +72,7 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {campaigns.map(campaign => {
-            const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#64748b' };
+            const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
             const replyRate = campaign.sentCount > 0
               ? Math.round((campaign.replyCount / campaign.sentCount) * 1000) / 10 : 0;
             return (
@@ -85,7 +85,7 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
                       {state.label}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>
+                  <div style={{ fontSize: 11.5, color: '#9aa1b4', marginTop: 4 }}>
                     {campaign._count.steps} étape{campaign._count.steps > 1 ? 's' : ''} ·
                     {' '}{campaign._count.enrollments} lead{campaign._count.enrollments > 1 ? 's' : ''} ·
                     {' '}{campaign.mailboxes.map(link => link.mailbox.email).join(', ') || 'aucune boîte'}
@@ -111,8 +111,8 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
 function Stat({ label: text, value, accent }: { label: string; value: number | string; accent?: boolean }) {
   return (
     <div style={{ textAlign: 'right', minWidth: 68 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: accent ? '#4338ca' : '#0f172a' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: '#94a3b8' }}>{text}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: accent ? '#8fb0ff' : '#e7e9ef' }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: '#6b7283' }}>{text}</div>
     </div>
   );
 }
@@ -153,9 +153,9 @@ function CreateModal({ userName, onClose, onCreated }: {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 24 }}
+    <div style={overlay}
       onClick={onClose}>
-      <div onClick={event => event.stopPropagation()} style={{ ...card, width: 'min(520px, 100%)' }}>
+      <div onClick={event => event.stopPropagation()} style={{ ...modal, width: 'min(520px, 100%)' }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Nouvelle campagne</div>
 
         <div style={{ marginBottom: 14 }}>
@@ -167,7 +167,7 @@ function CreateModal({ userName, onClose, onCreated }: {
         <div style={{ marginBottom: 16 }}>
           <label style={label}>Boîtes d&apos;envoi</label>
           {mailboxes.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: '#b45309' }}>
+            <div style={{ fontSize: 12.5, color: '#fbbf24' }}>
               Aucune boîte active. Connectez-en une avant de lancer la campagne
               (elle peut être créée dès maintenant, et affectée plus tard).
             </div>

@@ -10,12 +10,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
-import { ENROLLMENT_STATUS, STOP_REASONS } from './ui';
+import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, inp, label } from './ui';
 
-const inp: React.CSSProperties = { width: '100%', padding: '6px 9px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 12.5, outline: 'none' };
-const btnPri: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 12.5 };
-const btnDef: React.CSSProperties = { padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', fontWeight: 500, cursor: 'pointer', fontSize: 12.5 };
-const label: React.CSSProperties = { fontSize: 10.5, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 3 };
 
 export interface LeadRow {
   id: string; email: string; civility: string | null; firstName: string | null; lastName: string | null;
@@ -125,20 +121,20 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
   };
 
   if (!lead) {
-    return <aside style={panelStyle}><div style={{ padding: 20, fontSize: 13, color: '#94a3b8' }}>Chargement…</div></aside>;
+    return <aside style={panelStyle}><div style={{ padding: 20, fontSize: 13, color: '#6b7283' }}>Chargement…</div></aside>;
   }
 
   const custom = Object.entries(lead.customFields || {});
 
   return (
     <aside style={panelStyle}>
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid #262b38', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>
             {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email}
           </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{lead.email}</div>
-          {lead.company && <div style={{ fontSize: 12, color: '#64748b' }}>{lead.jobTitle ? `${lead.jobTitle} · ` : ''}{lead.company}</div>}
+          <div style={{ fontSize: 12, color: '#9aa1b4', marginTop: 2 }}>{lead.email}</div>
+          {lead.company && <div style={{ fontSize: 12, color: '#9aa1b4' }}>{lead.jobTitle ? `${lead.jobTitle} · ` : ''}{lead.company}</div>}
         </div>
         <button onClick={onClose} style={{ ...btnDef, padding: '3px 9px' }}>✕</button>
       </div>
@@ -153,9 +149,9 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
               <button key={status.key} onClick={() => patch({ status: status.key })} style={{
                 padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontSize: 11.5,
                 fontWeight: active ? 700 : 500,
-                border: `1px solid ${active ? status.color : '#e2e8f0'}`,
-                background: active ? `${status.color}18` : '#f8fafc',
-                color: active ? status.color : '#64748b',
+                border: `1px solid ${active ? status.color : '#262b38'}`,
+                background: active ? `${status.color}18` : '#1c1f2a',
+                color: active ? status.color : '#9aa1b4',
               }}>{status.label}</button>
             );
           })}
@@ -181,11 +177,11 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
         {custom.length > 0 && (
           <>
             <div style={label}>CHAMPS PERSONNALISÉS (variables)</div>
-            <div style={{ border: '1px solid #f1f5f9', borderRadius: 8, marginBottom: 16 }}>
+            <div style={{ border: '1px solid #222634', borderRadius: 8, marginBottom: 16 }}>
               {custom.map(([key, value]) => (
-                <div key={key} style={{ display: 'flex', gap: 8, padding: '5px 10px', borderBottom: '1px solid #f8fafc', fontSize: 12 }}>
-                  <code style={{ color: '#4f46e5', flexShrink: 0 }}>{`{{${key}}}`}</code>
-                  <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+                <div key={key} style={{ display: 'flex', gap: 8, padding: '5px 10px', borderBottom: '1px solid #1c1f2a', fontSize: 12 }}>
+                  <code style={{ color: '#3b71f5', flexShrink: 0 }}>{`{{${key}}}`}</code>
+                  <span style={{ color: '#b3b9c9', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -196,9 +192,9 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
           <>
             <div style={label}>CAMPAGNES</div>
             {lead.enrollments.map(enrollment => {
-              const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#64748b' };
+              const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#9aa1b4' };
               return (
-                <div key={enrollment.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                <div key={enrollment.id} style={{ border: '1px solid #262b38', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 12.5, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {enrollment.campaign.name}
@@ -207,7 +203,7 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
                       {state.label}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+                  <div style={{ fontSize: 11, color: '#6b7283', marginTop: 3 }}>
                     {enrollment.sentSteps} email{enrollment.sentSteps > 1 ? 's' : ''} envoyé{enrollment.sentSteps > 1 ? 's' : ''}
                     {enrollment.mailbox ? ` · ${enrollment.mailbox.email}` : ''}
                     {enrollment.stopReason ? ` · ${STOP_REASONS[enrollment.stopReason] || enrollment.stopReason}` : ''}
@@ -225,7 +221,7 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
                         onClick={() => actOnEnrollment(enrollment, 'resume')}>Reprendre</button>
                     )}
                     {enrollment.status !== 'stopped' && enrollment.status !== 'finished' && (
-                      <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}
+                      <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
                         onClick={() => actOnEnrollment(enrollment, 'stop')}>Arrêter pour ce lead</button>
                     )}
                   </div>
@@ -240,10 +236,10 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
           <>
             <div style={label}>RÉPONSES REÇUES</div>
             {lead.replies.map(reply => (
-              <div key={reply.id} style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
+              <div key={reply.id} style={{ background: 'rgba(139,92,246,.13)', border: '1px solid rgba(139,92,246,.35)', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600 }}>{reply.subject || '(sans objet)'}</div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{reply.snippet.slice(0, 260)}</div>
-                <div style={{ fontSize: 10.5, color: '#7c3aed', marginTop: 3 }}>{formatDate(reply.receivedAt)}</div>
+                <div style={{ fontSize: 12, color: '#b3b9c9', marginTop: 3 }}>{reply.snippet.slice(0, 260)}</div>
+                <div style={{ fontSize: 10.5, color: '#a78bfa', marginTop: 3 }}>{formatDate(reply.receivedAt)}</div>
               </div>
             ))}
             <div style={{ height: 10 }} />
@@ -257,36 +253,36 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
           <button style={{ ...btnPri, alignSelf: 'flex-start' }} onClick={addNote}>Ajouter</button>
         </div>
         {lead.notes.map(item => (
-          <div key={item.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
-            <div style={{ fontSize: 12.5, color: '#0f172a', whiteSpace: 'pre-wrap' }}>{item.body}</div>
-            <div style={{ fontSize: 10.5, color: '#a16207', marginTop: 3 }}>
+          <div key={item.id} style={{ background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '7px 10px', marginBottom: 6 }}>
+            <div style={{ fontSize: 12.5, color: '#e7e9ef', whiteSpace: 'pre-wrap' }}>{item.body}</div>
+            <div style={{ fontSize: 10.5, color: '#d9a441', marginTop: 3 }}>
               {item.userName ? `${item.userName} · ` : ''}{formatDate(item.createdAt)}
             </div>
           </div>
         ))}
 
         <div style={{ ...label, marginTop: 16 }}>ACTIVITÉ</div>
-        {lead.events.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Rien à afficher.</div>}
+        {lead.events.length === 0 && <div style={{ fontSize: 12, color: '#6b7283' }}>Rien à afficher.</div>}
         {lead.events.map(event => (
-          <div key={event.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderBottom: '1px solid #f8fafc' }}>
+          <div key={event.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '5px 0', borderBottom: '1px solid #1c1f2a' }}>
             <span>{EVENT_ICONS[event.type] || '•'}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: '#334155' }}>{event.label || event.type}</div>
-              <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
+              <div style={{ color: '#cdd2df' }}>{event.label || event.type}</div>
+              <div style={{ fontSize: 10.5, color: '#6b7283' }}>
                 {event.userName ? `${event.userName} · ` : ''}{formatDate(event.createdAt)}
               </div>
             </div>
           </div>
         ))}
 
-        <div style={{ marginTop: 18, paddingTop: 12, borderTop: '1px solid #f1f5f9', fontSize: 11, color: '#94a3b8' }}>
+        <div style={{ marginTop: 18, paddingTop: 12, borderTop: '1px solid #222634', fontSize: 11, color: '#6b7283' }}>
           Statut actuel : <strong style={{ color: statusColor(lead.status) }}>{statusLabel(lead.status)}</strong><br />
           Ajouté le {formatDate(lead.createdAt)}
           {lead.source ? ` · Provenance : ${lead.source}` : ''}
           {lead.import ? ` · Fichier : ${lead.import.filename}` : ''}
         </div>
 
-        <button style={{ ...btnDef, marginTop: 14, borderColor: '#fecaca', background: '#fef2f2', color: '#b91c1c' }}
+        <button style={{ ...btnDef, marginTop: 14, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
           onClick={remove}>Supprimer ce lead</button>
       </div>
     </aside>
@@ -294,8 +290,8 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
 }
 
 const panelStyle: React.CSSProperties = {
-  width: 420, flexShrink: 0, height: '100%', background: '#fff',
-  borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  width: 420, flexShrink: 0, height: '100%', background: '#171a23',
+  borderLeft: '1px solid #262b38', display: 'flex', flexDirection: 'column', overflow: 'hidden',
 };
 
 function formatDate(value: string): string {
