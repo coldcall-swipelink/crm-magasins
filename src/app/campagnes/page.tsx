@@ -3,10 +3,11 @@
 //
 // Onglet « Campagnes » : l'outil de séquences d'emails.
 //
-// Cinq écrans : la vue d'ensemble, les campagnes (séquences d'emails et leur
-// suivi), les leads (import, statuts, notes), l'historique des emails — partis
-// et à venir, toutes campagnes confondues — et les boîtes d'envoi (connexion
-// SMTP/IMAP directe à Google Workspace et OVH).
+// Six écrans : la vue d'ensemble, les campagnes (séquences d'emails et leur
+// suivi), les leads (import, statuts, notes), les déclencheurs (une offre de
+// boucher qui sort inscrit le contact dans la campagne bouchers), l'historique
+// des emails — partis et à venir, toutes campagnes confondues — et les boîtes
+// d'envoi (connexion SMTP/IMAP directe à Google Workspace et OVH).
 
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
@@ -16,11 +17,13 @@ import DashboardPanel from '@/components/campaigns/DashboardPanel';
 import LeadsPanel from '@/components/campaigns/LeadsPanel';
 import MailboxesPanel from '@/components/campaigns/MailboxesPanel';
 import MessagesHistory from '@/components/campaigns/MessagesHistory';
+import OfferTriggersPanel from '@/components/campaigns/OfferTriggersPanel';
 
 const TABS = [
   { key: 'overview',  label: "Vue d'ensemble" },
   { key: 'campaigns', label: 'Campagnes' },
   { key: 'leads',     label: 'Leads' },
+  { key: 'triggers',  label: 'Déclencheurs' },
   { key: 'history',   label: 'Historique' },
   { key: 'mailboxes', label: "Boîtes d'envoi" },
 ] as const;
@@ -64,6 +67,7 @@ export default function CampagnesPage() {
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {tab === 'overview' && <DashboardPanel onOpenCampaigns={() => setTab('campaigns')} />}
           {tab === 'leads' && <LeadsPanel />}
+          {tab === 'triggers' && <OfferTriggersPanel onGoToCampaigns={() => setTab('campaigns')} />}
           {tab === 'history' && <MessagesHistory />}
           {tab === 'mailboxes' && <MailboxesPanel />}
           {tab === 'campaigns' && <CampaignsPanel onGoToMailboxes={() => setTab('mailboxes')} />}
