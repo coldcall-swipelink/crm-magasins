@@ -268,7 +268,16 @@ function UpcomingTable({ items, showCampaign, summary }: {
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>
                   {formatDateTime(item.scheduledAt)}
                   {item.overdue && !blocked && (
-                    <div style={{ fontSize: 10.5, color: '#fbbf24' }}>en attente du moteur</div>
+                    // Volontairement descriptif, pas explicatif : l'écran sait
+                    // que l'heure est passée, il ne sait PAS pourquoi. Affirmer
+                    // « en attente du moteur » envoyait chercher une panne de
+                    // planificateur alors que la cause pouvait être une plage
+                    // horaire, un quota ou une boîte supprimée. Le diagnostic
+                    // de la campagne, lui, sait : on y renvoie.
+                    <div style={{ fontSize: 10.5, color: '#fbbf24' }} title={
+                      "L'heure prévue est dépassée. Le diagnostic de la campagne "
+                      + "(onglet Leads) indique ce qui retient l'envoi."
+                    }>échéance dépassée</div>
                   )}
                 </td>
                 <td style={td}>

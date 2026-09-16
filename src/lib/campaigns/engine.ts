@@ -63,6 +63,8 @@ export type RunResult = {
   /** Boîtes écartées et pourquoi : la route le renvoie tel quel au superviseur. */
   skipped: Array<{ mailbox: string; reason: string }>;
   errors: Array<{ enrollmentId: string; message: string }>;
+  /** Inscriptions sans boîte d'envoi rendues à une boîte active. */
+  reassigned: number;
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -89,7 +91,7 @@ export async function runDueSends(
   const deadline = Date.now() + budgetMs;
   const now = options.now ?? new Date();
 
-  const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [] };
+  const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [], reassigned: 0 };
 
   // Battement de cœur : sans cette trace, un planificateur qui ne tourne pas
   // est invisible — l'interface montre une file qui n'avance pas, sans dire
@@ -115,6 +117,19 @@ export async function runDueSends(
   if (stale.count > 0) {
     console.warn(`[campaigns/engine] ${stale.count} inscription(s) remise(s) en file après interruption`);
   }
+
+  // Inscriptions orphelines : leur boîte a été SUPPRIMÉE depuis, et
+  // `onDelete: SetNull` a laissé `mailboxId` à null.
+  //
+  // Le moteur part des boîtes puis leur demande leurs inscriptions : une
+  // inscription sans boîte n'est donc ramassée par AUCUNE boucle, jamais. Elle
+  // reste « active », son échéance passe, et l'écran affiche « en attente du
+  // moteur » indéfiniment — sans que rien ne soit en panne par ailleurs.
+  //
+  // On la réaffecte à une boîte active de sa campagne. Le fil de discussion
+  // change d'expéditeur si la séquence était entamée ; c'est un moindre mal
+  // devant une inscription qui n'enverra plus rien du tout.
+  result.reassigned = await reassignOrphans();
 
   const mailboxes = await prisma.mailbox.findMany({
     where: {
@@ -251,6 +266,60 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
 }
 
 /** Inscription réservée pour cette boîte, ou null si la file est vide. */
+/**
+ * Rend une boîte aux inscriptions qui n'en ont plus.
+ *
+ * Renvoie le nombre d'inscriptions récupérées. Les campagnes sans aucune boîte
+ * active sont laissées telles quelles : il n'y a rien à leur donner, et le
+ * diagnostic de la campagne le dit déjà.
+ */
+async function reassignOrphans(): Promise<number> {
+  const orphans = await prisma.campaignEnrollment.findMany({
+    where: { mailboxId: null, status: { in: ['active', 'sending'] } },
+    select: { id: true, campaignId: true, leadId: true },
+  });
+  if (orphans.length === 0) return 0;
+
+  // Boîtes actives par campagne, lues une fois pour toutes.
+  const byCampaign = new Map<string, string[]>();
+  for (const campaignId of Array.from(new Set(orphans.map(o => o.campaignId)))) {
+    const links = await prisma.campaignMailbox.findMany({
+      where: { campaignId, mailbox: { active: true } },
+      select: { mailboxId: true },
+    });
+    byCampaign.set(campaignId, links.map(link => link.mailboxId));
+  }
+
+  let repaired = 0;
+  for (const orphan of orphans) {
+    const boxes = byCampaign.get(orphan.campaignId) ?? [];
+    if (boxes.length === 0) continue;
+    // Répartition simple : le rang de l'inscription décide, pour ne pas
+    // reverser toute une file orpheline sur la même boîte.
+    const mailboxId = boxes[repaired % boxes.length];
+
+    await prisma.campaignEnrollment.update({
+      where: { id: orphan.id },
+      data: { mailboxId, status: 'active' },
+    });
+    // Tracé sur le lead : un changement d'expéditeur en cours de séquence doit
+    // pouvoir s'expliquer en relisant sa fiche.
+    await prisma.leadEvent.create({
+      data: {
+        leadId: orphan.leadId,
+        type: 'updated',
+        label: "Boîte d'envoi réaffectée : la précédente avait été supprimée",
+      },
+    }).catch(() => { /* la trace ne doit jamais empêcher la reprise */ });
+    repaired++;
+  }
+
+  if (repaired > 0) {
+    console.warn(`[campaigns/engine] ${repaired} inscription(s) sans boîte réaffectée(s)`);
+  }
+  return repaired;
+}
+
 async function claimNextEnrollment(mailboxId: string) {
   const candidate = await prisma.campaignEnrollment.findFirst({
     where: {
