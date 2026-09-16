@@ -11,13 +11,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { enrollLeads } from '@/lib/campaigns/engine';
+import { enrollLeads, runDueSends } from '@/lib/campaigns/engine';
 import { isLeadStatus } from '@/lib/campaigns/leadFields';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 const PAGE_SIZE = 50;
+
+/**
+ * Passage court du moteur sur les boîtes d'une campagne en cours.
+ * Silencieux par construction : si rien ne peut partir (campagne en
+ * brouillon, hors plage horaire, quota atteint), l'inscription reste un
+ * succès — le diagnostic de la campagne dira pourquoi.
+ */
+async function sendFirstWave(campaignId: string): Promise<number> {
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { status: true, mailboxes: { select: { mailboxId: true } } },
+    });
+    if (campaign?.status !== 'running') return 0;
+
+    const result = await runDueSends({
+      // Court : l'utilisateur attend la réponse de son clic.
+      budgetMs: 20_000,
+      mailboxIds: campaign.mailboxes.map(link => link.mailboxId),
+    });
+    return result.sent;
+  } catch (err) {
+    console.error('[campaigns/enrollments] première salve', err);
+    return 0;
+  }
+}
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const search = req.nextUrl.searchParams;
@@ -103,7 +129,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   try {
     const result = await enrollLeads(params.id, leadIds);
-    return NextResponse.json(result, { status: 201 });
+
+    // Les premiers emails partent DANS LA FOULÉE, sans attendre le cron : un
+    // lead ajouté à une campagne en cours doit se voir partir. Le reste de la
+    // file suivra au rythme des garde-fous des boîtes.
+    const sent = await sendFirstWave(params.id);
+
+    return NextResponse.json({ ...result, sent }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 422 });
   }

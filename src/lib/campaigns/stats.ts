@@ -17,6 +17,7 @@
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { lastEngineRun } from '@/lib/campaigns/engine';
 
 export type Funnel = {
   sent: number;
@@ -136,6 +137,8 @@ export type GlobalStats = Funnel & {
   mailboxes: Array<{ id: string; email: string; sentToday: number; sentTotal: number; active: boolean; lastError: string | null }>;
   daily: DailyPoint[];
   topCampaigns: Array<{ id: string; name: string; status: string; sent: number; openRate: number; replyRate: number }>;
+  /** Dernier passage du moteur d'envoi, ou null s'il n'a jamais tourné. */
+  lastRun: string | null;
 };
 
 /** Tableau de bord global de l'outil, sur les `days` derniers jours. */
@@ -143,7 +146,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
   const since = new Date(Date.now() - days * 86_400_000);
   since.setHours(0, 0, 0, 0);
 
-  const [base, campaignRows, leadRows, mailboxes, messages] = await Promise.all([
+  const [base, campaignRows, leadRows, mailboxes, messages, lastRun] = await Promise.all([
     funnel(),
     prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
@@ -157,6 +160,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
       where: { status: 'sent', sentAt: { gte: since } },
       select: { sentAt: true, openedAt: true, repliedAt: true, mailboxId: true, campaignId: true },
     }),
+    lastEngineRun(),
   ]);
 
   // Courbe jour par jour, trous compris (un jour sans envoi vaut zéro).
@@ -227,5 +231,6 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
       })
       .sort((a, b) => b.sent - a.sent)
       .slice(0, 8),
+    lastRun: lastRun ? lastRun.toISOString() : null,
   };
 }

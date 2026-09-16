@@ -47,8 +47,19 @@ export async function POST(req: NextRequest) {
   const name = String(body?.name || '').trim();
   if (!name) return NextResponse.json({ error: 'Nom requis' }, { status: 400 });
 
-  const mailboxIds: string[] = Array.isArray(body?.mailboxIds)
-    ? body.mailboxIds.map(String) : [];
+  const requested: string[] = Array.isArray(body?.mailboxIds)
+    ? body.mailboxIds.map((id: unknown) => String(id)) : [];
+
+  // Une boîte inconnue ferait échouer la création sur une contrainte de clé
+  // étrangère, avec une erreur 500 illisible. On vérifie d'abord.
+  const mailboxIds = requested.length
+    ? (await prisma.mailbox.findMany({
+        where: { id: { in: requested } }, select: { id: true },
+      })).map(mailbox => mailbox.id)
+    : [];
+  if (requested.length !== mailboxIds.length) {
+    return NextResponse.json({ error: "Boîte d'envoi introuvable" }, { status: 400 });
+  }
 
   const campaign = await prisma.campaign.create({
     data: {

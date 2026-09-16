@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import SequenceEditor, { type Step } from './SequenceEditor';
+import CampaignDiagnostics from './CampaignDiagnostics';
 import CampaignLeadsTab from './CampaignLeadsTab';
 import CampaignStatsTab, { type Stats } from './CampaignStatsTab';
 import MessagesHistory from './MessagesHistory';
@@ -64,6 +65,12 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
     });
     const result = await res.json();
     if (!res.ok) { toast(result.error || 'Modification refusée', 'error'); return false; }
+    // Au lancement, le moteur fait partir la première salve : on le dit.
+    if (data.status === 'running') {
+      toast(result.sent > 0
+        ? `Campagne lancée — ${result.sent} email(s) déjà parti(s)`
+        : 'Campagne lancée — les envois partent au rythme des boîtes');
+    }
     await load();
     onChanged();
     return true;
@@ -131,6 +138,12 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
         <div style={{ margin: '14px 24px 0', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#78350f' }}>
           Aucune boîte d&apos;envoi active n&apos;est affectée : la campagne ne pourra pas être lancée.
           Choisissez-en une dans l&apos;onglet <strong>Réglages</strong>.
+        </div>
+      )}
+
+      {(tab === 'leads' || tab === 'stats') && (
+        <div style={{ padding: '14px 24px 0' }}>
+          <CampaignDiagnostics campaignId={campaignId} onSent={load} />
         </div>
       )}
 

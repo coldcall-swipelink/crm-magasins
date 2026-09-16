@@ -24,6 +24,7 @@ type Stats = {
   mailboxes: Array<{ id: string; email: string; sentToday: number; sentTotal: number; active: boolean; lastError: string | null }>;
   daily: Array<{ date: string; sent: number; opened: number; replied: number }>;
   topCampaigns: Array<{ id: string; name: string; status: string; sent: number; openRate: number; replyRate: number }>;
+  lastRun: string | null;
 };
 
 const RANGES = [7, 30, 90];
@@ -72,6 +73,8 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
           ))}
         </div>
       </div>
+
+      <EngineHeartbeat lastRun={stats.lastRun} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label="Emails envoyés" value={stats.sent} hint="depuis le début" />
@@ -201,6 +204,45 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
         l&apos;ouverture, un pré-chargement (Apple Mail, proxy Gmail) la compte à tort. Il se lit
         comme une tendance. Le taux de réponse, lui, est mesuré sur les réponses réellement
         reçues dans les boîtes — c&apos;est le seul chiffre solide.
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Battement de cœur du moteur d'envoi.
+ *
+ * Le verrou le plus difficile à voir : tout peut être correctement réglé et
+ * n'avoir jamais été relevé, parce que la tâche planifiée ne tourne pas. Sans
+ * cette ligne, la file n'avance pas et rien ne dit pourquoi.
+ */
+function EngineHeartbeat({ lastRun }: { lastRun: string | null }) {
+  if (lastRun) {
+    const minutes = Math.round((Date.now() - new Date(lastRun).getTime()) / 60_000);
+    // Il tourne toutes les 5 minutes : au-delà de 20, quelque chose cloche.
+    if (minutes <= 20) {
+      return (
+        <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
+          Moteur d&apos;envoi : dernier passage il y a {minutes} minute{minutes > 1 ? 's' : ''}.
+        </div>
+      );
+    }
+    return (
+      <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#78350f', marginBottom: 14 }}>
+        <strong>Le moteur d&apos;envoi n&apos;a pas tourné depuis {minutes} minutes</strong> — il devrait
+        passer toutes les 5 minutes. Tant qu&apos;il dort, aucune campagne n&apos;avance.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#b91c1c', marginBottom: 14 }}>
+      <strong>Le moteur d&apos;envoi n&apos;a jamais tourné.</strong>
+      <div style={{ marginTop: 4, color: '#7f1d1d' }}>
+        La tâche planifiée <code>/api/campaigns/run</code> n&apos;est pas déclenchée. Sur un
+        hébergement qui limite les tâches planifiées, appelez cette route depuis un
+        planificateur externe (N8N…) toutes les 5 minutes. En attendant, le bouton
+        « Envoyer maintenant » d&apos;une campagne fait partir les emails sans dépendre d&apos;elle.
       </div>
     </div>
   );
