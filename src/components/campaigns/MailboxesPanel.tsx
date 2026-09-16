@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
+import { PROVIDER_PRESETS } from '@/lib/campaigns/providers';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13 };
@@ -28,8 +29,6 @@ export interface Mailbox {
   imapConfigured: boolean; hasImapSecret: boolean;
 }
 
-type Preset = { label: string; smtpHost: string; smtpPort: number; smtpSecure: boolean; imapHost: string; imapPort: number; hint: string };
-
 const DAYS = [
   { value: 1, label: 'L' }, { value: 2, label: 'M' }, { value: 3, label: 'M' },
   { value: 4, label: 'J' }, { value: 5, label: 'V' }, { value: 6, label: 'S' }, { value: 7, label: 'D' },
@@ -45,9 +44,12 @@ const EMPTY_FORM = {
 
 export default function MailboxesPanel() {
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
-  const [presets, setPresets] = useState<Record<string, Preset>>({});
   const [encryptionReady, setEncryptionReady] = useState(true);
   const [loading, setLoading] = useState(true);
+  // Panne de l'API : affichée en toutes lettres. Sans cela, l'écran se
+  // contentait d'être vide — et une table manquante en base ressemblait
+  // à un bug d'interface.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
@@ -58,12 +60,20 @@ export default function MailboxesPanel() {
     setLoading(true);
     try {
       const res = await fetch('/api/campaigns/mailboxes');
-      const data = await res.json();
-      setMailboxes(data.mailboxes || []);
-      setPresets(data.presets || {});
+      const raw = await res.text();
+      let data: Record<string, unknown> = {};
+      try { data = JSON.parse(raw); } catch { /* réponse non JSON : page d'erreur */ }
+
+      if (!res.ok) {
+        setLoadError(String(data.error || `Erreur ${res.status}`));
+        setMailboxes([]);
+        return;
+      }
+      setLoadError(null);
+      setMailboxes((data.mailboxes as Mailbox[]) || []);
       setEncryptionReady(Boolean(data.encryptionReady));
-    } catch {
-      toast('Chargement des boîtes impossible', 'error');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Serveur injoignable');
     } finally {
       setLoading(false);
     }
@@ -74,7 +84,7 @@ export default function MailboxesPanel() {
   // Changer de fournisseur pré-remplit les serveurs, sans écraser une saisie
   // manuelle déjà faite sur un réglage personnalisé.
   const pickProvider = (provider: string) => {
-    const preset = presets[provider];
+    const preset = PROVIDER_PRESETS[provider as keyof typeof PROVIDER_PRESETS];
     setForm(f => ({
       ...f, provider,
       smtpHost: preset?.smtpHost ?? '', smtpPort: preset?.smtpPort ?? 465,
@@ -150,10 +160,23 @@ export default function MailboxesPanel() {
   };
 
   const set = (key: string, value: unknown) => setForm(f => ({ ...f, [key]: value }));
-  const hint = presets[form.provider]?.hint;
+  const hint = PROVIDER_PRESETS[form.provider as keyof typeof PROVIDER_PRESETS]?.hint;
 
   return (
     <div style={{ padding: '18px 24px', maxWidth: 1000 }}>
+      {loadError && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#b91c1c', marginBottom: 16 }}>
+          <strong>La liste des boîtes n&apos;a pas pu être chargée.</strong>
+          <div style={{ marginTop: 4, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}>{loadError}</div>
+          <div style={{ marginTop: 6, color: '#7f1d1d' }}>
+            Si le message parle d&apos;une table absente, le schéma de la base n&apos;est pas à jour :
+            lancez <code>npx prisma db push</code> sur la base, ou la route de synchronisation
+            <code> /api/admin/db-sync</code>. Le formulaire ci-dessous reste utilisable, mais
+            l&apos;enregistrement échouera tant que la base n&apos;est pas prête.
+          </div>
+        </div>
+      )}
+
       {!encryptionReady && (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#78350f', marginBottom: 16 }}>
           <strong>Clé de chiffrement manquante.</strong> Les mots de passe des boîtes sont chiffrés en base :
@@ -182,7 +205,7 @@ export default function MailboxesPanel() {
             <div>
               <label style={label}>Fournisseur</label>
               <select style={inp} value={form.provider} onChange={e => pickProvider(e.target.value)}>
-                {Object.entries(presets).map(([key, preset]) => (
+                {Object.entries(PROVIDER_PRESETS).map(([key, preset]) => (
                   <option key={key} value={key}>{preset.label}</option>
                 ))}
               </select>

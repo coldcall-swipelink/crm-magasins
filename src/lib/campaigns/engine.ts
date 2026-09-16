@@ -68,7 +68,22 @@ export async function runDueSends(options: { budgetMs?: number; now?: Date } = {
     return result;
   }
 
-  await Promise.all(mailboxes.map(mailbox => runMailbox(mailbox, deadline, now, result)));
+  // Chaque boîte est isolée : une boîte en panne (mot de passe illisible,
+  // serveur injoignable) ne doit pas emporter le passage entier, sinon plus
+  // aucune campagne n'envoie — pour personne.
+  await Promise.all(mailboxes.map(mailbox =>
+    runMailbox(mailbox, deadline, now, result).catch(async err => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[campaigns/engine]', mailbox.email, message);
+      result.skipped.push({ mailbox: mailbox.email, reason: message.slice(0, 200) });
+      // Trace visible dans l'interface : sans cela, la boîte semblerait saine
+      // alors qu'elle n'envoie plus rien.
+      await prisma.mailbox.update({
+        where: { id: mailbox.id },
+        data: { lastCheckOk: false, lastError: message.slice(0, 300) },
+      }).catch(() => { /* la base a déjà parlé */ });
+    }),
+  ));
   return result;
 }
 
@@ -93,7 +108,16 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
     return;
   }
 
-  const transport = createTransport(mailbox);
+  // Ouverture du transport : c'est ici que se voit un mot de passe devenu
+  // illisible (clé de chiffrement changée depuis l'enregistrement).
+  let transport: ReturnType<typeof createTransport>;
+  try {
+    transport = createTransport(mailbox);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`Identifiants inutilisables : ${reason}`);
+  }
+
   try {
     while (remaining > 0 && Date.now() < deadline) {
       // 1. Y a-t-il seulement quelque chose à envoyer ? Inutile de réserver un
