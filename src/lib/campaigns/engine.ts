@@ -163,6 +163,13 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
 
       const outcome = await sendEnrollmentStep(enrollment, mailbox, transport);
       if (outcome.kind === 'sent') { result.sent++; remaining--; }
+      else if (outcome.kind === 'mailboxError') {
+        // Inutile d'insister : la boîte refuse d'envoyer, ses leads attendront
+        // qu'on ait réglé le problème. Les autres boîtes continuent.
+        result.failed++;
+        result.skipped.push({ mailbox: mailbox.email, reason: `Envoi refusé par le serveur : ${outcome.message.slice(0, 160)}` });
+        break;
+      }
       else if (outcome.kind === 'failed') { result.failed++; result.errors.push({ enrollmentId: enrollment.id, message: outcome.message }); }
       else {
         // Rien n'est parti (séquence terminée, ou lead écarté entre-temps) :
@@ -216,8 +223,49 @@ type ClaimedEnrollment = NonNullable<Awaited<ReturnType<typeof claimNextEnrollme
 type Outcome =
   | { kind: 'sent' }
   | { kind: 'failed'; message: string }
+  /** La boîte d'envoi est en cause : le lead est intact, la file s'arrête. */
+  | { kind: 'mailboxError'; message: string }
   | { kind: 'finished' }
   | { kind: 'stopped' };
+
+/**
+ * À qui la faute ?
+ *
+ *   'recipient' → l'adresse visée est refusée : le lead est mort.
+ *   'mailbox'   → la boîte d'envoi est en cause (mot de passe, quota, blocage
+ *                 du fournisseur). Le lead n'y est pour rien.
+ *   'transient' → incident passager : on réessaiera.
+ *
+ * Distinction capitale : un code « 5.x.x » ne veut PAS dire « mauvaise
+ * adresse ». « 535-5.7.8 Username and Password not accepted » est un refus
+ * d'authentification, « 5.7.0 Daily sending quota exceeded » un quota atteint —
+ * deux problèmes d'expéditeur. Les confondre avec un rejet de destinataire
+ * condamne des leads valides par lots entiers.
+ */
+export function classifyFailure(err: unknown, reason: string): 'recipient' | 'mailbox' | 'transient' {
+  // Nodemailer range un code machine dans l'erreur : plus fiable que le texte.
+  const code = String((err as { code?: unknown })?.code || '');
+  const responseCode = Number((err as { responseCode?: unknown })?.responseCode) || 0;
+
+  // Expéditeur : authentification, autorisation, quota, réputation.
+  if (code === 'EAUTH') return 'mailbox';
+  if (/\b(530|534|535|538)\b|5\.7\.\d/.test(reason)) return 'mailbox';
+  if (/invalid login|username and password not accepted|authentication (failed|required)|not authenticated/i.test(reason)) return 'mailbox';
+  if (/quota|rate limit|sending limit|too many (messages|login)|account.*(disabled|suspended)|blocked/i.test(reason)) return 'mailbox';
+
+  // Destinataire : l'enveloppe a été refusée sur l'adresse visée.
+  if (code === 'EENVELOPE') return 'recipient';
+  if (responseCode >= 500 && responseCode < 600
+      && /\b(550|551|553)\b|5\.1\.[0-9]|no such user|user unknown|recipient (address )?rejected|address rejected|mailbox (unavailable|not found)|does not exist/i.test(reason)) {
+    return 'recipient';
+  }
+  if (/\b(550|551|553)\b|5\.1\.[0-9]|no such user|user unknown|recipient (address )?rejected|mailbox (unavailable|not found)/i.test(reason)) {
+    return 'recipient';
+  }
+
+  // Le reste — délais, coupures, 4xx — se réessaie.
+  return 'transient';
+}
 
 /** Envoie l'étape courante d'une inscription réservée, puis la reprogramme. */
 async function sendEnrollmentStep(
@@ -356,11 +404,11 @@ async function sendEnrollmentStep(
       data: { status: 'failed', subject, error: reason.slice(0, 500) },
     });
 
-    // Adresse refusée définitivement (5.1.1 / 550) : le lead est mort, on
-    // arrête sa séquence. Toute autre erreur est un incident passager, on
-    // repasse l'inscription en file pour le prochain créneau.
-    const permanent = /(^|\D)5\.[0-9]\.[0-9]|\b550\b|\b553\b|mailbox (unavailable|not found)|no such user/i.test(reason);
-    if (permanent) {
+    const fault = classifyFailure(err, reason);
+
+    if (fault === 'recipient') {
+      // L'adresse du destinataire est refusée définitivement : le lead est
+      // mort, sa séquence s'arrête.
       await prisma.lead.update({
         where: { id: lead.id },
         data: { status: 'bounced', statusAt: new Date(), bouncedAt: new Date() },
@@ -369,12 +417,33 @@ async function sendEnrollmentStep(
         data: { leadId: lead.id, type: 'bounced', label: `Adresse refusée : ${reason.slice(0, 160)}` },
       });
       await stopEnrollment(enrollment.id, 'bounced');
-    } else {
-      await prisma.campaignEnrollment.update({
-        where: { id: enrollment.id },
-        data: { status: 'active', nextSendAt: new Date(Date.now() + 30 * 60_000) },
-      });
+      return { kind: 'failed', message: reason };
     }
+
+    // Tout le reste laisse le lead intact et le remet en file. Un problème
+    // d'expéditeur (mot de passe refusé, quota du fournisseur, boîte bloquée)
+    // ne dit RIEN sur la validité de l'adresse visée : le marquer « adresse
+    // morte » brûlerait des leads parfaitement valides par lots entiers.
+    await prisma.campaignEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        status: 'active',
+        // Reprise plus rapprochée pour un incident passager que pour un
+        // problème de boîte, qui demande une intervention humaine.
+        nextSendAt: new Date(Date.now() + (fault === 'mailbox' ? 60 : 30) * 60_000),
+      },
+    });
+
+    if (fault === 'mailbox') {
+      // La boîte est en cause : on le dit dans l'interface, et on arrête là
+      // pour cette boîte — inutile de défiler toute sa file en échouant.
+      await prisma.mailbox.update({
+        where: { id: mailbox.id },
+        data: { lastCheckOk: false, lastError: `Envoi refusé : ${reason.slice(0, 280)}` },
+      });
+      return { kind: 'mailboxError', message: reason };
+    }
+
     return { kind: 'failed', message: reason };
   }
 }

@@ -11,7 +11,7 @@
 // base qu'une fois parti. L'échéance se lit donc sur l'inscription du lead.
 
 import { useCallback, useEffect, useState } from 'react';
-import { CAMPAIGN_STATUS, btnDef, card, inp } from './ui';
+import { CAMPAIGN_STATUS, ENROLLMENT_STATUS, STOP_REASONS, btnDef, card, inp } from './ui';
 
 type Message = {
   id: string; subject: string; toAddress: string; fromAddress: string;
@@ -48,6 +48,8 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
   const [tab, setTab] = useState<string>('upcoming');
   const [messages, setMessages] = useState<Message[]>([]);
   const [upcoming, setUpcoming] = useState<Upcoming[]>([]);
+  // Répartition des inscriptions : sert à expliquer une file vide.
+  const [summary, setSummary] = useState<{ enrollments: Record<string, number>; stopReasons: Record<string, number> } | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [upcomingCount, setUpcomingCount] = useState(0);
   const [total, setTotal] = useState(0);
@@ -76,6 +78,7 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
         setTotal(data.total || 0);
         setUpcomingCount(data.total || 0);
         setPages(data.pages || 1);
+        setSummary(data.summary || null);
       } else {
         if (tab) params.set('status', tab);
         const data = await fetch(`/api/campaigns/messages?${params}`).then(res => res.json());
@@ -136,7 +139,7 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
       {loading ? (
         <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
       ) : tab === 'upcoming' ? (
-        <UpcomingTable items={upcoming} showCampaign={!campaignId} />
+        <UpcomingTable items={upcoming} showCampaign={!campaignId} summary={summary} />
       ) : (
         <MessagesTable messages={messages} showCampaign={!campaignId} onOpen={openDetail} />
       )}
@@ -220,10 +223,12 @@ function MessageBadge({ message }: { message: Message }) {
 
 // ─── Envois à venir ───────────────────────────────────────────────────────
 
-function UpcomingTable({ items, showCampaign }: { items: Upcoming[]; showCampaign: boolean }) {
-  if (items.length === 0) {
-    return <Empty text="Aucun envoi programmé : toutes les séquences sont terminées ou arrêtées." />;
-  }
+function UpcomingTable({ items, showCampaign, summary }: {
+  items: Upcoming[];
+  showCampaign: boolean;
+  summary: { enrollments: Record<string, number>; stopReasons: Record<string, number> } | null;
+}) {
+  if (items.length === 0) return <NothingScheduled summary={summary} />;
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -341,6 +346,59 @@ function Badge({ label, color, title }: { label: string; color: string; title?: 
       padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
       color, background: `${color}18`, whiteSpace: 'nowrap',
     }}>{label}</span>
+  );
+}
+
+/**
+ * File vide : on explique POURQUOI plutôt que d'affirmer que tout est terminé.
+ * Un lead arrêté à tort ou une campagne jamais lancée donnent le même écran
+ * vide — et la différence est exactement ce qu'on cherche à cet instant.
+ */
+function NothingScheduled({ summary }: {
+  summary: { enrollments: Record<string, number>; stopReasons: Record<string, number> } | null;
+}) {
+  const states = Object.entries(summary?.enrollments || {});
+  const reasons = Object.entries(summary?.stopReasons || {});
+  const totalLeads = states.reduce((sum, [, count]) => sum + count, 0);
+
+  if (totalLeads === 0) {
+    return <Empty text="Aucun lead inscrit : ajoutez-en dans l'onglet Leads de la campagne." />;
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 24 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Aucun envoi programmé</div>
+      <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 14 }}>
+        {totalLeads} lead{totalLeads > 1 ? 's' : ''} inscrit{totalLeads > 1 ? 's' : ''}, mais aucun n&apos;attend d&apos;envoi.
+        Voici où ils en sont :
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {states.map(([status, count]) => {
+          const state = ENROLLMENT_STATUS[status] || { label: status, color: '#64748b' };
+          return (
+            <div key={status} style={{ border: `1px solid ${state.color}33`, background: `${state.color}12`, borderRadius: 8, padding: '7px 12px' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: state.color }}>{count}</div>
+              <div style={{ fontSize: 11, color: '#475569' }}>{state.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {reasons.length > 0 && (
+        <div style={{ fontSize: 12, color: '#475569' }}>
+          Motifs d&apos;arrêt : {reasons.map(([reason, count]) => `${count} ${STOP_REASONS[reason] || reason}`).join(' · ')}.
+          {reasons.some(([reason]) => reason === 'bounced') && (
+            <div style={{ marginTop: 8, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '9px 12px', color: '#78350f' }}>
+              Des leads ont été arrêtés pour « adresse morte ». Si vos emails n&apos;ont jamais
+              été remis, vérifiez d&apos;abord l&apos;état de vos boîtes d&apos;envoi : un refus
+              d&apos;authentification ou un quota atteint vient de l&apos;expéditeur, pas de
+              l&apos;adresse visée.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

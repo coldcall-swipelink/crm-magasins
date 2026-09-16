@@ -46,7 +46,12 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const [enrollments, total] = await Promise.all([
+  // Répartition de TOUTES les inscriptions du périmètre : quand rien n'est
+  // programmé, c'est elle qui dit pourquoi (tout arrêté ? tout terminé ?),
+  // au lieu de laisser l'écran affirmer que les séquences sont finies.
+  const summaryScope = campaignId ? { campaignId } : {};
+
+  const [enrollments, total, byStatus, byReason] = await Promise.all([
     prisma.campaignEnrollment.findMany({
       where,
       // Le plus imminent d'abord : un échéancier se lit dans le sens du temps.
@@ -66,6 +71,12 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.campaignEnrollment.count({ where }),
+    prisma.campaignEnrollment.groupBy({
+      by: ['status'], where: summaryScope, _count: { _all: true },
+    }),
+    prisma.campaignEnrollment.groupBy({
+      by: ['stopReason'], where: { ...summaryScope, stopReason: { not: null } }, _count: { _all: true },
+    }),
   ]);
 
   const now = new Date();
@@ -95,5 +106,9 @@ export async function GET(req: NextRequest) {
     total,
     page,
     pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    summary: {
+      enrollments: Object.fromEntries(byStatus.map(row => [row.status, row._count._all])),
+      stopReasons: Object.fromEntries(byReason.map(row => [row.stopReason || 'autre', row._count._all])),
+    },
   });
 }
