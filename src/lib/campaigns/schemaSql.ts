@@ -16,8 +16,9 @@
 // puis rendu rejouable : CREATE ... IF NOT EXISTS, et contraintes enveloppées
 // dans un bloc qui avale l'erreur « existe déjà ».
 //
-// Aucune instruction destructrice : que des CREATE TABLE, CREATE INDEX et
-// ADD CONSTRAINT. Rejouer la liste sur une base à jour ne fait rien.
+// Aucune instruction destructrice : que des CREATE TABLE, CREATE INDEX,
+// ADD COLUMN IF NOT EXISTS et ADD CONSTRAINT. Rejouer la liste sur une base à
+// jour ne fait rien.
 
 export const CAMPAIGN_SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS "Mailbox" (
@@ -304,4 +305,11 @@ END $$;`,
   ALTER TABLE "CampaignReply" ADD CONSTRAINT "CampaignReply_leadId_fkey" FOREIGN KEY ("leadId") REFERENCES "Lead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;`,
+
+  // ── Ajouts postérieurs à la création initiale ───────────────────────────
+  // « Contact calling » repris de la fiche affaire du CRM.
+  `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "contactCalling" TEXT;`,
+  // Filtre « pipeline / étape » de l'écran Leads : il cherche les leads d'une
+  // liste d'affaires.
+  `CREATE INDEX IF NOT EXISTS "Lead_dealId_idx" ON "Lead"("dealId");`,
 ];

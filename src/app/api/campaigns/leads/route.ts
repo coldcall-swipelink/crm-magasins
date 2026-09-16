@@ -1,6 +1,7 @@
 // src/app/api/campaigns/leads/route.ts
 //
-//   GET  /api/campaigns/leads?q=…&status=…&page=1  → liste filtrée, paginée
+//   GET  /api/campaigns/leads?q=…&status=…&pipelineId=…&columnId=…&page=1
+//        → liste filtrée, paginée
 //   POST /api/campaigns/leads                      → création manuelle
 //   POST /api/campaigns/leads { …, campaignId }    → création PUIS inscription
 //         dans la campagne : c'est la saisie d'un lead depuis une campagne.
@@ -8,6 +9,13 @@
 // La liste sert l'écran « Leads » de l'onglet Campagnes. Elle renvoie aussi le
 // décompte par statut, pour que les filtres affichent leur volume sans un
 // second aller-retour.
+//
+// Filtre par pipeline / étape : un lead repris du CRM porte l'identifiant de
+// son affaire (Lead.dealId). On traduit donc le filtre en liste d'affaires
+// concernées, puis on cherche les leads qui en viennent. Le détour par une
+// liste d'identifiants tient au fait que Lead.dealId n'est pas une relation
+// Prisma — poser une clé étrangère sur une colonne déjà remplie ferait échouer
+// la synchronisation de schéma au moindre rattachement orphelin.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
@@ -24,6 +32,8 @@ export async function GET(req: NextRequest) {
   const q = (params.get('q') || '').trim();
   const status = (params.get('status') || '').trim();
   const importId = (params.get('importId') || '').trim();
+  const pipelineId = (params.get('pipelineId') || '').trim();
+  const columnId = (params.get('columnId') || '').trim();
   const page = Math.max(1, Number(params.get('page')) || 1);
 
   const where: Prisma.LeadWhereInput = {};
@@ -32,16 +42,30 @@ export async function GET(req: NextRequest) {
   if (q) {
     // Recherche sur les champs qu'on lit à l'œil dans la liste.
     where.OR = [
-      { email:     { contains: q, mode: 'insensitive' } },
-      { firstName: { contains: q, mode: 'insensitive' } },
-      { lastName:  { contains: q, mode: 'insensitive' } },
-      { company:   { contains: q, mode: 'insensitive' } },
-      { jobTitle:  { contains: q, mode: 'insensitive' } },
-      { city:      { contains: q, mode: 'insensitive' } },
+      { email:          { contains: q, mode: 'insensitive' } },
+      { firstName:      { contains: q, mode: 'insensitive' } },
+      { lastName:       { contains: q, mode: 'insensitive' } },
+      { contactCalling: { contains: q, mode: 'insensitive' } },
+      { company:        { contains: q, mode: 'insensitive' } },
+      { jobTitle:       { contains: q, mode: 'insensitive' } },
+      { city:           { contains: q, mode: 'insensitive' } },
     ];
   }
 
-  const [leads, total, statusCounts] = await Promise.all([
+  if (pipelineId || columnId) {
+    const deals = await prisma.deal.findMany({
+      where: {
+        ...(pipelineId ? { pipelineId } : {}),
+        ...(columnId ? { columnId } : {}),
+      },
+      select: { id: true },
+    });
+    // Aucune affaire dans ce périmètre : la liste est vide, et le dire par un
+    // `in: []` évite d'aller chercher des leads qu'on écarterait ensuite.
+    where.dealId = { in: deals.map(deal => deal.id) };
+  }
+
+  const [rows, total, statusCounts] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -58,6 +82,11 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Où en est l'affaire de chaque lead affiché. Une seule requête, bornée à la
+  // page en cours : c'est l'information qui manquait pour savoir, depuis
+  // l'écran Leads, si l'on s'apprête à relancer une affaire déjà en démo.
+  const leads = await withCrmStage(rows);
+
   return NextResponse.json({
     leads,
     total,
@@ -65,6 +94,39 @@ export async function GET(req: NextRequest) {
     pageSize: PAGE_SIZE,
     pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     statusCounts: Object.fromEntries(statusCounts.map(c => [c.status, c._count._all])),
+  });
+}
+
+/** Étape du pipeline de l'affaire liée, ajoutée aux leads d'une page. */
+async function withCrmStage<T extends { dealId: string | null }>(leads: T[]) {
+  const dealIds = Array.from(new Set(leads.map(lead => lead.dealId).filter((id): id is string => !!id)));
+  if (dealIds.length === 0) return leads.map(lead => ({ ...lead, crm: null }));
+
+  const deals = await prisma.deal.findMany({
+    where: { id: { in: dealIds } },
+    select: {
+      id: true,
+      pipeline: { select: { id: true, name: true } },
+      column: { select: { id: true, title: true, color: true } },
+    },
+  });
+  const byId = new Map(deals.map(deal => [deal.id, deal]));
+
+  return leads.map(lead => {
+    const deal = lead.dealId ? byId.get(lead.dealId) : undefined;
+    return {
+      ...lead,
+      // `null` distingue « pas d'affaire liée » de « affaire liée, étape
+      // inconnue » — la première est normale pour un lead importé d'un CSV.
+      crm: deal
+        ? {
+            dealId: deal.id,
+            pipeline: deal.pipeline.name,
+            column: deal.column.title,
+            color: deal.column.color,
+          }
+        : null,
+    };
   });
 }
 
@@ -104,6 +166,7 @@ export async function POST(req: NextRequest) {
       civility:  text(body.civility),
       firstName: text(body.firstName),
       lastName:  text(body.lastName),
+      contactCalling: text(body.contactCalling),
       jobTitle:  text(body.jobTitle),
       company:   text(body.company),
       phone:     text(body.phone),

@@ -16,6 +16,7 @@ export type RenderableLead = {
   civility?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  contactCalling?: string | null;
   jobTitle?: string | null;
   company?: string | null;
   phone?: string | null;
@@ -27,10 +28,11 @@ export type RenderableLead = {
 
 /** Variables standard d'un lead, en français — celles proposées à l'écran. */
 export const STANDARD_VARIABLES = [
-  { name: 'civilite',    description: 'M. / Mme' },
+  { name: 'civilite',    description: 'Monsieur / Madame' },
   { name: 'prenom',      description: 'Prénom du lead' },
   { name: 'nom',         description: 'Nom de famille' },
   { name: 'nom_complet', description: 'Civilité + prénom + nom' },
+  { name: 'contact_calling', description: "Interlocuteur appelé, repris de l'affaire du CRM" },
   { name: 'poste',       description: 'Fonction' },
   { name: 'enseigne',    description: 'Entreprise / enseigne' },
   { name: 'ville',       description: 'Ville' },
@@ -57,6 +59,8 @@ export function leadVariables(
     prenom:      lead.firstName || '',
     nom:         lead.lastName  || '',
     nom_complet: leadDisplayName(lead),
+    // Interlocuteur repris du CRM (« Contact calling » de la fiche affaire).
+    contact_calling: lead.contactCalling || '',
     poste:       lead.jobTitle  || '',
     enseigne:    lead.company   || '',
     ville:       lead.city      || '',

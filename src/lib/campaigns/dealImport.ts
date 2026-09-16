@@ -25,6 +25,7 @@ type DealLead = {
   email: string;
   civility: string;
   lastName: string;
+  contactCalling: string; // interlocuteur appelé, « Contact calling » du CRM
   company: string;      // enseigne
   jobTitle: string;     // fonction du contact
   city: string;
@@ -81,7 +82,7 @@ async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals
     },
     select: {
       id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
-      contactPosition: true,
+      contactCalling: true, contactPosition: true,
       store: { select: { name: true, city: true, brand: { select: { name: true } } } },
     },
     orderBy: { createdAt: 'desc' },
@@ -103,6 +104,7 @@ async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals
       email,
       civility: normalizeCivility(deal.contactCivilite || ''),
       lastName: (deal.contactLastName || '').trim(),
+      contactCalling: (deal.contactCalling || '').trim(),
       company: (deal.store?.brand?.name || '').trim(),
       jobTitle: (deal.contactPosition || '').trim(),
       city: (deal.store?.city || '').trim(),
@@ -189,6 +191,7 @@ export async function importDealLeads(options: DealScope & {
         : 'CRM — toutes les affaires',
       mapping: {
         email: 'dealEmail', civility: 'contactCivilite', lastName: 'contactLastName',
+        contactCalling: 'contactCalling',
         company: 'store.brand.name', jobTitle: 'contactPosition', city: 'store.city',
         'custom:magasin': 'store.name',
       } as Prisma.InputJsonValue,
@@ -209,7 +212,7 @@ export async function importDealLeads(options: DealScope & {
         where: { email: item.email },
         select: {
           id: true, customFields: true, civility: true, lastName: true,
-          company: true, jobTitle: true, city: true, dealId: true,
+          contactCalling: true, company: true, jobTitle: true, city: true, dealId: true,
         },
       });
 
@@ -219,6 +222,7 @@ export async function importDealLeads(options: DealScope & {
             email: item.email,
             civility: item.civility || null,
             lastName: item.lastName || null,
+            contactCalling: item.contactCalling || null,
             company: item.company || null,
             jobTitle: item.jobTitle || null,
             city: item.city || null,
@@ -244,6 +248,7 @@ export async function importDealLeads(options: DealScope & {
         fill.civility = item.civility;
       }
       if (!existing.lastName && item.lastName) fill.lastName = item.lastName;
+      if (!existing.contactCalling && item.contactCalling) fill.contactCalling = item.contactCalling;
       if (!existing.company && item.company) fill.company = item.company;
       if (!existing.jobTitle && item.jobTitle) fill.jobTitle = item.jobTitle;
       if (!existing.city && item.city) fill.city = item.city;

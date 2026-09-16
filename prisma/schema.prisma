@@ -881,18 +881,23 @@ model Lead {
 
   // Champs usuels, tous facultatifs. Ils alimentent les variables de
   // personnalisation ({{prenom}}, {{enseigne}}…) dans les emails.
-  civility     String?
-  firstName    String?
-  lastName     String?
-  jobTitle     String?
-  company      String? // enseigne / société
-  phone        String?
-  website      String?
-  city         String?
-  country      String?
+  civility       String?
+  firstName      String?
+  lastName       String?
+  // Interlocuteur appelé côté CRM (« Contact calling » de la fiche affaire) :
+  // souvent un prénom + nom saisi pendant la prospection téléphonique. Repris
+  // ici pour être utilisable en variable {{contact_calling}} et rester
+  // synchronisé avec l'affaire.
+  contactCalling String?
+  jobTitle       String?
+  company        String? // enseigne / société
+  phone          String?
+  website        String?
+  city           String?
+  country        String?
   // Toutes les autres colonnes du fichier importé, telles quelles :
   // { "effectif": "12", "ca": "1.4M" }. Utilisables comme variables.
-  customFields Json    @default("{}")
+  customFields   Json    @default("{}")
 
   // Cycle de vie commercial, piloté à la main depuis la fiche lead :
   //   new · contacted · replied · interested · not_interested ·
@@ -908,7 +913,9 @@ model Lead {
   importId String?
   import   LeadImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
 
-  // Rattachement au CRM — réservé, non exploité pour l'instant.
+  // Rattachement à l'affaire du CRM dont le lead vient (cf. crmLink.ts) :
+  // il porte la liaison bidirectionnelle des champs de contact et sert au
+  // filtre par pipeline / étape de l'écran Leads.
   dealId String?
 
   // Jalons entretenus par le moteur d'envoi (étape 2) et par les actions
@@ -933,6 +940,9 @@ model Lead {
   @@index([status, createdAt])
   @@index([importId])
   @@index([company])
+  // Filtre « pipeline / étape » de l'écran Leads : il ramène les leads d'une
+  // liste d'affaires, donc une recherche par dealId.
+  @@index([dealId])
 }
 
 // Un lot d'import de leads (un fichier CSV déposé dans l'interface).

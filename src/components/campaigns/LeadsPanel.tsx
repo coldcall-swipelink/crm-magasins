@@ -2,8 +2,9 @@
 // src/components/campaigns/LeadsPanel.tsx
 //
 // Écran « Leads » de l'onglet Campagnes : la liste de tous les contacts
-// prospectés, filtrable par statut et par recherche, avec ouverture de la
-// fiche sur le côté pour le suivi un par un.
+// prospectés, filtrable par statut, par recherche et par situation dans le
+// CRM (pipeline et étape de l'affaire liée), avec ouverture de la fiche sur
+// le côté pour le suivi un par un.
 
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -16,6 +17,13 @@ import LeadImportModal from './LeadImportModal';
 import { T, btnDanger, btnDef, btnPri, btnXs, inp } from './ui';
 
 
+/** Un pipeline du CRM et ses étapes, tels que les sert /api/pipelines. */
+type PipelineOption = {
+  id: string;
+  name: string;
+  columns: Array<{ id: string; title: string; color: string }>;
+};
+
 export default function LeadsPanel() {
   const { user } = useCurrentUser();
   const [leads, setLeads] = useState<LeadRow[]>([]);
@@ -24,6 +32,12 @@ export default function LeadsPanel() {
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
+  // Situation dans le CRM : le pipeline, puis l'étape à l'intérieur de ce
+  // pipeline. Les étapes n'ont de sens qu'une fois le pipeline choisi (deux
+  // pipelines peuvent avoir une étape du même nom).
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
+  const [pipelineId, setPipelineId] = useState('');
+  const [columnId, setColumnId] = useState('');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -41,6 +55,8 @@ export default function LeadsPanel() {
       const params = new URLSearchParams({ page: String(page) });
       if (status) params.set('status', status);
       if (search) params.set('q', search);
+      if (pipelineId) params.set('pipelineId', pipelineId);
+      if (columnId) params.set('columnId', columnId);
       const res = await fetch(`/api/campaigns/leads?${params}`);
       const data = await res.json();
       setLeads(data.leads || []);
@@ -50,9 +66,18 @@ export default function LeadsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search]);
+  }, [page, status, search, pipelineId, columnId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Pipelines et leurs étapes, chargés une fois : ils alimentent les deux
+  // listes déroulantes du filtre CRM.
+  useEffect(() => {
+    fetch('/api/pipelines')
+      .then(res => res.json())
+      .then(data => setPipelines(data.pipelines || []))
+      .catch(() => { /* le filtre CRM est un confort : son absence ne bloque rien */ });
+  }, []);
 
   // Recherche différée : on n'interroge pas le serveur à chaque frappe.
   useEffect(() => {
@@ -61,6 +86,7 @@ export default function LeadsPanel() {
   }, [query]);
 
   const totalAll = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  const columns = pipelines.find(pipeline => pipeline.id === pipelineId)?.columns ?? [];
 
   const toggle = (id: string) => setPicked(current => {
     const next = new Set(current);
@@ -113,7 +139,7 @@ export default function LeadsPanel() {
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '18px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <input style={{ ...inp, width: 280 }} placeholder="Rechercher (email, nom, enseigne…)"
+          <input style={{ ...inp, width: 280 }} placeholder="Rechercher (email, nom, contact calling, enseigne…)"
             value={query} onChange={e => setQuery(e.target.value)} />
           <div style={{ fontSize: 12, color: '#9aa1b4' }}>{total} lead{total > 1 ? 's' : ''}</div>
           <button style={{ ...btnDef, marginLeft: 'auto' }} onClick={() => setFromCrm(true)}>Importer depuis le CRM</button>
@@ -129,6 +155,38 @@ export default function LeadsPanel() {
               active={status === item.key} color={item.color}
               onClick={() => { setStatus(item.key); setPage(1); }} />
           ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, color: '#6b7283' }}>Dans le CRM</span>
+          <select style={{ ...inp, width: 200, height: 30, padding: '0 8px', fontSize: 12 }}
+            value={pipelineId}
+            onChange={event => {
+              setPipelineId(event.target.value);
+              // Changer de pipeline invalide l'étape : elle appartenait à
+              // l'ancien, et laisserait la liste vide sans qu'on comprenne.
+              setColumnId('');
+              setPage(1);
+            }}>
+            <option value="">Tous les pipelines</option>
+            {pipelines.map(pipeline => (
+              <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>
+            ))}
+          </select>
+          <select style={{ ...inp, width: 220, height: 30, padding: '0 8px', fontSize: 12, opacity: pipelineId ? 1 : 0.55 }}
+            value={columnId} disabled={!pipelineId}
+            title={pipelineId ? undefined : "Choisissez d'abord un pipeline"}
+            onChange={event => { setColumnId(event.target.value); setPage(1); }}>
+            <option value="">Toutes les étapes</option>
+            {columns.map(column => (
+              <option key={column.id} value={column.id}>{column.title}</option>
+            ))}
+          </select>
+          {(pipelineId || columnId) && (
+            <button style={btnXs} onClick={() => { setPipelineId(''); setColumnId(''); setPage(1); }}>
+              Effacer le filtre CRM
+            </button>
+          )}
         </div>
 
         {picked.size > 0 && (
@@ -152,7 +210,9 @@ export default function LeadsPanel() {
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
         ) : leads.length === 0 ? (
           <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
-            {search || status ? 'Aucun lead ne correspond à ce filtre.' : 'Aucun lead pour l\'instant — importez un fichier pour commencer.'}
+            {search || status || pipelineId || columnId
+              ? 'Aucun lead ne correspond à ce filtre.'
+              : 'Aucun lead pour l\'instant — importez un fichier pour commencer.'}
           </div>
         ) : (
           <div style={{ background: '#171a23', border: '1px solid #262b38', borderRadius: 12, overflow: 'hidden' }}>
@@ -165,9 +225,11 @@ export default function LeadsPanel() {
                       onChange={togglePage} />
                   </th>
                   <th style={th}>Contact</th>
+                  <th style={th}>Contact calling</th>
                   <th style={th}>Enseigne</th>
                   <th style={th}>Poste</th>
                   <th style={th}>Ville</th>
+                  <th style={th}>Étape CRM</th>
                   <th style={th}>Statut</th>
                   <th style={th}>Dernier contact</th>
                 </tr>
@@ -186,9 +248,18 @@ export default function LeadsPanel() {
                       </div>
                       <div style={{ color: '#6b7283', fontSize: 11.5 }}>{lead.email}</div>
                     </td>
+                    <td style={td}>{lead.contactCalling || '—'}</td>
                     <td style={td}>{lead.company || '—'}</td>
                     <td style={td}>{lead.jobTitle || '—'}</td>
                     <td style={td}>{lead.city || '—'}</td>
+                    <td style={td}>
+                      {lead.crm ? (
+                        <span title={lead.crm.pipeline} style={{
+                          padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                          color: lead.crm.color, background: `${lead.crm.color}18`,
+                        }}>{lead.crm.column}</span>
+                      ) : <span style={{ color: '#6b7283' }}>—</span>}
+                    </td>
                     <td style={td}>
                       <span style={{
                         padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,

@@ -16,11 +16,18 @@ import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, inp, label } from './u
 
 export interface LeadRow {
   id: string; email: string; civility: string | null; firstName: string | null; lastName: string | null;
+  /** « Contact calling » de la fiche affaire, repris du CRM. */
+  contactCalling: string | null;
   jobTitle: string | null; company: string | null; phone: string | null; website: string | null;
   city: string | null; country: string | null; customFields: Record<string, string>;
   status: string; source: string | null;
   lastContactedAt: string | null; lastOpenedAt: string | null; lastRepliedAt: string | null;
   createdAt: string;
+  /**
+   * Situation de l'affaire liée dans le CRM, jointe par la liste des leads.
+   * `null` quand le lead ne vient d'aucune affaire (import CSV, saisie).
+   */
+  crm?: { dealId: string; pipeline: string; column: string; color: string } | null;
 }
 
 type Enrollment = {
@@ -42,6 +49,7 @@ type FullLead = LeadRow & {
 const EDITABLE = [
   ['email', 'Email'],
   ['civility', 'Civilité'], ['firstName', 'Prénom'], ['lastName', 'Nom'],
+  ['contactCalling', 'Contact calling'],
   ['jobTitle', 'Poste'], ['company', 'Enseigne'], ['phone', 'Téléphone'],
   ['city', 'Ville'], ['website', 'Site web'],
 ] as const;
