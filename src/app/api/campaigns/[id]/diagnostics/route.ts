@@ -140,6 +140,48 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  // 4 bis. Les boîtes que les inscriptions DUES pointent réellement.
+  //
+  // Une inscription retient sa boîte au moment de l'inscription, et le moteur
+  // part des boîtes pour retrouver les inscriptions. Regarder uniquement les
+  // boîtes rattachées à la campagne laisse donc un angle mort : une inscription
+  // dont la boîte a été supprimée (mailboxId à null) ou mise en pause n'est
+  // relevée par aucune boucle, alors que toutes les lignes ci-dessus sont
+  // vertes. C'est le cas le plus déroutant, parce que rien n'a l'air cassé.
+  if (due > 0) {
+    const pending = await prisma.campaignEnrollment.findMany({
+      where: { campaignId: params.id, status: 'active', nextSendAt: { lte: now } },
+      select: { mailboxId: true, mailbox: { select: { email: true, active: true } } },
+    });
+
+    const orphans = pending.filter(item => !item.mailboxId).length;
+    const paused = pending.filter(item => item.mailbox && !item.mailbox.active);
+
+    if (orphans > 0) {
+      checks.push({
+        key: 'orphans', label: 'Affectation des envois', level: 'error',
+        detail: `${orphans} envoi(s) dû(s) n'ont plus de boîte affectée (la leur a été supprimée). `
+          + 'Le moteur ne peut pas les relever : il part des boîtes pour retrouver les envois. '
+          + 'Le prochain passage les rendra automatiquement à une boîte active de la campagne.',
+      });
+    }
+    if (paused.length > 0) {
+      const names = Array.from(new Set(paused.map(item => item.mailbox?.email).filter(Boolean)));
+      checks.push({
+        key: 'paused-boxes', label: 'Affectation des envois', level: 'error',
+        detail: `${paused.length} envoi(s) dû(s) sont affectés à une boîte en pause `
+          + `(${names.join(', ')}). Réactivez-la, ou retirez ces leads de la campagne pour `
+          + 'les réinscrire sur une autre boîte.',
+      });
+    }
+    if (orphans === 0 && paused.length === 0) {
+      checks.push({
+        key: 'assignment', label: 'Affectation des envois', level: 'ok',
+        detail: `${due} envoi(s) dû(s), tous affectés à une boîte active.`,
+      });
+    }
+  }
+
   // 5. Le planificateur tourne-t-il ? C'est le verrou le plus difficile à
   //    voir : tout peut être correct et n'avoir jamais été relevé.
   const [lastRun, cronRun] = await Promise.all([lastEngineRun(), lastCronRun()]);
