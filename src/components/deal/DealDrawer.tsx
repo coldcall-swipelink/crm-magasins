@@ -3,6 +3,7 @@ import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'rea
 import type { Action, Note, Priority } from '@/types';
 import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
+import LinkConfirmModal, { type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import AvailabilityModal from '@/components/deal/AvailabilityModal';
 import DealCallCalendar from '@/components/deal/DealCallCalendar';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -635,9 +636,39 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   }, [parentQuery, showParentSearch, dealId]);
 
   // ---- Mutations -----------------------------------------------------------
+  // Répercussion en attente de confirmation sur le lead lié (cf. patchDeal).
+  const [pendingLink, setPendingLink] = useState<{ link: LinkPreview; data: Record<string, unknown>; msg?: string } | null>(null);
+  const [confirmingLink, setConfirmingLink] = useState(false);
+
   const patchDeal = async (data: Record<string, unknown>, msg?: string) => {
-    await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const res = await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+    // Un lead de prospection peut venir de cette affaire. Le serveur refuse
+    // alors la modification tant que sa répercussion n'a pas été montrée et
+    // confirmée : on ouvre la fenêtre et on rejouera l'enregistrement.
+    if (res.status === 409) {
+      const payload = await res.json().catch(() => null);
+      if (payload?.requiresConfirmation) { setPendingLink({ link: payload.link, data, msg }); return; }
+    }
     fetchDeal(); onUpdated(); if (msg) toast(msg);
+  };
+
+  /** Deuxième passage après confirmation : la répercussion est autorisée. */
+  const confirmLink = async () => {
+    if (!pendingLink) return;
+    setConfirmingLink(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pendingLink.data, confirmLink: true, userName: currentUser?.name || '' }),
+      });
+      if (!res.ok) { toast('Modification refusée', 'error'); return; }
+      setPendingLink(null);
+      fetchDeal(); onUpdated();
+      toast(pendingLink.msg || "Modification appliquée à l'affaire et au lead");
+    } finally {
+      setConfirmingLink(false);
+    }
   };
 
   // ---- Téléphone (dévoilement = +1 appel pour l'utilisateur) ---------------
@@ -1629,6 +1660,16 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
   return (
     <>
+    {/* Répercussion sur le lead de prospection issu de cette affaire : montrée
+        avant d'écrire, jamais appliquée en silence. */}
+    {pendingLink && (
+      <LinkConfirmModal
+        link={pendingLink.link}
+        busy={confirmingLink}
+        onConfirm={confirmLink}
+        onCancel={() => { setPendingLink(null); fetchDeal(); }}
+      />
+    )}
     <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(15,23,42,.4)', display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '66vw', maxWidth: 1200, minWidth: 720, height: '100%', background: '#f8fafc', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 

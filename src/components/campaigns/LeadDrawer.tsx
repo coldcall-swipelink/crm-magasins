@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
+import LinkConfirmModal, { type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, inp, label } from './ui';
 
@@ -39,6 +40,7 @@ type FullLead = LeadRow & {
 };
 
 const EDITABLE = [
+  ['email', 'Email'],
   ['civility', 'Civilité'], ['firstName', 'Prénom'], ['lastName', 'Nom'],
   ['jobTitle', 'Poste'], ['company', 'Enseigne'], ['phone', 'Téléphone'],
   ['city', 'Ville'], ['website', 'Site web'],
@@ -60,6 +62,10 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
   const [dirty, setDirty] = useState(false);
+  // Répercussion en attente de confirmation : ce que le serveur a refusé
+  // d'appliquer tant qu'on n'a pas vu ce que ça changerait sur l'affaire.
+  const [pendingLink, setPendingLink] = useState<{ link: LinkPreview; payload: Record<string, unknown> } | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/campaigns/leads/${leadId}`);
@@ -79,10 +85,41 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
       body: JSON.stringify({ ...payload, userName }),
     });
     const data = await res.json();
+
+    // Le serveur refuse tant que la répercussion sur l'affaire n'est pas vue
+    // et confirmée : on montre ce qu'elle changerait, puis on renvoie.
+    if (res.status === 409 && data.requiresConfirmation) {
+      setPendingLink({ link: data.link, payload });
+      return;
+    }
     if (!res.ok) { toast(data.error || 'Modification refusée', 'error'); return; }
+
     setLead(data.lead);
     setDirty(false);
     onChanged();
+  };
+
+  /** Deuxième passage, après confirmation : la répercussion est autorisée. */
+  const confirmLink = async () => {
+    if (!pendingLink) return;
+    setConfirming(true);
+    try {
+      const res = await fetch(`/api/campaigns/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pendingLink.payload, userName, confirmLink: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || 'Modification refusée', 'error'); return; }
+
+      setLead(data.lead);
+      setDirty(false);
+      setPendingLink(null);
+      toast("Modification appliquée au lead et à l'affaire");
+      onChanged();
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const addNote = async () => {
@@ -124,10 +161,21 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
     return <aside style={panelStyle}><div style={{ padding: 20, fontSize: 13, color: '#6b7283' }}>Chargement…</div></aside>;
   }
 
+  const confirmation = pendingLink && (
+    <LinkConfirmModal
+      link={pendingLink.link}
+      dark
+      busy={confirming}
+      onConfirm={confirmLink}
+      onCancel={() => { setPendingLink(null); load(); }}
+    />
+  );
+
   const custom = Object.entries(lead.customFields || {});
 
   return (
     <aside style={panelStyle}>
+      {confirmation}
       <div style={{ padding: '14px 16px', borderBottom: '1px solid #262b38', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>

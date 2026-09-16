@@ -7,6 +7,7 @@ import { addMonths, normalizeText } from '@/lib/utils';
 import { buildDeduplicationKey } from '@/lib/import/deduplication';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded, markDemoDoneIfNeeded, syncLatestDemoBookingDate } from '@/lib/demoBooking';
+import { applyDealToLead, previewDealToLead } from '@/lib/campaigns/crmLink';
 
 // Construit la fiche d'un deal fictif avec son parent et ses sous-deals résolus
 // (preview front sans base). Renvoie null si l'id est inconnu.
@@ -146,6 +147,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (key in body) data[key] = body[key];
     }
 
+    // Un lead de prospection peut venir de cette affaire : les champs de
+    // contact qu'ils partagent se répercutent, mais jamais sans que l'écran
+    // l'ait montré et fait confirmer (cf. src/lib/campaigns/crmLink.ts).
+    const link = await previewDealToLead(params.id, body);
+    if (link && body.confirmLink !== true) {
+      return NextResponse.json({ requiresConfirmation: true, link }, { status: 409 });
+    }
+
     // Changement d'étape par PATCH (hors drag & drop, qui passe par /move) :
     // on relève l'étape quittée AVANT la mise à jour pour la journaliser.
     const columnBefore = 'columnId' in body
@@ -265,6 +274,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         notes: { orderBy: { createdAt: 'desc' } },
       },
     });
+
+    // Répercussion confirmée sur le lead de prospection issu de cette affaire.
+    if (link) {
+      await applyDealToLead(link, link.leadId, body.userName);
+    }
 
     // Entrée dans « DEMO PREVUE » (Closing) → une ligne DemoBooking de plus.
     // Sortie vers « DEMO FAITE » / « ABSENT DEMO » → la démo est créditée à
