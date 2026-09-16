@@ -17,6 +17,7 @@ import { toast } from '@/components/ui/Toast';
 import { OFFER_VARIABLES } from '@/lib/campaigns/offerMatch';
 import OfferTriggerModal from './OfferTriggerModal';
 import OfferTriggerJournal from './OfferTriggerJournal';
+import ReadErrorBanner from './ReadErrorBanner';
 import { T, btnDanger, btnDef, btnPri, btnXs } from './ui';
 
 export type TriggerRow = {
@@ -51,6 +52,7 @@ export default function OfferTriggersPanel({ onGoToCampaigns }: { onGoToCampaign
   const [options, setOptions] = useState<TriggerOptions>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [schemaLag, setSchemaLag] = useState(false);
   const [editing, setEditing] = useState<TriggerRow | 'new' | null>(null);
   const [journal, setJournal] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -62,9 +64,11 @@ export default function OfferTriggersPanel({ onGoToCampaigns }: { onGoToCampaign
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
         setError(data?.error || `Lecture impossible (erreur ${res.status}).`);
+        setSchemaLag(data?.schemaLag === true);
         return;
       }
       setError(null);
+      setSchemaLag(false);
       setTriggers(data.triggers || []);
       setOptions({
         campaigns: data.campaigns || [],
@@ -142,17 +146,7 @@ export default function OfferTriggersPanel({ onGoToCampaigns }: { onGoToCampaign
         <button style={btnPri} onClick={() => setEditing('new')}>+ Nouvelle règle</button>
       </div>
 
-      {error && (
-        <div style={{
-          background: 'rgba(248,113,113,.10)', border: '1px solid rgba(248,113,113,.42)',
-          borderRadius: 10, padding: '12px 15px', marginBottom: 14,
-          fontSize: 12.5, color: '#fca5a5', lineHeight: 1.6,
-        }}>
-          <div style={{ fontWeight: 700, marginBottom: 3 }}>La liste n&apos;a pas pu être lue</div>
-          {error}
-          <div style={{ marginTop: 8 }}><button style={btnXs} onClick={load}>Réessayer</button></div>
-        </div>
-      )}
+      {error && <ReadErrorBanner message={error} schemaLag={schemaLag} onRetry={load} />}
 
       {loading ? (
         <div style={{ fontSize: 13, color: T.textFaint }}>Chargement…</div>
