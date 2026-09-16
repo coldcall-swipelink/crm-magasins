@@ -52,8 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Champs libres : une chaîne vide efface la valeur (contrairement à l'import,
   // ici l'utilisateur veut explicitement vider le champ).
-  for (const key of ['civility', 'firstName', 'lastName', 'jobTitle', 'company',
-    'phone', 'website', 'city', 'country'] as const) {
+  for (const key of ['civility', 'firstName', 'lastName', 'contactCalling', 'jobTitle',
+    'company', 'phone', 'website', 'city', 'country'] as const) {
     if (body[key] === undefined) continue;
     const value = String(body[key] ?? '').trim();
     (data as Record<string, unknown>)[key] = value || null;

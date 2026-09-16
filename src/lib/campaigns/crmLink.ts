@@ -23,9 +23,10 @@ import { normalizeCivility, normalizeEmail } from '@/lib/campaigns/leadFields';
 /** Un champ partagé, de part et d'autre du lien. */
 type LinkedField = {
   /** Nom côté Lead. */
-  lead: 'email' | 'civility' | 'lastName' | 'jobTitle' | 'phone';
+  lead: 'email' | 'civility' | 'lastName' | 'contactCalling' | 'jobTitle' | 'phone';
   /** Nom côté Deal. */
-  deal: 'dealEmail' | 'contactCivilite' | 'contactLastName' | 'contactPosition' | 'contactPhone';
+  deal: 'dealEmail' | 'contactCivilite' | 'contactLastName' | 'contactCalling'
+      | 'contactPosition' | 'contactPhone';
   label: string;
   /**
    * Valeurs acceptées côté affaire, quand le CRM en impose une liste.
@@ -41,6 +42,9 @@ export const LINKED_FIELDS: readonly LinkedField[] = [
   { lead: 'email',    deal: 'dealEmail',        label: 'Email',          normalize: normalizeEmail },
   { lead: 'civility', deal: 'contactCivilite',  label: 'Civilité',       normalize: normalizeCivility },
   { lead: 'lastName', deal: 'contactLastName',  label: 'Nom de famille' },
+  // Même nom des deux côtés : c'est le « Contact calling » de la fiche
+  // affaire, repris tel quel sur le lead.
+  { lead: 'contactCalling', deal: 'contactCalling', label: 'Contact calling' },
   { lead: 'phone',    deal: 'contactPhone',     label: 'Téléphone' },
   // Le CRM impose une liste fermée pour le poste : un poste libre saisi côté
   // lead (« Responsable adjoint ») ne peut pas y entrer.
@@ -71,11 +75,12 @@ const text = (value: unknown): string => (value == null ? '' : String(value)).tr
 /** Ce dont la liaison a besoin d'un lead. */
 type LinkedLead = {
   id: string; email: string; civility: string | null; lastName: string | null;
-  jobTitle: string | null; phone: string | null;
+  contactCalling: string | null; jobTitle: string | null; phone: string | null;
 };
 
 const LEAD_SELECT = {
-  id: true, email: true, civility: true, lastName: true, jobTitle: true, phone: true,
+  id: true, email: true, civility: true, lastName: true, contactCalling: true,
+  jobTitle: true, phone: true,
 } as const;
 
 /**
@@ -110,7 +115,7 @@ async function findLinkedLead(dealId: string, dealEmail: string): Promise<Linked
 async function findLinkedDeal(leadId: string, dealId: string | null, leadEmail: string) {
   const select = {
     id: true, dealEmail: true, contactCivilite: true, contactLastName: true,
-    contactPosition: true, contactPhone: true,
+    contactCalling: true, contactPosition: true, contactPhone: true,
     store: { select: { name: true, brand: { select: { name: true } } } },
   } as const;
 
@@ -158,7 +163,8 @@ export async function previewLeadToDeal(
     where: { id: leadId },
     select: {
       dealId: true,
-      email: true, civility: true, lastName: true, jobTitle: true, phone: true,
+      email: true, civility: true, lastName: true, contactCalling: true,
+      jobTitle: true, phone: true,
     },
   });
   if (!lead) return null;
@@ -226,7 +232,7 @@ export async function previewDealToLead(
     where: { id: dealId },
     select: {
       dealEmail: true, contactCivilite: true, contactLastName: true,
-      contactPosition: true, contactPhone: true,
+      contactCalling: true, contactPosition: true, contactPhone: true,
     },
   });
   if (!deal) return null;

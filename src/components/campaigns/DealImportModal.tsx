@@ -13,7 +13,7 @@ import { toast } from '@/components/ui/Toast';
 import { T, btnDef, btnPri, inp, label, modal, overlay } from './ui';
 
 type Sample = {
-  email: string; civility: string; lastName: string;
+  email: string; civility: string; lastName: string; contactCalling: string;
   company: string; jobTitle: string; city: string; store: string;
 };
 
@@ -29,6 +29,7 @@ const MAPPING = [
   ['Email du contact', 'Email'],
   ['Civilité', 'Civilité'],
   ['Nom du contact', 'Nom'],
+  ['Contact calling', 'Contact calling'],
   ['Enseigne du magasin', 'Enseigne'],
   ['Nom du magasin', 'Champ personnalisé {{magasin}}'],
   ['Fonction du contact', 'Poste'],
@@ -156,6 +157,9 @@ export default function DealImportModal({ userName, campaignId, onClose, onDone 
                       </div>
                       <div style={{ color: T.textMuted, fontSize: 11.5, marginTop: 2 }}>
                         {[item.company, item.store, item.city].filter(Boolean).join(' · ') || '—'}
+                        {item.contactCalling && (
+                          <span style={{ color: T.textFaint }}> · appel : {item.contactCalling}</span>
+                        )}
                       </div>
                     </div>
                   ))}

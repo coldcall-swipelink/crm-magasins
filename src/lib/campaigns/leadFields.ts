@@ -53,6 +53,11 @@ export const LEAD_FIELDS = [
     aliases: ['prenom', 'prénom', 'first name', 'firstname', 'first_name', 'given name'] },
   { key: 'lastName',  label: 'Nom',       required: false,
     aliases: ['nom', 'nom de famille', 'last name', 'lastname', 'last_name', 'surname', 'family name'] },
+  // Repris du « Contact calling » de la fiche affaire. Les alias restent
+  // volontairement explicites : un simple « contact » désignerait trop de
+  // colonnes et volerait la place d'un champ plus précis.
+  { key: 'contactCalling', label: 'Contact calling', required: false,
+    aliases: ['contact calling', 'contactcalling', 'contact appel', 'interlocuteur'] },
   { key: 'jobTitle',  label: 'Poste',     required: false,
     aliases: ['poste', 'fonction', 'job title', 'jobtitle', 'job_title', 'titre du poste', 'role', 'metier', 'métier'] },
   { key: 'company',   label: 'Enseigne',  required: false,
@@ -193,6 +198,7 @@ export type LeadInput = {
   civility?: string;
   firstName?: string;
   lastName?: string;
+  contactCalling?: string;
   jobTitle?: string;
   company?: string;
   phone?: string;
