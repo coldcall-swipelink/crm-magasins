@@ -35,7 +35,7 @@ async function run(req: NextRequest) {
   try {
     // On garde une marge sous maxDuration pour que la réponse parte avant que
     // la plateforme ne coupe la fonction.
-    const result = await runDueSends({ budgetMs: 240_000 });
+    const result = await runDueSends({ budgetMs: 240_000, trigger: 'cron' });
     return NextResponse.json({ ok: result.failed === 0, ...result });
   } catch (err) {
     console.error('[POST /api/campaigns/run]', err);

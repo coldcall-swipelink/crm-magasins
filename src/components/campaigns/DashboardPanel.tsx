@@ -223,26 +223,27 @@ function EngineHeartbeat({ lastRun }: { lastRun: string | null }) {
     if (minutes <= 20) {
       return (
         <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-          Moteur d&apos;envoi : dernier passage il y a {minutes} minute{minutes > 1 ? 's' : ''}.
+          Planificateur : dernier passage automatique il y a {minutes} minute{minutes > 1 ? 's' : ''}.
         </div>
       );
     }
     return (
       <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#78350f', marginBottom: 14 }}>
-        <strong>Le moteur d&apos;envoi n&apos;a pas tourné depuis {minutes} minutes</strong> — il devrait
-        passer toutes les 5 minutes. Tant qu&apos;il dort, aucune campagne n&apos;avance.
+        <strong>Le planificateur n&apos;a pas tourné depuis {minutes} minutes</strong> — il devrait
+        passer toutes les 5 minutes. Tant qu&apos;il dort, les relances des campagnes attendent.
       </div>
     );
   }
 
   return (
     <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#b91c1c', marginBottom: 14 }}>
-      <strong>Le moteur d&apos;envoi n&apos;a jamais tourné.</strong>
+      <strong>Le planificateur n&apos;a jamais tourné.</strong>
       <div style={{ marginTop: 4, color: '#7f1d1d' }}>
-        La tâche planifiée <code>/api/campaigns/run</code> n&apos;est pas déclenchée. Sur un
-        hébergement qui limite les tâches planifiées, appelez cette route depuis un
-        planificateur externe (N8N…) toutes les 5 minutes. En attendant, le bouton
-        « Envoyer maintenant » d&apos;une campagne fait partir les emails sans dépendre d&apos;elle.
+        La tâche planifiée <code>/api/campaigns/run</code> n&apos;est pas déclenchée — les
+        <strong> relances des étapes suivantes ne partiront donc pas toutes seules</strong>.
+        Sur un hébergement qui limite les tâches planifiées à une par jour, appelez cette route
+        depuis un planificateur externe (N8N…) toutes les 5 minutes. Les envois déclenchés depuis
+        l&apos;interface, eux, ne dépendent pas d&apos;elle.
       </div>
     </div>
   );

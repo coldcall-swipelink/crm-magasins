@@ -17,7 +17,7 @@
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { lastEngineRun } from '@/lib/campaigns/engine';
+import { lastCronRun } from '@/lib/campaigns/engine';
 
 export type Funnel = {
   sent: number;
@@ -137,7 +137,11 @@ export type GlobalStats = Funnel & {
   mailboxes: Array<{ id: string; email: string; sentToday: number; sentTotal: number; active: boolean; lastError: string | null }>;
   daily: DailyPoint[];
   topCampaigns: Array<{ id: string; name: string; status: string; sent: number; openRate: number; replyRate: number }>;
-  /** Dernier passage du moteur d'envoi, ou null s'il n'a jamais tourné. */
+  /**
+   * Dernier passage AUTOMATIQUE du moteur (planificateur), ou null s'il n'a
+   * jamais tourné. Les passages déclenchés à la main ne comptent pas : eux ne
+   * disent rien sur le départ des relances.
+   */
   lastRun: string | null;
 };
 
@@ -160,7 +164,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
       where: { status: 'sent', sentAt: { gte: since } },
       select: { sentAt: true, openedAt: true, repliedAt: true, mailboxId: true, campaignId: true },
     }),
-    lastEngineRun(),
+    lastCronRun(),
   ]);
 
   // Courbe jour par jour, trous compris (un jour sans envoi vaut zéro).

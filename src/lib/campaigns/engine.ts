@@ -26,15 +26,33 @@ import {
 /** Budget de temps d'un passage, en millisecondes (marge sous maxDuration). */
 const DEFAULT_BUDGET_MS = 240_000;
 
-/** Clé AppSetting où l'on note l'heure du dernier passage du moteur. */
+/** Clés AppSetting où l'on note l'heure des passages du moteur. */
 export const LAST_RUN_KEY = 'campaigns:lastRunAt';
+/**
+ * Passages déclenchés par le PLANIFICATEUR uniquement, notés à part.
+ *
+ * Sans cette distinction, un clic sur « Envoyer maintenant » rafraîchit le
+ * même compteur qu'un passage automatique : on croit le planificateur en
+ * marche alors qu'il n'a jamais tourné — et les relances, elles, ne partent
+ * que par lui. C'est précisément le piège qu'il faut éviter.
+ */
+export const LAST_CRON_RUN_KEY = 'campaigns:lastCronRunAt';
 
-/** Heure du dernier passage du moteur, ou null s'il n'a jamais tourné. */
-export async function lastEngineRun(): Promise<Date | null> {
-  const row = await prisma.appSetting.findUnique({ where: { key: LAST_RUN_KEY } });
+async function readDate(key: string): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key } });
   if (!row?.value) return null;
   const date = new Date(row.value);
   return isNaN(date.getTime()) ? null : date;
+}
+
+/** Heure du dernier passage du moteur, quelle qu'en soit l'origine. */
+export function lastEngineRun(): Promise<Date | null> {
+  return readDate(LAST_RUN_KEY);
+}
+
+/** Heure du dernier passage déclenché par le planificateur. */
+export function lastCronRun(): Promise<Date | null> {
+  return readDate(LAST_CRON_RUN_KEY);
 }
 
 export type RunResult = {
@@ -55,7 +73,17 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  * d'une même boîte restent séquentiels et espacés.
  */
 export async function runDueSends(
-  options: { budgetMs?: number; now?: Date; mailboxIds?: string[] } = {},
+  options: {
+    budgetMs?: number;
+    now?: Date;
+    mailboxIds?: string[];
+    /**
+     * Qui déclenche ce passage. « cron » vient du planificateur ; « manual »
+     * d'une action dans l'interface (lancement, inscription, bouton d'envoi).
+     * Seul le premier prouve que les relances partiront toutes seules.
+     */
+    trigger?: 'cron' | 'manual';
+  } = {},
 ): Promise<RunResult> {
   const budgetMs = options.budgetMs ?? DEFAULT_BUDGET_MS;
   const deadline = Date.now() + budgetMs;
@@ -66,11 +94,15 @@ export async function runDueSends(
   // Battement de cœur : sans cette trace, un planificateur qui ne tourne pas
   // est invisible — l'interface montre une file qui n'avance pas, sans dire
   // que personne ne la relève. C'est le premier diagnostic à faire.
-  await prisma.appSetting.upsert({
-    where: { key: LAST_RUN_KEY },
-    update: { value: now.toISOString() },
-    create: { key: LAST_RUN_KEY, value: now.toISOString() },
-  }).catch(() => { /* la trace ne doit jamais empêcher un envoi */ });
+  const stamp = now.toISOString();
+  const keys = options.trigger === 'cron' ? [LAST_RUN_KEY, LAST_CRON_RUN_KEY] : [LAST_RUN_KEY];
+  for (const key of keys) {
+    await prisma.appSetting.upsert({
+      where: { key },
+      update: { value: stamp },
+      create: { key, value: stamp },
+    }).catch(() => { /* la trace ne doit jamais empêcher un envoi */ });
+  }
 
   // Reprise après incident : une inscription laissée « sending » par un passage
   // interrompu (fonction coupée, redéploiement) resterait bloquée pour
