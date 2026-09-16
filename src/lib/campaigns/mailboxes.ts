@@ -188,6 +188,20 @@ export function checkSummary(check: MailboxCheck): { ok: boolean; error: string 
 
 // ─── Normalisation des réglages saisis ────────────────────────────────────
 
+/**
+ * Mot de passe nettoyé avant chiffrement.
+ *
+ * Google affiche ses mots de passe d'application en quatre blocs de quatre
+ * (« abcd efgh ijkl mnop ») : recopiés tels quels, les espaces partent dans la
+ * commande d'authentification et le serveur refuse la connexion. On les retire
+ * pour Google uniquement — ailleurs, un espace peut faire partie du mot de
+ * passe et on n'y touche pas (hors espaces de début et de fin).
+ */
+export function normalizeSecret(password: string, provider: string): string {
+  const trimmed = (password || '').trim();
+  return provider === 'google' ? trimmed.replace(/\s+/g, '') : trimmed;
+}
+
 /** Entier borné, avec repli : une saisie hasardeuse reste sans conséquence. */
 export function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   const n = Number(value);

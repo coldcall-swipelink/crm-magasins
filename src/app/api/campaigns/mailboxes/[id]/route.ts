@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { encryptSecret, isEncryptionConfigured, MISSING_KEY_MESSAGE } from '@/lib/campaigns/crypto';
-import { toPublicMailbox, isProviderKey, normalizeDays } from '@/lib/campaigns/mailboxes';
+import { toPublicMailbox, isProviderKey, normalizeDays, normalizeSecret } from '@/lib/campaigns/mailboxes';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,12 +63,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.imapUser !== undefined) data.imapUser = String(body.imapUser).trim() || null;
 
   // Mots de passe : uniquement si une nouvelle valeur est transmise.
+  // Le fournisseur retenu est celui que la requête pose, sinon celui en base :
+  // c'est lui qui décide du nettoyage (cf. normalizeSecret).
+  const provider = (data.provider as string) || existing.provider;
   for (const [key, field] of [['password', 'smtpSecret'], ['imapPassword', 'imapSecret']] as const) {
     if (!body[key]) continue;
     if (!isEncryptionConfigured()) {
       return NextResponse.json({ error: MISSING_KEY_MESSAGE }, { status: 503 });
     }
-    data[field] = encryptSecret(String(body[key]));
+    data[field] = encryptSecret(normalizeSecret(String(body[key]), provider));
     // Nouveau mot de passe : l'ancien diagnostic ne vaut plus rien.
     data.lastCheckOk = null;
     data.lastError = null;

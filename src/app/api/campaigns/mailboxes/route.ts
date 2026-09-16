@@ -13,7 +13,7 @@ import { prisma } from '@/lib/prisma';
 import { isEncryptionConfigured, encryptSecret, MISSING_KEY_MESSAGE } from '@/lib/campaigns/crypto';
 import {
   PROVIDER_PRESETS, isProviderKey, toPublicMailbox, checkMailbox, checkSummary,
-  clampInt, normalizeDays,
+  clampInt, normalizeDays, normalizeSecret,
 } from '@/lib/campaigns/mailboxes';
 import { normalizeEmail, isValidEmail } from '@/lib/campaigns/leadFields';
 
@@ -42,7 +42,11 @@ export async function POST(req: NextRequest) {
   if (!isValidEmail(email)) {
     return NextResponse.json({ error: 'Adresse email invalide' }, { status: 400 });
   }
-  const password = String(body.password || '');
+  const provider = isProviderKey(body.provider || '') ? body.provider : 'custom';
+
+  // Nettoyage avant tout : un mot de passe d'application Google recopié avec
+  // ses espaces serait refusé, sans que rien ne dise pourquoi.
+  const password = normalizeSecret(String(body.password || ''), provider);
   if (!password) return NextResponse.json({ error: 'Mot de passe requis' }, { status: 400 });
 
   const exists = await prisma.mailbox.findUnique({ where: { email }, select: { id: true } });
@@ -50,7 +54,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cette boîte est déjà enregistrée' }, { status: 409 });
   }
 
-  const provider = isProviderKey(body.provider || '') ? body.provider : 'custom';
   const preset = PROVIDER_PRESETS[provider as keyof typeof PROVIDER_PRESETS];
 
   const smtpHost = String(body.smtpHost || preset.smtpHost || '').trim();
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     imapUser: String(body.imapUser || email).trim(),
     // Mot de passe IMAP distinct seulement s'il est explicitement fourni :
     // sinon celui du SMTP est réutilisé (cf. imapCredentials).
-    imapSecret: body.imapPassword ? encryptSecret(String(body.imapPassword)) : null,
+    imapSecret: body.imapPassword ? encryptSecret(normalizeSecret(String(body.imapPassword), provider)) : null,
     imapFolder: String(body.imapFolder || 'INBOX').trim() || 'INBOX',
     ...numericSettings(body),
     signatureHtml: body.signatureHtml ? String(body.signatureHtml) : null,

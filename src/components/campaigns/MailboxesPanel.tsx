@@ -208,6 +208,8 @@ export default function MailboxesPanel() {
             <div style={{ fontSize: 11.5, color: '#64748b', alignSelf: 'end', paddingBottom: 8 }}>{hint}</div>
           </div>
 
+          <PasswordHelp provider={form.provider} />
+
           <details style={{ marginTop: 10 }}>
             <summary style={{ fontSize: 12, color: '#4f46e5', cursor: 'pointer' }}>Réglages serveurs et cadence</summary>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 12 }}>
@@ -272,6 +274,65 @@ export default function MailboxesPanel() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Marche à suivre pour obtenir le mot de passe, par fournisseur.
+ *
+ * Ce n'est pas du détail : chez Google, le mot de passe habituel du compte est
+ * systématiquement refusé en SMTP, et rien dans le message d'erreur ne dit
+ * pourquoi. Autant l'expliquer là où la question se pose.
+ */
+function PasswordHelp({ provider }: { provider: string }) {
+  if (provider === 'google') {
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 5 }}>
+          Où trouver ce mot de passe ?
+        </div>
+        Google refuse le mot de passe habituel du compte pour une connexion SMTP : il faut un
+        « mot de passe d&apos;application », un code de 16 caractères dédié.
+        <ol style={{ margin: '7px 0 0', paddingLeft: 18 }}>
+          <li>Activer la <strong>validation en deux étapes</strong> sur ce compte (sans elle, la page
+            suivante n&apos;existe pas).</li>
+          <li>Connecté avec cette adresse, ouvrir{' '}
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer"
+              style={{ color: '#4f46e5' }}>myaccount.google.com/apppasswords</a>,
+            nommer l&apos;application (« CRM ») et copier les 16 caractères affichés.</li>
+          <li>Vérifier que l&apos;IMAP est activé : Gmail → Paramètres → Transfert et POP/IMAP →
+            « Activer IMAP » (sans quoi les réponses ne seront pas relevées).</li>
+        </ol>
+        <div style={{ marginTop: 6, color: '#64748b' }}>
+          Les espaces entre les blocs n&apos;ont pas d&apos;importance, ils sont retirés à
+          l&apos;enregistrement. Si la page des mots de passe d&apos;application est inaccessible,
+          c&apos;est que l&apos;administrateur Workspace les a désactivés, ou que le compte est en
+          « Protection avancée ».
+        </div>
+      </div>
+    );
+  }
+
+  if (provider === 'ovh') {
+    return (
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
+        <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 5 }}>
+          Où trouver ce mot de passe ?
+        </div>
+        C&apos;est le mot de passe de la boîte elle-même, celui qui ouvre le webmail OVH : rien à
+        générer. Si vous ne l&apos;avez plus, redéfinissez-le dans l&apos;espace client OVH →
+        Web Cloud → Emails → votre domaine → Comptes e-mail → l&apos;adresse → Modifier le mot de
+        passe.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '11px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 6 }}>
+      Le mot de passe de la boîte chez votre hébergeur, et ses serveurs SMTP et IMAP
+      (« Réglages serveurs » ci-dessous). Si l&apos;hébergeur impose un mot de passe dédié aux
+      applications, c&apos;est celui-là qu&apos;il faut.
     </div>
   );
 }

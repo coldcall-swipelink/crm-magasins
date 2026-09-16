@@ -445,10 +445,18 @@ de détecter les réponses sans dépendre d'un routeur tiers.
 3. **Connecter une boîte** (Campagnes → Boîtes d'envoi). La connexion SMTP et
    IMAP est testée AVANT enregistrement : une boîte listée est une boîte qui a
    déjà fonctionné.
-   - *Google Workspace* : validation en deux étapes obligatoire, puis un
-     « mot de passe d'application » de 16 caractères. L'accès IMAP doit être
-     autorisé dans les paramètres Gmail.
-   - *OVH MX Plan* : le mot de passe de la boîte (celui du webmail).
+   - *Google Workspace* : le mot de passe habituel du compte est refusé en
+     SMTP. Il faut un **mot de passe d'application** : activer la validation en
+     deux étapes sur le compte, puis, connecté avec cette adresse, ouvrir
+     <https://myaccount.google.com/apppasswords>, nommer l'application et
+     copier les 16 caractères. Activer aussi l'IMAP (Gmail → Paramètres →
+     Transfert et POP/IMAP), sans quoi les réponses ne remonteront pas.
+     Si la page des mots de passe d'application est inaccessible, c'est que
+     l'administrateur Workspace les a désactivés, ou que le compte est en
+     « Protection avancée ».
+   - *OVH MX Plan* : le mot de passe de la boîte elle-même, celui du webmail —
+     rien à générer. Il se redéfinit dans l'espace client OVH → Web Cloud →
+     Emails → domaine → Comptes e-mail → l'adresse → Modifier le mot de passe.
 4. **Importer des leads** (Campagnes → Leads). CSV ou TSV, seul l'email est
    obligatoire. Les colonnes non reconnues deviennent des champs personnalisés,
    donc des variables : une colonne « Effectif du magasin » donne
