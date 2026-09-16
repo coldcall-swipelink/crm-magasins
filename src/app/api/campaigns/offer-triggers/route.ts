@@ -40,13 +40,13 @@ export async function GET() {
     // ressembler à « aucune règle ».
     const message = err instanceof Error ? err.message : String(err);
     console.error('[GET /api/campaigns/offer-triggers]', err);
-    const missing = /does not exist|P2021|P2022/i.test(message);
+    const schemaLag = /does not exist|P2021|P2022/i.test(message);
     return NextResponse.json({
-      error: missing
+      error: schemaLag
         ? "La base est en retard sur l'application : les tables des déclencheurs "
-          + "n'existent pas encore. Ouvrez /api/admin/db-sync?token=sync-crm-2026 "
-          + 'puis rechargez cette page.'
+          + "n'existent pas encore."
         : `Lecture des déclencheurs impossible : ${message}`,
+      schemaLag,
       detail: message,
     }, { status: 500 });
   }

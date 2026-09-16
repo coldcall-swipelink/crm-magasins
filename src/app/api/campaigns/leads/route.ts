@@ -41,14 +41,15 @@ export async function GET(req: NextRequest) {
     // Cas connu : le schéma de la base est en retard sur le code déployé (une
     // colonne ajoutée par une mise en production dont la synchronisation n'a
     // pas abouti). Les leads sont intacts — seule la lecture échoue.
-    const missingColumn = /column .* does not exist|P2022/i.test(message);
+    const schemaLag = /does not exist|P2021|P2022/i.test(message);
     return NextResponse.json({
-      error: missingColumn
+      error: schemaLag
         ? "La base est en retard sur l'application : une colonne ajoutée par la "
           + 'dernière mise en production manque encore. Vos leads sont intacts, '
-          + "ils ne peuvent simplement pas être lus. Ouvrez /api/admin/db-sync?token=sync-crm-2026 "
-          + 'pour rattraper le schéma, puis rechargez cette page.'
+          + 'ils ne peuvent simplement pas être lus.'
         : `Lecture des leads impossible : ${message}`,
+      // L'écran s'en sert pour proposer le rattrapage en un clic.
+      schemaLag,
       detail: message,
     }, { status: 500 });
   }

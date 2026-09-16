@@ -14,6 +14,7 @@ import LeadDrawer, { type LeadRow } from './LeadDrawer';
 import DealImportModal from './DealImportModal';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
+import ReadErrorBanner from './ReadErrorBanner';
 import { T, btnDanger, btnDef, btnPri, btnXs, inp } from './ui';
 
 
@@ -45,6 +46,7 @@ export default function LeadsPanel() {
   // tombée se ressemblent à l'écran : il faut les distinguer, sinon une panne
   // se lit comme une perte de données.
   const [error, setError] = useState<string | null>(null);
+  const [schemaLag, setSchemaLag] = useState(false);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [fromCrm, setFromCrm] = useState(false);
@@ -68,10 +70,12 @@ export default function LeadsPanel() {
         // On ne touche pas à la liste affichée : mieux vaut laisser la
         // précédente à l'écran, avec le bandeau d'erreur, que de la vider.
         setError(data?.error || `Lecture des leads impossible (erreur ${res.status}).`);
+        setSchemaLag(data?.schemaLag === true);
         return;
       }
 
       setError(null);
+      setSchemaLag(false);
       setLeads(data.leads || []);
       setCounts(data.statusCounts || {});
       setTotal(data.total || 0);
@@ -221,19 +225,7 @@ export default function LeadsPanel() {
           </div>
         )}
 
-        {error && (
-          <div style={{
-            background: 'rgba(248,113,113,.10)', border: '1px solid rgba(248,113,113,.42)',
-            borderRadius: 10, padding: '12px 15px', marginBottom: 14,
-            fontSize: 12.5, color: '#fca5a5', lineHeight: 1.6,
-          }}>
-            <div style={{ fontWeight: 700, marginBottom: 3 }}>La liste n&apos;a pas pu être lue</div>
-            {error}
-            <div style={{ marginTop: 8 }}>
-              <button style={btnXs} onClick={load}>Réessayer</button>
-            </div>
-          </div>
-        )}
+        {error && <ReadErrorBanner message={error} schemaLag={schemaLag} onRetry={load} />}
 
         {loading ? (
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
