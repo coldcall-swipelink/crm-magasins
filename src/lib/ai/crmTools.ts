@@ -7,6 +7,7 @@
 // -----------------------------------------------------------------------------
 import { prisma } from '@/lib/prisma';
 import { findStoreIdsMatchingSearch } from '@/lib/searchStores';
+import { averageCreditPrice, creditsPerYear, creditUnitPrice } from '@/lib/payments';
 
 export interface ToolDefinition {
   name: string;
@@ -41,7 +42,7 @@ export const CRM_TOOLS: ToolDefinition[] = [
   {
     name: 'query_closings',
     description:
-      "Analyse des closings (ventes gagnées / abonnements signés). Un closing = un abonnement dont la date de closing est renseignée. Filtrable par période (from/to) et par enseigne. Renvoie : nombre de closings, nombre de clients distincts, MRR total (somme des valeurs MENSUELLES), ARR (MRR×12), valeur totale du contrat, répartition par enseigne / type d'abonnement / mode de paiement, et la liste des closings. À utiliser pour TOUTE question sur le chiffre d'affaires, le MRR, le nombre de ventes ou de closings sur une période (ex. « combien de closings ces 3 derniers mois »).",
+      "Analyse des closings (ventes gagnées / abonnements signés). Un closing = un abonnement dont la date de closing est renseignée. Filtrable par période (from/to) et par enseigne. Renvoie : nombre de closings, nombre de clients distincts, MRR total (somme des valeurs MENSUELLES), ARR (MRR×12), valeur totale du contrat, répartition par enseigne / type d'abonnement / mode de paiement, le PRIX MOYEN D'UN CRÉDIT VENDU (déjà calculé, remises comprises), et la liste des closings. À utiliser pour TOUTE question sur le chiffre d'affaires, le MRR, le nombre de ventes ou de closings sur une période (ex. « combien de closings ces 3 derniers mois »), ET pour toute question sur le prix d'un crédit (ex. « à combien on vend le crédit en moyenne »). Pour le prix du crédit, lis le champ `avgCreditPrice` et ne recalcule JAMAIS toi-même à partir du MRR : le MRR est mensuel et le nombre de crédits est caché dans le libellé du type, deux pièges qui donnent un résultat 12 fois trop petit.",
     input_schema: {
       type: 'object',
       properties: {
@@ -153,19 +154,52 @@ async function queryClosings(input: Record<string, any>) {
   const contractValue = subs.reduce((s, x) => s + (x.value ?? 0) * (x.subscriptionMonths ?? 12), 0);
   const distinctClients = new Set(subs.map((x) => x.deal?.id).filter(Boolean)).size;
 
-  const groupSum = (keyFn: (x: (typeof subs)[number]) => string) => {
-    const map = new Map<string, { count: number; mrr: number }>();
+  type SubRow = (typeof subs)[number];
+  const groupSum = (keyFn: (x: SubRow) => string) => {
+    const map = new Map<string, { count: number; mrr: number; lines: SubRow[] }>();
     for (const x of subs) {
       const k = keyFn(x);
-      const e = map.get(k) ?? { count: 0, mrr: 0 };
+      const e = map.get(k) ?? { count: 0, mrr: 0, lines: [] as SubRow[] };
       e.count += 1;
       e.mrr += x.value ?? 0;
+      e.lines.push(x);
       map.set(k, e);
     }
     return Array.from(map.entries())
-      .map(([name, v]) => ({ name, count: v.count, mrr: round(v.mrr) }))
+      .map(([name, v]) => {
+        // Prix moyen du crédit DANS le groupe : même calcul pondéré que le total,
+        // null quand le groupe ne vend pas de crédits (multidiffusion, libellé
+        // hors format) pour ne pas afficher un 0 € trompeur.
+        const stats = averageCreditPrice(
+          v.lines.map(l => ({ subscriptionType: l.subscriptionType ?? '', value: l.value })),
+        );
+        return {
+          name,
+          count: v.count,
+          mrr: round(v.mrr),
+          creditsPerYear: stats.creditsPerYear,
+          avgCreditPrice: stats.avgPrice == null ? null : round(stats.avgPrice),
+        };
+      })
       .sort((a, b) => b.mrr - a.mrr);
   };
+
+  // ----- Prix moyen d'un crédit vendu ---------------------------------------
+  // Calculé ICI, en dur, et servi tout cuit au modèle : la règle de saisie
+  // (Valeur = prix du crédit × crédits sur l'année ÷ 12) et le nombre de crédits
+  // caché dans le libellé du type ne sont devinables par aucun modèle.
+  const creditStats = averageCreditPrice(
+    subs.map(x => ({ subscriptionType: x.subscriptionType ?? '', value: x.value })),
+  );
+  // Libellés écartés du calcul, pour que l'assistant puisse le signaler au lieu
+  // de présenter une moyenne silencieusement partielle.
+  const excludedTypes = Array.from(
+    new Set(
+      subs
+        .filter(x => !creditsPerYear(x.subscriptionType ?? ''))
+        .map(x => x.subscriptionType?.trim() || 'Non renseigné'),
+    ),
+  );
 
   return {
     period: { from: input.from ?? null, to: input.to ?? null, brand: brandName ?? null },
@@ -175,6 +209,17 @@ async function queryClosings(input: Record<string, any>) {
     arr: round(mrr * 12),
     totalContractValue: round(contractValue),
     note: "value = montant MENSUEL de l'abonnement. MRR = somme des montants mensuels. ARR = MRR×12.",
+    // Prix de vente moyen d'UN crédit, remises comprises (la valeur saisie est
+    // le montant réellement négocié). Déjà calculé : à lire tel quel.
+    avgCreditPrice: creditStats.avgPrice == null ? null : round(creditStats.avgPrice),
+    creditsSoldPerYear: creditStats.creditsPerYear,
+    annualRevenue: round(creditStats.annualRevenue),
+    creditPriceNote:
+      "avgCreditPrice = prix moyen d'UN crédit vendu, en euros, remises comprises. "
+      + "Calcul déjà fait (CA annuel total ÷ crédits vendus sur l'année) : donne ce chiffre tel quel, ne le recalcule pas. "
+      + `Basé sur ${creditStats.counted} abonnement(s) ; ${creditStats.skipped} écarté(s) faute de crédits dans le libellé du type`
+      + (excludedTypes.length ? ` (${excludedTypes.join(', ')})` : '')
+      + '.',
     byBrand: groupSum((x) => x.deal?.store?.brand?.name ?? 'Sans enseigne'),
     byType: groupSum((x) => x.subscriptionType?.trim() || 'Non renseigné'),
     byPaymentMode: groupSum((x) => (x.paymentMode === 'virement' ? 'virement' : 'stripe')),
@@ -185,6 +230,10 @@ async function queryClosings(input: Record<string, any>) {
       brand: x.deal?.store?.brand?.name ?? 'Sans enseigne',
       type: x.subscriptionType || null,
       monthlyValue: x.value ?? 0,
+      creditPrice: (() => {
+        const p = creditUnitPrice(x.subscriptionType ?? '', x.value);
+        return p == null ? null : round(p);
+      })(),
       months: x.subscriptionMonths ?? 12,
       paymentMode: x.paymentMode === 'virement' ? 'virement' : 'stripe',
     })),

@@ -19,6 +19,7 @@ export function buildSystemPrompt(): string {
     "- Utilise TOUJOURS les outils fournis pour récupérer les vraies données avant de répondre. N'invente jamais de chiffres.",
     "- Calcule les périodes toi-même à partir de la date du jour (ex. « 3 derniers mois » = les 3 derniers mois glissants) et passe des dates YYYY-MM-DD aux outils.",
     "- Un « closing » = un abonnement signé (date de closing renseignée). Le MRR est un montant MENSUEL ; l'ARR = MRR×12.",
+    "- PRIX DU CRÉDIT : query_closings renvoie `avgCreditPrice`, le prix moyen d'UN crédit vendu, remises comprises, DÉJÀ calculé. Donne ce chiffre tel quel. Ne le déduis jamais du MRR ni du nombre de contrats : la valeur saisie est mensuelle et le nombre de crédits est caché dans le libellé du type (« 2 crédit par mois » = 24 crédits sur l'année), donc un calcul à la main se trompe d'un facteur 12. Si `creditPriceNote` signale des abonnements écartés, mentionne-le.",
     '- Réponds en français, de façon concise et directe. Donne le chiffre demandé en premier, puis un court détail utile si pertinent.',
     '- Formate les montants en euros (ex. « 1 250 € »).',
     "- Si une donnée n'existe pas ou si aucun résultat, dis-le simplement.",
