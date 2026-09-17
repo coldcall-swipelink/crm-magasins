@@ -3141,7 +3141,7 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   // Création d'un utilisateur produit (compte Auth + User + Recruiter) sur
   // l'organisation du deal (bouton « Créer un user »).
   const [userFormOpen, setUserFormOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', companyPosition: '', isAdmin: true });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', companyPosition: '' });
   const [creatingUser, setCreatingUser] = useState(false);
   const [createdUser, setCreatedUser] = useState<{ userId: string; email: string } | null>(null);
 
@@ -3252,15 +3252,13 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
 
   // Crée le compte dans l'onglet « Authentication » de Supabase (mot de passe
   // 00000000), sa ligne « User » (nom, prénom, email) et son « Recruiter » sur
-  // l'organisation rattachée au deal. Idempotent côté serveur : rejouer le
-  // formulaire avec le même email complète ce qui manque, sans doublon.
+  // l'organisation rattachée au deal.
   const createUser = async () => {
     const payload = {
       firstName: newUser.firstName.trim(),
       lastName: newUser.lastName.trim(),
       email: newUser.email.trim(),
       companyPosition: newUser.companyPosition.trim(),
-      isAdmin: newUser.isAdmin,
     };
     if (!payload.firstName || !payload.lastName || !payload.email || !payload.companyPosition) {
       toast('Prénom, nom, email et poste sont requis', 'error');
@@ -3275,11 +3273,9 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || 'Erreur');
       setCreatedUser({ userId: body.userId, email: payload.email });
-      setNewUser({ firstName: '', lastName: '', email: '', companyPosition: '', isAdmin: true });
+      setNewUser({ firstName: '', lastName: '', email: '', companyPosition: '' });
       setUserFormOpen(false);
-      toast(body?.authCreated
-        ? '✓ User créé dans Supabase (mot de passe 00000000)'
-        : '✓ Compte déjà existant — ligne User et Recruiter à jour');
+      toast('✓ User créé dans Supabase (mot de passe 00000000)');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Échec de la création du user', 'error');
     } finally {
@@ -3455,15 +3451,11 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
             </div>
             <input type="email" style={{ ...inp, fontSize: 12 }} placeholder="Email du user" value={newUser.email} onChange={e => setNewUser(u => ({ ...u, email: e.target.value }))} />
             <input style={{ ...inp, fontSize: 12 }} placeholder="Poste (ex : Directeur)" value={newUser.companyPosition} onChange={e => setNewUser(u => ({ ...u, companyPosition: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createUser(); }} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
-              <input type="checkbox" checked={newUser.isAdmin} onChange={e => setNewUser(u => ({ ...u, isAdmin: e.target.checked }))} />
-              Administrateur de l'organisation
-            </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={createUser}
                 disabled={creatingUser}
-                title="Compte Auth (mot de passe 00000000) + ligne User + Recruiter sur l'organisation du deal"
+                title="Compte Auth (mot de passe 00000000) + ligne User + Recruiter administrateur sur l'organisation du deal"
                 style={{ ...btnPri, background: '#16a34a', opacity: creatingUser ? .7 : 1, cursor: creatingUser ? 'not-allowed' : 'pointer' }}
               >
                 {creatingUser ? '⟳ Création…' : 'Créer le user'}
