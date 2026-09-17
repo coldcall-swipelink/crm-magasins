@@ -129,6 +129,29 @@ export function pvConsultant(): PvConsultant {
   };
 }
 
+/**
+ * Numéro affiché sur la page (« Si vous avez des questions, appelez Hugo au… »),
+ * en chiffres seulement. Le formatage (espaces, +33) est fait à l'affichage.
+ */
+export function pvConsultantPhone(): string {
+  return (process.env.PV_CONSULTANT_PHONE || '0769719845').replace(/[^\d+]/g, '');
+}
+
+/** « 07 69 71 98 45 » — pour l'œil. */
+export function formatPhoneFr(digits: string): string {
+  const d = digits.replace(/\D/g, '');
+  const national = d.length === 11 && d.startsWith('33') ? `0${d.slice(2)}` : d;
+  return national.length === 10 ? national.replace(/(\d{2})(?=\d)/g, '$1 ') : digits;
+}
+
+/** « +33769719845 » — pour le lien tel:. */
+export function phoneHref(digits: string): string {
+  const d = digits.replace(/\D/g, '');
+  if (d.length === 10 && d.startsWith('0')) return `tel:+33${d.slice(1)}`;
+  if (d.length === 11 && d.startsWith('33')) return `tel:+${d}`;
+  return `tel:${d}`;
+}
+
 /** Adresse d'expédition du mail d'invitation (« Hugo, Swipelink »). */
 export function pvSenderEmail(): string {
   return (process.env.PV_SENDER_EMAIL || 'hugo@swipelink.fr').trim().toLowerCase();

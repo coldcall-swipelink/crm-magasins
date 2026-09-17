@@ -212,9 +212,10 @@ model Deal {
   // pipeline sans avoir à compter les emails de chaque affaire.
   lastEmailReplyAt          DateTime?
   // ─── Pilote « Prospection de Valeur » : parcours boucher ──────────────────
-  // Le magasin accepte d'être cité en référence auprès d'un prospect voisin.
-  // Sans cette case, l'affaire n'apparaît JAMAIS dans le bloc « déjà avec
-  // Swipelink dans votre région » d'un autre magasin.
+  // Le magasin est cité en référence auprès d'un prospect voisin de la même
+  // enseigne (bloc « déjà avec Swipelink dans votre région »), même s'il n'est
+  // pas dans le pipeline Closing. Les affaires du pipeline Closing (test déjà
+  // fait) sont citées d'office (cf. src/lib/pv/references.ts).
   citableReference          Boolean             @default(false)
   // Réponses du parcours, recopiées depuis PvInvite au moment de la
   // réservation. Miroir dénormalisé, comme demoDate : la source reste

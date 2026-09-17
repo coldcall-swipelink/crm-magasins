@@ -89,6 +89,8 @@ export async function prepareInvitation(
     brandId: deal.store.brandId,
     latitude: geo?.latitude ?? null,
     longitude: geo?.longitude ?? null,
+    department: deal.store.department,
+    postalCode: deal.store.postalCode,
   });
 
   const enseigne = deal.store.brand?.name?.trim() || '';

@@ -4,15 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#1A1AD9">
-<title>Vos 2 CV offerts – Swipelink</title>
+<title>Vos 2 CV de bouchers, gratuitement – Swipelink</title>
 <!--
   PARCOURS « BOUCHER OFFERT » EN ÉCRANS GLISSANTS
   1 Expérience → 2 Salaire → 3 Prise de poste → 4 E-mail + créneau → Confirmation
 
   AGENDA EN DIRECT / CRM (côté crm-magasins) :
-  GET  {API}/pv/context?t={token}  → {magasin, ville, poste, email, nbProfils,
-                                        references:[{enseigne:"leclerc"|"intermarche"|"carrefour"|"auchan"|"u"|…, nom:"Super U", ville:"Lunel", distanceKm:24}]}
-       references = 3 max, clients ACTUELS de la même enseigne, les plus proches (≤ 100 km), ayant accepté d'être cités. Vide → bloc masqué.
+  GET  {API}/pv/context?t={token}  → {magasin, enseigne, enseigneNom, ville, poste, email, nbProfils,
+                                        pitch:{enseigne, enseigneNom, badge, titre, texte:[…], etapes:[…], contact:{prenom, telephone, href}},
+                                        references:[{enseigne:"leclerc"|"intermarche"|"carrefour"|"auchan"|"u"|…, nom:"Super U", ville:"Lunel", distanceKm:24|null}],
+                                        referencesTitre:"Déjà avec Swipelink dans votre région"}
+       pitch = « pourquoi c'est gratuit », selon l'enseigne (Intermarché → Groupement des Mousquetaires, Leclerc → GALEC,
+               U → Coopérative U). Rendu côté serveur dans le HTML servi (cf. src/lib/pv/pitch.ts) ; la page ne le
+               re-rend que si le bloc est vide (mode démo). Le site n'est pas soumis aux filtres anti-spam : on y écrit « gratuit ».
+       references = 3 max, magasins de la même FAMILLE d'enseigne (Super U + Hyper U…) avec qui un test a déjà été fait
+               (pipeline Closing, ou case « Citable »), les plus proches d'abord. distanceKm null = non géolocalisé
+               (même département). referencesTitre s'adapte quand rien n'est à moins de 100 km. Vide → bloc masqué.
   GET  {API}/pv/slots?t={token}    → [{start, end}] = disponibilités RÉELLES de l'agenda de démos (à J+2 minimum),
                                       calculées à chaque appel (aucun cache), créneaux déjà pris exclus.
   POST {API}/pv/bookings           → body = buildPayload()
@@ -23,7 +30,7 @@
   GET  /pv/context  renvoie aussi : telephone (du magasin), consultant:{prenom, role, photoUrl}
   POST /pv/callbacks {token, telephone, experience, salaire, priseDePoste}  → demande de rappel (deal CRM "À rappeler")
   POST /pv/events    {token, event, step, ts}  (sendBeacon, anonyme, 1re partie) → entonnoir : page_view, answer_1..3,
-       email_edit, slot_select, booking_ok, booking_err, callback_open, callback_ok
+       email_edit, slot_select, booking_ok, booking_err, callback_open, callback_ok, pitch_open, call_click
   Côté CRM après réservation : invitation .ics avec lien visio + lien « Déplacer le rendez-vous »,
        rappels la veille et 1 h avant (e-mail + SMS Twilio), relance J+1 par Hugo si étapes commencées sans réservation
        (se baser sur les events answer_*, JAMAIS sur le simple clic du mail : Safe Links Microsoft).
@@ -254,6 +261,39 @@ button{font-family:inherit}
   .stepper{padding:22px 32px 22px}
   .slide h2{font-size:30px}
 }
+/* Pitch « pourquoi c'est gratuit » (volet gauche) */
+.pitch{margin-top:16px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:rise .5s ease-out .3s both}
+.pitch[hidden]{display:none}
+.pitch-h{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;margin:0;color:#fff;text-align:left;cursor:pointer;font:inherit}
+.pitch-tag{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--grad-warm);color:#fff;
+  font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;line-height:1;box-shadow:0 4px 12px rgba(255,122,79,.35)}
+.pitch-t{flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.3}
+.pitch-chev{flex:0 0 auto;width:8px;height:8px;margin:0 6px 4px 0;border-right:2px solid #C9D2FF;border-bottom:2px solid #C9D2FF;transform:rotate(45deg);transition:transform .25s,margin .25s}
+.pitch.open .pitch-chev{transform:rotate(-135deg);margin:4px 6px 0 0}
+.pitch-b{display:none;margin-top:12px}
+.pitch.open .pitch-b{display:block}
+.pitch-b p{margin:0 0 8px;font-size:14px;line-height:1.5;color:#DCE2FF}
+.pitch-b p:first-child{color:#fff;font-weight:600}
+.pitch-l{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.pitch-l li{display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:600;color:#fff;line-height:1.35}
+.pitch-ck{flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:#34D399;color:#0B0B3B;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.pitch-ck svg{width:11px;height:11px}
+.pitch-call{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.16);color:#DCE2FF;font-size:13.5px;line-height:1.35;text-decoration:none}
+.pitch-call svg{flex:0 0 18px;width:18px;height:18px;color:#FFB14A}
+.pitch-call b{color:#fff;font-weight:700}
+.pitch-num{white-space:nowrap;text-decoration:underline;text-underline-offset:3px}
+@media (max-width:899px){ .pitch-h{gap:8px} .pitch-tag{font-size:10px;letter-spacing:.06em;padding:4px 8px} .pitch-t{font-size:13.5px} }
+@media (min-width:900px){
+  .pitch{margin-top:22px;padding:16px 18px}
+  .pitch-h{cursor:default;pointer-events:none}
+  .pitch-chev{display:none}
+  .pitch-b{display:block}
+  .pitch-t{font-size:15px}
+  .pitch-b p,.pitch-l li{font-size:15px}
+  .pitch-call{font-size:14px;margin-top:14px;padding-top:14px}
+}
+
 /* Références régionales */
 .refs{margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.16);animation:rise .5s ease-out .45s both}
 .refs[hidden]{display:none}
@@ -284,8 +324,12 @@ button{font-family:inherit}
     <div class="store" id="ctx-mag">E.Leclerc Montpellier Est</div>
     <h1 class="headline brand">On <span class="grad-txt">chasse</span>, vous recrutez.</h1>
     <p class="hero-sub"><b><span id="ctx-n" class="count-up">37</span> bouchers</b> déjà repérés autour de votre magasin.</p>
+    <!-- pitch:start -->
+    <!-- Rempli côté serveur (src/app/boucher/route.ts) ; en mode démo, par renderPitch(). -->
+    <div class="pitch" id="pitch" hidden></div>
+    <!-- pitch:end -->
     <div class="refs" id="refs" hidden>
-      <div class="refs-t"><span class="beacon" aria-hidden="true"></span>Déjà avec Swipelink dans votre région</div>
+      <div class="refs-t"><span class="beacon" aria-hidden="true"></span><span id="refsTitle">Déjà avec Swipelink dans votre région</span></div>
       <div class="refs-l" id="refsList"></div>
       <div class="refs-compact" id="refsCompact"></div>
     </div>
@@ -296,9 +340,9 @@ button{font-family:inherit}
       <div class="offer-num" aria-hidden="true"><b>2</b><span>CV</span></div>
       <div class="offer-sep"></div>
       <div class="offer-txt">
-        <span class="offer-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>OFFERT</span>
-        <div class="offer-t">2 CV de bouchers pour votre magasin</div>
-        <div class="offer-s">Répondez à 4 questions et réservez votre créneau pour accéder à vos 2 profils.</div>
+        <span class="offer-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>GRATUIT</span>
+        <div class="offer-t">2 CV de bouchers gratuits pour votre magasin</div>
+        <div class="offer-s">Répondez à 4 questions et réservez votre créneau : c'est gratuit et sans engagement.</div>
       </div>
     </div>
     <div class="stepper" id="stepper">
@@ -377,7 +421,7 @@ button{font-family:inherit}
             <div class="slots" id="slots"></div>
           </div>
 
-          <button class="cta" id="book" type="button" disabled>Confirmer et recevoir mes 2 CV</button>
+          <button class="cta" id="book" type="button" disabled>Recevoir mes 2 CV gratuits</button>
           <p class="legal">En réservant, vous acceptez les <a href="https://www.swipelink.fr/cgu" target="_blank" rel="noopener">CGU</a>.</p>
           <div class="err" id="bookErr" role="alert" style="text-align:center"></div>
 
@@ -475,15 +519,26 @@ async function mock(path, opts){
   await new Promise(r=>setTimeout(r,300));
   if (path.startsWith('/pv/context')) {
     const ens = new URLSearchParams(location.search).get('ens') || 'leclerc';
+    const contact = {prenom:'Hugo', telephone:'07 69 71 98 45', href:'tel:+33769719845'};
+    const etapes = ['Nous chassons des bouchers selon vos critères','Nous vous les présentons en visio, en 15 minutes','Nous vous donnons leurs profils : vous en faites ce que vous voulez'];
+    const P = {
+      leclerc:     {enseigne:'leclerc', enseigneNom:'E.Leclerc', texte:["Swipelink est référencé au GALEC et accompagne déjà des E.Leclerc.", "Nous faisons tester notre service gratuitement à tous les magasins de l’enseigne."]},
+      intermarche: {enseigne:'intermarche', enseigneNom:'Intermarché', texte:["Swipelink travaille aujourd'hui avec plus de 45 Intermarché.", "Notre objectif : obtenir le référencement au Groupement des Mousquetaires. Pour y arriver, nous faisons tester notre service gratuitement à tous les magasins."]},
+      u:           {enseigne:'u', enseigneNom:'U', texte:["Swipelink accompagne déjà des Super U et Hyper U.", "Notre objectif : obtenir le référencement à la Coopérative U. Pour y arriver, nous faisons tester notre service gratuitement à tous les magasins."]},
+    };
     const R = {
       leclerc:     {magasin:'E.Leclerc Montpellier Est', refs:[['leclerc','E.Leclerc','Lunel',24],['leclerc','E.Leclerc','Sète',31],['leclerc','E.Leclerc','Nîmes',52]]},
       intermarche: {magasin:'Intermarché Montpellier', refs:[['intermarche','Intermarché','Lunel',24],['intermarche','Intermarché','Mauguio',12]]},
       u:           {magasin:'Super U Montpellier', refs:[['u','Super U','Lunel',24],['u','Hyper U','Sète',31],['u','U Express','Nîmes',52]]},
+      loin:        {magasin:'Intermarché Mende', refs:[['intermarche','Intermarché','Montpellier',140],['intermarche','Intermarché','Marvejols',null]]},
       aucune:      {magasin:'E.Leclerc Montpellier Est', refs:[]}
     }[ens] || {};
-    return {magasin:R.magasin, ville:'Montpellier', poste:'Boucher (H/F)', email:'direction@magasin.fr', nbProfils:37,
+    const pitch = Object.assign({badge:'100 % gratuit', titre:"Pourquoi c'est gratuit\u202F?", etapes, contact}, P[ens==='loin'?'intermarche':ens] || P.leclerc);
+    const references = (R.refs||[]).map(([enseigne,nom,ville,distanceKm])=>({enseigne,nom,ville,distanceKm}));
+    const pres = references.some(r=>r.distanceKm!=null && r.distanceKm<=100);
+    return {magasin:R.magasin, enseigne:pitch.enseigne, enseigneNom:pitch.enseigneNom, ville:'Montpellier', poste:'Boucher (H/F)', email:'direction@magasin.fr', nbProfils:37,
             telephone:'04 67 00 00 00', consultant:{prenom:'Sarah', role:'consultante recrutement', photoUrl:''},
-            references:(R.refs||[]).map(([enseigne,nom,ville,distanceKm])=>({enseigne,nom,ville,distanceKm}))};
+            pitch, references, referencesTitre: pres ? 'Déjà avec Swipelink dans votre région' : 'Déjà avec Swipelink chez '+pitch.enseigneNom};
   }
   if (path.startsWith('/pv/slots')) {
     const out=[]; const d=new Date(); d.setHours(0,0,0,0);
@@ -504,13 +559,14 @@ async function mock(path, opts){
 /* ---------- Références régionales ---------- */
 const ICONS = {"leclerc": "data:image/webp;base64,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", "carrefour": "data:image/webp;base64,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", "auchan": "data:image/webp;base64,UklGRmgLAABXRUJQVlA4IFwLAADwMwCdASpgAGAAPh0KhEEhBY630QQAcS2AGbAvr9G/CDtPpy8f/DH9d/7v8yFQ/m32p/Xf/BZchxR/UP6h+yH95/+3xN/t34gfIDzBv0X/sn5P/4z//95TzAf0L+ef53+5++R6Mf1J9gD+Ufy/0gPYA9AT+ef2X0kv+j/mfgs/ZH/d/7P4Ev5X/VvvK0TH+edmn8t/Er9z+4F8IevucV+rPy78df3X/5nOrwAvw3+Pf0X8qfyu5VwAH1K/v35M/1X0AdQLoz9Un8q/qP5U/2j//+wB4yXdfsAfxX+a/2b+5/uX/dfpW/jf95/i/3M/xvtf+c/9F/kP3W/yH2C/x3+c/5n+6/4v/jf4T///VV7EP2O9kb9kXbIF9mRIj/dSpcDPleesJg2CAMxVtVYILMv3BF8kNqLdmWs+NNZT7LzlmOyxNAffze5Edz63tUjUL0CIgizdtwqGkgOPTPePJow8WzfVvPIuly5bD0o1U7JocmKflT6rYZZtwAsmk+kzDbbbz2CGAr+y6RU+1Th+ouqPLvWaau7IHK33B1QTcV55nf7DJAJv+IcgAP7/v7sEt9llY6SFpNWvhefQo7f73Y0SHgUxtu7eE3zpW/ePcDEsxy0qfsR3DQ59C8NV7CC3XbadKGSZ6fkd6eTNtjhaCy6+plBbb9sF8mMsRo/OjVOcA177wnDFFZeTMBVsqqZJOKkFwR27gKcoxhAHQka9lMnirHNVF8az+uGqFDx3dKK+6RyzeZPTfDByvHzNTE7FqH+5efgzxUo4EFAnflbBvcVY+PNjZS/rIbxp+kufqDJqQ956vBNmKpSs7xTqGn5UOeJpJQob5SGZ4VAjByGo1wQjsxF+kuGWLZyzyFYRUT+83/1IzMlyEQTwGRPj6Tm40wBOEi9GWIR88V67sNqcxTCcm/0TmIzjIXon+GEmEiJ8QC8rzemjPNt6lScfMxIEuPepV1SBOiUqjBhcqr2jCR6qELVrmC/nA1S9UJ/6jAUEEVD2Ryw3zxXzf4QryYTtf9veq/bk06d4F5hJhAZxPVn8ll2cYhaB2qGmM0y0OYis6X9/B1mS/ViUCWZ2CO9lKvXLNehJJ8gcvusw4C+OxNaWm2uFp6MxVADUkaG05FM4buAo3YdOsgpX8hiCPWGBd4EJzAWJeTGK3sIFSYDg3fK3rXXBL1fkvs3AG0QbCO9EgLFP9+bDe61lDOFBIyxnL/tA/4Nq9Ugbsz01zR/0Q1rGwnl+LMxKqtg0QinYdch41X8SHC6kG4Cwbt5+bwtGoHshuWtW7A/oPAdR21U8b6rfmTxJBh2kxGAfQytCxO63ELLTYRVnbtxbyA6Mc/FXqGdsDi0DlBa13u5UMmJ4ahwNsc/s84IpGY8pgw8D+5v8qaVROkwNIbI0f6G05NYOfCBtZQwsaS6RtSPBrfUSjMcf2nRVrkz7Bfm57iJcHjHSW2jn34ILkkwUYLJtb7j3XPrgASfXABTAV7/9T+l5uivh+91W3tMbYW8CVxr46etaQnD/l3knPwGFrDpKvVLnX4JFddBgfXdBO2C+yYPWbngib23iJIJwrwazC12/21fDdQfvETy8evM3VoIKB1X/4/Cohg+sVkkFM2iboYOMRK4vU6iOMb/4+hBKPThIT5bfBQxfpO5ucAMRArqLucDO9IMnncKCHLzqxQyAH5Y5AsgK/nbQadMz8ZAALU+mTiWtjqejly4wFP6Wf5venakpGiNhnHkuSwn1gyy201ASVBNigHxI8/AjP3a7dFTPlrdEYQ+JUxRkxupBllNmQkjBfaq12Y94NPf54t6KRIUnGQB+PZ+qlg5MDaTk9VggpepRSQ6gqZpiDwrSmKCXUlbW/8m/jdaphDOol8osCJ5urcw3zWZEPOEwJnA5rXQ61OpJQIdzDr+a5pjWGovEckXeGgq3lFHaPr4UlqTkPsuwp3N7jVKGsWtpgf/6mxgeY/g7mfxBypciPo+LqxtEipGUsnUXBk6rFIbZ5ZbShGXjCTVOn1N/Ii+wLyHQ1s6wvsli4h8dJa7uQubWKKKnf7399JVunOZYaJuR+zzjeg1oIWcYW5XPPSQYRNf/w21+hurpJc0XOAcQmzeM1w2bxpz0iCNKbGXb2dcNm9VP5Q0Z38qeeBS5OaTm/zRWDZxMk6f/edl6K+jvdC86v1fQm2e9m8BQ+n+x07I1mGjWD9eA4H76/VJdEuSgfuNF86eD8snpDgb4nv89qAWWOtEW0kweC1VfllL08eLgqYp15q1TjBBKw8sfWVOluS/z+Wkfdu3PGiH9Ls1FAtyMvjtZ0FSuXC1aaRaR+Sm9m1PVxoSb/I+YH5zDbxrJ3+soVz26jqwe5tvwAaOuVGG9/KDi/dgyl0/ELOc6NFC/AC+mpEz28BGwR6qt+g+JGJj4sS/l2NCoI+tVosnOg/ggFu3ReWuBuJuy+tSwbTBTJ1H63TglVvA5LEJMUU+Y94ebWvBSJySdFnYwy0wDsVgvREvoeAQ1L1WalXjxjPB5DfaR95AnfmAaTvH2ZN5OKO/QAPQND/GPgg+5T0ldibXBARtDE8zFfg/e3vlMkKm0LGdBWDMGJFKGEgBsK671kYdsyVZkdeUxgrO1c8y5FsrF41sK71YHuodKwoLNcjlDULvCgTOSVEp1gepleFLL+oUO9LemQpMA17MPn3HYO/FDKV2WiNaPe7vZyS4J0RL2Ld7JoglR+Ll1v80th5ULUjHbLMh+OXfy6hVuDPNsb+RnsoZRMFE1309HZfqddkglNWWA3QYYa8p8xdni/V5i0mD83Nwiq+NFQJ05X9a84/N7siv7PAf+lzZ9pcKj714/HTPs7IM4gLo+h9YMpx07u9GHOtUYv8hU5Qdjqnwhk/yP/yyzKOD7wUdVTY7SPUUbL9XufzAhXh0rfP3nDHwYPI8wUWQEa25yYjOQJObccNkimqlBWwOkczEU0ENuuOayO9CyI3SFDCLJh0kkIhf5B9EQYiqitL3Ku2zqvZXiQynfNwXzJHg0oqm7F16s1N03KR3RVSqb9OYBA0ahq35qF3+z+WdUCfMLX4++PFwB1hDaQMohkbzWqsFUQXUGnVZxuGPYhd1uG03ewDxVOP2kG+qmU/ZDVCG2D1J7BNiLvSQsiDVA2wLptppiI7JGulHdjfEEC5CGX1fNqSbqpCyWEPR0vNWPhd8e0DYgnzUCDQhI4v07fS26d8n8DZLknw7pmZREcYSqv6Q8vhcnoP4V6Y4k3nwhmladGlO7ZLe9OPWeiLRGw7C28X2pQuuGsqOfW0rH+Mmnnjl5eCqrLw8wJ7hK4+561jj/q//9alFsZ7UcO5T+qG0WiVxhKjWJjhMhims2aEp7aoYfxyg8DhGsB7QunWdafnO4FifEypNkAUyJe89oUnvs6fyPno/EijlVIgVh+1tNwmsxcRBKoRKCpJxI0/pUPjTLUT5Ry9eRw2dvQdliZKG0yxo88adStef/3USCAGKWcb7//91fUpPBK0abY40nAhdtXLaqnAvkyW8AFNOLbJqv6nhsDYRWZWacoPaRwAoQf7dMcQ09NOUbUw84g+OQfAdKiOEEz5BUIwaFfCF2bgN8nyalSQM10c7wAJQqKms+qzc6VZbWDD4ec+XMZeQOEjykLDboNZiH5yLP//042pE8GslODKL7n+a0B344GhgbM9ttowAgb9acU1KoW2dwKtRPadAZ05GtzkwJMaEMP4bdkVXjD0skZTSh+7CN1VrLqcP/5jBb8JebOYoq//AGkE4cDMc9OuU6B4H1H4DFv4LQkTMzDYk/gv6/0kr8NPoZAiwBnyhMyCYwnF57A8nRWvvVBngFjdh/66R9rUNH9wqBjb7L86W8TW4NA0kirFcYwC5nWIk5TEiT7tvWLAAA"};   // Intermarché, U, autres : pictogramme magasin neutre
 const esc = t => String(t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
-function renderRefs(list){
-  const refs = (list||[]).slice().sort((a,b)=>(a.distanceKm??999)-(b.distanceKm??999)).slice(0,3);
+function renderRefs(list, titre){
+  const refs = (list||[]).slice().sort((a,b)=>(a.distanceKm??9999)-(b.distanceKm??9999)).slice(0,3);
   if (!refs.length) { $('#refs').hidden = true; return; }
+  $('#refsTitle').textContent = titre || 'Déjà avec Swipelink dans votre région';
   $('#refsList').innerHTML = refs.map(r=>{
     const ic = ICONS[r.enseigne];
     const tile = ic ? `<span class="tile"><img src="${ic}" alt=""></span>` : `<span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v7h14v-7"/><path d="M10 20v-4h4v4"/></svg></span>`;
-    const dist = r.distanceKm ? `<span class="ref-d">à ${Math.round(r.distanceKm)} km</span>` : '';
+    const dist = r.distanceKm != null ? `<span class="ref-d">à ${Math.round(r.distanceKm)} km</span>` : '';
     return `<span class="ref">${tile}<span class="ref-n">${esc(r.nom)} ${esc(r.ville)}</span>${dist}</span>`;
   }).join('');
   const noms = refs.map(r=>esc(r.nom+' '+r.ville));
@@ -518,6 +574,31 @@ function renderRefs(list){
   $('#refsCompact').innerHTML = `<span class="stack">${refs.map(r=>ICONS[r.enseigne]?`<span class="tile"><img src="${ICONS[r.enseigne]}" alt=""></span>`:`<span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v7h14v-7"/><path d="M10 20v-4h4v4"/></svg></span>`).join('')}</span><span class="refs-compact-t">${phrase}</span>`;
   $('#refs').hidden = false;
 }
+
+/* ---------- Pitch « pourquoi c'est gratuit » (volet gauche) ---------- */
+/* Le même HTML que pitchInnerHtml() côté serveur (src/lib/pv/pitch.ts) : en
+   production le bloc arrive déjà rempli (data-ready), on ne le touche pas. */
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17 19 7.5"/></svg>';
+const PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6.2 6.2l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
+function renderPitch(p){
+  const host = $('#pitch');
+  if (!host || host.dataset.ready || !p) return;
+  const c = p.contact || {};
+  host.innerHTML =
+    `<button class="pitch-h" id="pitchToggle" type="button" aria-expanded="false" aria-controls="pitchBody">`+
+      `<span class="pitch-tag">${esc(p.badge||'100 % gratuit')}</span><span class="pitch-t">${esc(p.titre||"Pourquoi c'est gratuit\u202F?")}</span><span class="pitch-chev" aria-hidden="true"></span>`+
+    `</button>`+
+    `<div class="pitch-b" id="pitchBody">${(p.texte||[]).map(t=>`<p>${esc(t)}</p>`).join('')}`+
+      `<ul class="pitch-l">${(p.etapes||[]).map(e=>`<li><span class="pitch-ck">${CHECK_SVG}</span><span>${esc(e)}</span></li>`).join('')}</ul></div>`+
+    (c.telephone ? `<a class="pitch-call" id="pitchCall" href="${esc(c.href||'')}">${PHONE_SVG}<span>Si vous avez des questions, appelez <b>${esc(c.prenom||'')}</b> au <b class="pitch-num">${esc(c.telephone)}</b></span></a>` : '');
+  host.dataset.ready = '1'; host.dataset.enseigne = p.enseigne || '';
+  host.hidden = false;
+}
+document.addEventListener('click', e=>{
+  const t = e.target.closest('#pitchToggle');
+  if (t){ const open = $('#pitch').classList.toggle('open'); t.setAttribute('aria-expanded', open?'true':'false'); if (open) track('pitch_open'); fitHeight(); return; }
+  if (e.target.closest('#pitchCall')) track('call_click');
+});
 
 /* ---------- Contexte ---------- */
 function countUp(el, to){
@@ -528,7 +609,8 @@ function countUp(el, to){
 countUp($('#ctx-n'), +$('#ctx-n').textContent);
 api('/pv/context?t='+encodeURIComponent(token)).then(c=>{
   $('#ctx-mag').textContent = c.magasin;
-  renderRefs(c.references);
+  renderPitch(c.pitch);
+  renderRefs(c.references, c.referencesTitre);
   if (+$('#ctx-n').textContent !== c.nbProfils) countUp($('#ctx-n'), c.nbProfils);
   state.emailInitial = state.email = c.email; state.emailConfirmed = true;
   $('#mailShown').textContent = c.email;
@@ -677,7 +759,7 @@ $('#book').onclick = async () => {
     else $('#bookErr').textContent = 'La réservation n\'a pas pu aboutir. Veuillez réessayer.';
     track('booking_err');
   } finally {
-    booking = false; if (state.step===3){ btn.innerHTML = 'Confirmer et recevoir mes 2 CV'; updateBook(); }
+    booking = false; if (state.step===3){ btn.innerHTML = 'Recevoir mes 2 CV gratuits'; updateBook(); }
   }
 };
 
