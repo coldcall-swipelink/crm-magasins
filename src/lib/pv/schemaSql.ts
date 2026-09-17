@@ -19,6 +19,12 @@
 // l'erreur « existe déjà ». Rejouer la liste sur une base à jour ne fait rien.
 
 export const PV_SCHEMA_STATEMENTS: string[] = [
+  // ─── Colonne ajoutée à CampaignStep ─────────────────────────────────────
+  // Une étape de séquence peut porter le modèle « 2 CV de bouchers ». Sans
+  // cette colonne, le client Prisma fait échouer TOUTE lecture d'étape — donc
+  // l'éditeur de séquence ET le moteur d'envoi, pour toutes les campagnes.
+  `ALTER TABLE "CampaignStep" ADD COLUMN IF NOT EXISTS "templateKey" TEXT NOT NULL DEFAULT '';`,
+
   // ─── Colonnes ajoutées à Deal ────────────────────────────────────────────
   // C'est « citableReference » qui manquait et qui faisait tomber toute lecture
   // d'affaire (import des offres, pipeline, carte, fiche).

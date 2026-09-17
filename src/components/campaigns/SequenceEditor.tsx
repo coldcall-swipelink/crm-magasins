@@ -22,6 +22,8 @@ export interface Step {
   bodyHtml: string;
   useHtml: boolean;
   replyToThread: boolean;
+  /** Modèle fourni par le CRM : '' = étape libre, 'boucher' = invitation « 2 CV ». */
+  templateKey: string;
 }
 
 type Variable = { name: string; description: string };
@@ -203,11 +205,30 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
         </div>
       )}
 
+      {/* Modèle du CRM. Une étape « boucher » n'a pas de corps à rédiger : son
+          contenu vient du pilote, et le moteur crée un jeton par magasin à
+          l'envoi — ce qu'aucune étape libre ne sait faire. */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={label}>Modèle</label>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {([['', 'Libre'], ['boucher', 'Parcours boucher (2 CV)']] as const).map(([key, libelle]) => (
+            <button key={key} onClick={() => change({ templateKey: key })} style={{
+              ...btnXs,
+              borderColor: draft.templateKey === key ? '#3b71f5' : '#262b38',
+              background: draft.templateKey === key ? 'rgba(59,113,245,.16)' : '#1c1f2a',
+              color: draft.templateKey === key ? '#8fb0ff' : '#9aa1b4',
+            }}>{libelle}</button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ marginBottom: 10 }}>
         <label style={label}>Sujet</label>
         <input ref={subjectRef} style={inp} value={draft.subject}
           onFocus={() => { lastFocus.current = 'subject'; }}
-          placeholder="Une question sur {{enseigne}}"
+          placeholder={draft.templateKey === 'boucher'
+            ? '2 CV de bouchers pour votre magasin {{Enseigne}} — laissez vide pour celui du modèle'
+            : 'Une question sur {{enseigne}}'}
           onChange={event => change({ subject: event.target.value })} />
         {!isFirst && draft.replyToThread && (
           <div style={{ fontSize: 11, color: '#6b7283', marginTop: 4 }}>
@@ -216,6 +237,26 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
         )}
       </div>
 
+      {draft.templateKey === 'boucher' ? (
+        <div style={{ border: '1px solid rgba(59,113,245,.38)', background: 'rgba(59,113,245,.10)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 12.5, color: '#b3b9c9', lineHeight: 1.6 }}>
+            Le corps vient du modèle du pilote et se personnalise magasin par magasin :
+            nom du magasin, nombre de bouchers repérés, clients voisins cités, intitulé de
+            l&apos;offre — et <b style={{ color: '#8fb0ff' }}>un lien de réservation propre à chaque
+            magasin</b>, créé au moment de l&apos;envoi.
+          </div>
+          <div style={{ fontSize: 11.5, color: '#6b7283', lineHeight: 1.6, marginTop: 8 }}>
+            Un lead sans affaire rattachée est écarté de la séquence (motif « aucune affaire
+            rattachée ») : sans magasin, son lien n&apos;ouvrirait rien. Les leads ajoutés par
+            « + Depuis le CRM » portent déjà la leur.
+          </div>
+          <a href="/api/campaigns/template-preview?key=boucher" target="_blank" rel="noopener"
+            style={{ ...btnXs, display: 'inline-block', marginTop: 10, textDecoration: 'none' }}>
+            Aperçu du mail
+          </a>
+        </div>
+      ) : (
+      <>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
         <label style={{ ...label, marginBottom: 0 }}>Corps du message</label>
         <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
@@ -250,8 +291,10 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
           ? 'HTML libre : idéal pour un email commercial. Un email trop maquetté passe moins bien les filtres qu\'un email simple.'
           : 'Texte simple, converti en HTML sobre à l\'envoi — c\'est le format qui arrive le mieux en boîte de réception.'}
       </div>
+      </>
+      )}
 
-      {(variables.standard.length > 0 || variables.custom.length > 0) && (
+      {draft.templateKey === '' && (variables.standard.length > 0 || variables.custom.length > 0) && (
         <div style={{ marginTop: 10 }}>
           <div style={{ ...label, marginBottom: 5 }}>Variables (cliquez pour insérer)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -1092,6 +1092,19 @@ model CampaignStep {
   // In-Reply-To / References). Décoché : nouvel email indépendant.
   replyToThread Boolean @default(true)
 
+  /// Modèle fourni par le CRM, au lieu du corps rédigé ci-dessus.
+  ///
+  /// Vide = étape libre, le cas courant. « boucher » = invitation « 2 CV de
+  /// bouchers » : le sujet et le corps viennent du modèle du pilote, et
+  /// surtout le moteur CRÉE UN JETON pour l'affaire du lead au moment de
+  /// l'envoi. C'est ce que ne peut pas faire une étape libre — un jeton est une
+  /// ligne en base rattachée à une affaire, pas un remplacement de texte.
+  ///
+  /// Un lead sans affaire rattachée ne peut pas recevoir cette étape : il est
+  /// écarté de la séquence avec un motif lisible plutôt que de recevoir un mail
+  /// dont le bouton n'ouvre rien.
+  templateKey String @default("")
+
   messages  CampaignMessage[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt

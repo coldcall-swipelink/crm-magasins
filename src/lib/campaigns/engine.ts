@@ -19,6 +19,7 @@ import { prisma } from '@/lib/prisma';
 import { createTransport, fromHeader } from '@/lib/campaigns/mailboxes';
 import { BLOCKING_STATUSES } from '@/lib/campaigns/leadFields';
 import { buildEmail, leadVariables, threadSubject } from '@/lib/campaigns/render';
+import { markInvitationSent, mintInvitationEmail, prepareInvitation } from '@/lib/pv/invitation';
 import {
   dailyCap, isSendWindowOpen, nextOpenSlot, randomDelayMs, startOfLocalDay,
 } from '@/lib/campaigns/schedule';
@@ -188,7 +189,13 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
   // illisible (clé de chiffrement changée depuis l'enregistrement).
   let transport: ReturnType<typeof createTransport>;
   try {
-    transport = createTransport(mailbox);
+    // attachDataUrls : nodemailer remplace les `src="data:image/…"` d'un corps
+    // HTML par des pièces jointes inline référencées en cid:. Sans cette
+    // option, le logo du modèle « 2 CV de bouchers » resterait un data: URI —
+    // qu'Outlook n'affiche pas. Sans effet sur une étape qui n'en contient pas,
+    // et bénéfique quand elle en contient : une image intégrée passe mieux les
+    // filtres qu'un data: URI de 30 Ko dans le corps.
+    transport = createTransport(mailbox, { attachDataUrls: true });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new Error(`Identifiants inutilisables : ${reason}`);
@@ -420,6 +427,30 @@ async function sendEnrollmentStep(
     return { kind: 'finished' };
   }
 
+  // ─── Étape « modèle boucher » ────────────────────────────────────────────
+  //
+  // Le sujet et le corps viennent du pilote, et surtout : un JETON est créé
+  // pour l'affaire de ce lead, ici, maintenant. C'est ce qu'une étape libre ne
+  // peut pas faire — un jeton est une ligne en base rattachée à une affaire,
+  // pas un remplacement de texte dans un modèle.
+  //
+  // Sans affaire rattachée, pas de magasin, donc pas de jeton : on écarte le
+  // lead avec un motif lisible plutôt que de lui envoyer un mail dont le bouton
+  // n'ouvrirait rien.
+  let minted: Awaited<ReturnType<typeof mintInvitationEmail>> | null = null;
+  if (step.templateKey === 'boucher') {
+    if (!lead.dealId) {
+      await stopEnrollment(enrollment.id, 'no_deal');
+      return { kind: 'stopped' };
+    }
+    const prep = await prepareInvitation(lead.dealId);
+    if (!prep.ok) {
+      await stopEnrollment(enrollment.id, 'no_deal');
+      return { kind: 'stopped' };
+    }
+    minted = await mintInvitationEmail(prep);
+  }
+
   const isFollowUp = enrollment.sentSteps > 0 && step.replyToThread && Boolean(enrollment.threadMessageId);
   const message = await prisma.campaignMessage.create({
     data: {
@@ -437,15 +468,28 @@ async function sendEnrollmentStep(
     },
   });
 
-  const email = buildEmail({
-    subjectTemplate: step.subject,
-    bodyTemplate: step.useHtml ? step.bodyHtml : step.bodyText,
-    useHtml: step.useHtml,
-    variables: leadVariables(lead, mailbox),
-    signatureHtml: mailbox.signatureHtml,
-    trackingId: campaign.trackOpens ? message.trackingId : null,
-    unsubscribeToken: campaign.addUnsubscribe ? message.trackingId : null,
-  });
+  // Le modèle du pilote part TEL QUEL : ni pixel de suivi (le modèle s'en
+  // passe délibérément), ni lien de désinscription ajouté (il en porte déjà un,
+  // qui révoque l'invitation en plus de désinscrire), ni signature de boîte
+  // (il a la sienne). Le sujet de l'étape, s'il est rempli, l'emporte quand
+  // même : c'est l'objet qu'on teste d'une campagne à l'autre.
+  const email = minted
+    ? {
+        subject: step.subject.trim() || minted.subject,
+        html: minted.html,
+        text: minted.text,
+        unsubscribeUrl: '',
+        missing: [] as string[],
+      }
+    : buildEmail({
+        subjectTemplate: step.subject,
+        bodyTemplate: step.useHtml ? step.bodyHtml : step.bodyText,
+        useHtml: step.useHtml,
+        variables: leadVariables(lead, mailbox),
+        signatureHtml: mailbox.signatureHtml,
+        trackingId: campaign.trackOpens ? message.trackingId : null,
+        unsubscribeToken: campaign.addUnsubscribe ? message.trackingId : null,
+      });
 
   // Une relance garde le sujet du premier email, préfixé « Re: » : c'est ce
   // qui la range dans le même fil chez le destinataire.
@@ -484,6 +528,10 @@ async function sendEnrollmentStep(
         sentAt: new Date(),
       },
     });
+
+    // L'invitation n'est « envoyée » qu'une fois le mail réellement expédié :
+    // c'est cette date que lit le suivi du pilote.
+    if (minted) await markInvitationSent(minted.inviteId, info.messageId || '');
 
     // Reprogrammation : étape suivante, ou fin de parcours.
     const nextStep = steps[enrollment.sentSteps + 1];
