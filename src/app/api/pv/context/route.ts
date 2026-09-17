@@ -2,7 +2,8 @@
 //
 // Tout ce que la page affiche avant que le directeur ne touche à quoi que ce
 // soit : son magasin, le nombre de profils repérés, son adresse e-mail, le
-// consultant qu'il verra, et jusqu'à trois clients voisins de la même enseigne.
+// consultant qu'il verra, le pitch « pourquoi c'est gratuit » adapté à son
+// enseigne, et jusqu'à trois magasins voisins de la même enseigne déjà testés.
 //
 // La page appelle cette route au chargement, mais ne l'attend pas : le nom du
 // magasin et le nombre de profils sont déjà dans le HTML servi (cf.
@@ -13,7 +14,8 @@ import { pvConsultant } from '@/lib/pv/config';
 import { ensureStoreGeo } from '@/lib/pv/geo';
 import { rejectionMessage, resolvePvInvite } from '@/lib/pv/invites';
 import { brandSlug } from '@/lib/pv/brands';
-import { findReferences } from '@/lib/pv/references';
+import { pitchFor } from '@/lib/pv/pitch';
+import { findReferences, referencesTitle } from '@/lib/pv/references';
 import { libelleMagasin } from '@/lib/pv/bookings';
 import { pvForbidden, pvJson, pvOptions } from '../_shared';
 
@@ -38,21 +40,28 @@ export async function GET(req: NextRequest) {
       brandId: store.brandId,
       latitude: geo?.latitude ?? null,
       longitude: geo?.longitude ?? null,
+      department: store.department,
+      postalCode: store.postalCode,
     });
 
     // L'offre publiée donne l'intitulé exact du poste, quand on l'a.
     const offre = invite.deal.jobOffers?.[0];
+    const pitch = pitchFor(store.brand?.name);
+    const enseigneNom = store.brand?.name?.trim() || pitch.enseigneNom;
 
     return pvJson({
       magasin: libelleMagasin(invite),
       enseigne: brandSlug(store.brand?.name),
+      enseigneNom,
       ville: store.city || '',
       poste: offre?.jobTitle || offre?.title || 'Boucher (H/F)',
       email: invite.email || invite.deal.dealEmail || '',
       telephone: invite.deal.contactPhone || store.phone || '',
       nbProfils: invite.nbProfils,
       consultant: pvConsultant(),
+      pitch,
       references,
+      referencesTitre: referencesTitle(references, enseigneNom),
     });
   } catch (err) {
     console.error('[GET /api/pv/context]', err);

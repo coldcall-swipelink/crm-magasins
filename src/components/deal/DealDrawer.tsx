@@ -1719,11 +1719,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                 </span>
                 {deal.isPV ? 'PV' : 'PC'}
               </button>
-              {/* « Citable en référence » : ce client accepte d'être nommé auprès
-                  d'un magasin voisin de la même enseigne. C'est cette case, et
-                  elle seule, qui autorise le bloc « déjà avec Swipelink dans
-                  votre région » du parcours boucher (cf. src/lib/pv/references.ts).
-                  Décochée, l'affaire n'est jamais citée nulle part. */}
+              {/* « Citable en référence » : ce magasin est cité auprès des
+                  magasins voisins de son enseigne dans le parcours boucher
+                  (bloc « déjà avec Swipelink dans votre région »), MÊME s'il
+                  n'est pas dans le pipeline Closing. Les affaires du pipeline
+                  Closing (test déjà fait) y sont citées d'office, case cochée
+                  ou non (cf. src/lib/pv/references.ts). */}
               <button
                 type="button"
                 role="switch"
@@ -1735,8 +1736,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                     : 'Client retiré des références',
                 )}
                 title={deal.citableReference
-                  ? 'Ce client accepte d’être cité en référence auprès des magasins voisins de son enseigne'
-                  : 'Ce client n’est cité nulle part. À cocher seulement s’il a donné son accord.'}
+                  ? 'Ce magasin est cité en référence auprès des magasins voisins de son enseigne (parcours boucher)'
+                  : 'À cocher pour citer ce magasin en référence auprès des voisins de son enseigne. Les affaires du pipeline Closing sont citées d’office.'}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none',
                   background: deal.citableReference ? '#eef2ff' : '#f8fafc',

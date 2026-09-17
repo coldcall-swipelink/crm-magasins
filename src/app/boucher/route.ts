@@ -10,11 +10,12 @@
 //     page d'explication, et RIEN d'autre — aucun nom de magasin, aucune
 //     adresse, aucun créneau. « Aucune donnée affichée » est pris au mot.
 //
-//  2. LE MAGASIN ET LE NOMBRE DE PROFILS SONT INJECTÉS DANS LE HTML. La page
-//     sait les récupérer par /api/pv/context, mais l'attente se verrait : le
-//     directeur ouvre le lien depuis sa boîte mail, souvent en 4G, et doit lire
-//     le nom de SON magasin tout de suite. Les créneaux, eux, se chargent
-//     ensuite — ils ne sont utiles qu'au quatrième écran.
+//  2. LE MAGASIN, LE NOMBRE DE PROFILS ET LE PITCH SONT INJECTÉS DANS LE HTML.
+//     La page sait les récupérer par /api/pv/context, mais l'attente se
+//     verrait : le directeur ouvre le lien depuis sa boîte mail, souvent en 4G,
+//     et doit lire le nom de SON magasin et pourquoi c'est gratuit tout de
+//     suite. Les créneaux, eux, se chargent ensuite — ils ne sont utiles qu'au
+//     quatrième écran.
 //
 //  3. CONFIG.API PASSE DE "" À "/api", ce qui fait sortir la page du mode démo.
 //     Le fichier de src/pv-assets/ reste donc ouvrable tel quel dans un
@@ -23,13 +24,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { libelleMagasin } from '@/lib/pv/bookings';
 import { rejectionMessage, resolvePvInvite } from '@/lib/pv/invites';
+import { pitchFor, pitchHtml } from '@/lib/pv/pitch';
 import { escapeHtml, parcoursTemplate } from '@/lib/pv/templates';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /** Page du parcours, personnalisée pour un magasin. */
-function renderParcours(magasin: string, nbProfils: number): string {
+function renderParcours(magasin: string, nbProfils: number, enseigne: string | null | undefined): string {
   let html = parcoursTemplate();
 
   // Sortie du mode démo : la page appelle le CRM sur le même domaine.
@@ -47,6 +49,13 @@ function renderParcours(magasin: string, nbProfils: number): string {
   html = html.replace(
     /(<span id="ctx-n" class="count-up">)\d+(<\/span>)/,
     `$1${nbProfils}$2`,
+  );
+
+  // Pitch « pourquoi c'est gratuit », selon l'enseigne : rendu ici pour que le
+  // volet gauche soit complet dès le premier affichage.
+  html = html.replace(
+    /<!--\s*pitch:start\s*-->[\s\S]*?<!--\s*pitch:end\s*-->/,
+    () => pitchHtml(pitchFor(enseigne)),
   );
 
   return html;
@@ -111,7 +120,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const { invite } = lookup;
-    return page(renderParcours(libelleMagasin(invite), invite.nbProfils), 200);
+    return page(
+      renderParcours(libelleMagasin(invite), invite.nbProfils, invite.deal.store.brand?.name),
+      200,
+    );
   } catch (err) {
     console.error('[GET /boucher]', err);
     return page(

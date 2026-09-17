@@ -33,7 +33,7 @@ import {
   pvUnsubscribeUrl,
 } from '@/lib/pv/config';
 import { fillTemplate, mailTemplate, removeBlock } from '@/lib/pv/templates';
-import { referencesSentence, type PvReference } from '@/lib/pv/references';
+import { referencesSentence, referencesTitle, type PvReference } from '@/lib/pv/references';
 
 export interface InvitationContext {
   /** Nom complet du magasin (« E.Leclerc Montpellier Est »). */
@@ -83,6 +83,7 @@ export function renderInvitation(ctx: InvitationContext): RenderedEmail {
     "Intitulé de l'offre": ctx.intituleOffre || 'Boucher (H/F)',
     Ville: ctx.ville,
     References: refs,
+    ReferencesTitre: referencesTitle(ctx.references, ctx.enseigne),
     token: ctx.token,
     date: ctx.datePublication,
     adresse: adressePostale(),

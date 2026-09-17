@@ -1,6 +1,6 @@
 // POST /api/pv/events
 //
-// Suivi anonyme de l'entonnoir : page_view, answer_1..3, email_edit,
+// Suivi anonyme de l'entonnoir : page_view, pitch_open, call_click, answer_1..3, email_edit,
 // slot_select, booking_ok, booking_err, callback_open, callback_ok.
 //
 // Envoyé par navigator.sendBeacon : la requête part parfois au moment où
@@ -37,6 +37,10 @@ const EVENEMENTS = new Set([
   'booking_err',
   'callback_open',
   'callback_ok',
+  // Volet gauche : le pitch « pourquoi c'est gratuit » déplié (mobile), et le
+  // numéro de Hugo touché.
+  'pitch_open',
+  'call_click',
 ]);
 
 export async function POST(req: NextRequest) {
