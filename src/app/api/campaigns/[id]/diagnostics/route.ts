@@ -53,10 +53,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 
   // 2. Y a-t-il une étape rédigée ?
-  const usable = campaign.steps.filter(step => step.subject.trim() && (step.bodyText.trim() || step.bodyHtml.trim()));
+  // Une étape à modèle du CRM n'a ni sujet ni corps à rédiger : ils viennent du
+  // modèle. La déclarer bloquante enverrait chercher un problème inexistant.
+  const usable = campaign.steps.filter(step =>
+    step.templateKey
+      ? true
+      : step.subject.trim() && (step.bodyText.trim() || step.bodyHtml.trim()));
   checks.push(usable.length > 0
-    ? { key: 'steps', label: 'Séquence', level: 'ok', detail: `${usable.length} étape(s) rédigée(s).` }
-    : { key: 'steps', label: 'Séquence', level: 'error', detail: 'Aucune étape avec un sujet ET un corps.' });
+    ? { key: 'steps', label: 'Séquence', level: 'ok', detail: `${usable.length} étape(s) prête(s).` }
+    : { key: 'steps', label: 'Séquence', level: 'error', detail: 'Aucune étape exploitable : il faut un sujet ET un corps, ou un modèle du CRM.' });
 
   // 3. Des leads en attente d'envoi ?
   const [active, due, stopped, finished] = await Promise.all([
@@ -178,6 +183,41 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       checks.push({
         key: 'assignment', label: 'Affectation des envois', level: 'ok',
         detail: `${due} envoi(s) dû(s), tous affectés à une boîte active.`,
+      });
+    }
+  }
+
+  // 4 ter. Étape « modèle boucher » : elle a besoin d'une affaire par lead.
+  //
+  // Un lead sans affaire rattachée ne peut pas recevoir de lien de réservation
+  // — il n'y a pas de magasin derrière lui. Le moteur l'écarte proprement, mais
+  // autant le dire AVANT que la campagne ne les écarte un par un.
+  if (campaign.steps.some(step => step.templateKey === 'boucher')) {
+    const sansAffaire = await prisma.campaignEnrollment.count({
+      where: { campaignId: params.id, status: 'active', lead: { dealId: null } },
+    });
+    const ecartes = await prisma.campaignEnrollment.count({
+      where: { campaignId: params.id, status: 'stopped', stopReason: 'no_deal' },
+    });
+
+    if (sansAffaire > 0) {
+      checks.push({
+        key: 'boucher-deals', label: 'Parcours boucher', level: 'warn',
+        detail: `${sansAffaire} lead(s) en séquence ne sont rattachés à aucune affaire : `
+          + 'ils seront écartés à leur tour. Rattachez-les depuis leur fiche, ou ajoutez-les '
+          + 'par « + Depuis le CRM », qui apporte l\'affaire avec le lead.',
+      });
+    } else if (ecartes > 0) {
+      checks.push({
+        key: 'boucher-deals', label: 'Parcours boucher', level: 'warn',
+        detail: `${ecartes} lead(s) écarté(s) faute d'affaire rattachée. Les leads encore en `
+          + 'séquence, eux, en ont une.',
+      });
+    } else {
+      checks.push({
+        key: 'boucher-deals', label: 'Parcours boucher', level: 'ok',
+        detail: 'Chaque lead en séquence est rattaché à une affaire : leur lien de réservation '
+          + 'sera créé à l\'envoi.',
       });
     }
   }

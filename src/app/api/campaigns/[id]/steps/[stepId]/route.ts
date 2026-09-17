@@ -26,6 +26,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.bodyHtml !== undefined) data.bodyHtml = String(body.bodyHtml);
   if (body.useHtml !== undefined) data.useHtml = Boolean(body.useHtml);
   if (body.replyToThread !== undefined) data.replyToThread = Boolean(body.replyToThread);
+  // Modèle fourni par le CRM. Liste fermée : une valeur inconnue rendrait
+  // l'étape muette à l'envoi, sans que rien ne le signale ici.
+  if (body.templateKey !== undefined) {
+    const key = String(body.templateKey);
+    if (!['', 'boucher'].includes(key)) {
+      return NextResponse.json({ error: `Modèle inconnu : « ${key} »` }, { status: 400 });
+    }
+    data.templateKey = key;
+  }
   if (body.delayHours !== undefined) {
     const hours = Number(body.delayHours);
     // Borné à 90 jours : au-delà, c'est une erreur de saisie, pas une relance.

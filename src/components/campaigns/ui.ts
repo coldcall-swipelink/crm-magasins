@@ -148,6 +148,9 @@ export const STOP_REASONS: Record<string, string> = {
   bounced: 'adresse morte',
   completed: 'séquence terminée',
   failed: 'échec d\'envoi',
+  // Étape « modèle boucher » : sans affaire rattachée, pas de magasin, donc
+  // aucun lien de réservation à mettre dans le mail.
+  no_deal: 'aucune affaire rattachée',
 };
 
 /** « 72 » → « 3 jours » : un délai se lit en jours, pas en heures. */
