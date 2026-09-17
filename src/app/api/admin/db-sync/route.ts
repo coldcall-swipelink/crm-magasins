@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { CAMPAIGN_SCHEMA_STATEMENTS } from '@/lib/campaigns/schemaSql';
+import { PV_SCHEMA_STATEMENTS } from '@/lib/pv/schemaSql';
 
 // Route de synchronisation de schéma EXÉCUTÉE PAR LE RUNTIME (qui joint la base,
 // contrairement au build). Strictement additif : CREATE TABLE / ADD COLUMN /
@@ -354,6 +355,12 @@ const STATEMENTS: string[] = [
   // Tables de l'outil Campagnes (boîtes d'envoi, leads, séquences). Engendrées
   // depuis le schéma Prisma, cf. src/lib/campaigns/schemaSql.ts.
   ...CAMPAIGN_SCHEMA_STATEMENTS,
+
+  // Tables et colonnes du parcours boucher (pilote « Prospection de Valeur »).
+  // La colonne Deal.citableReference en fait partie : tant qu'elle manque, le
+  // client Prisma fait échouer TOUTE lecture d'affaire, import des offres
+  // compris. Cf. src/lib/pv/schemaSql.ts.
+  ...PV_SCHEMA_STATEMENTS,
 ];
 
 export async function GET(req: NextRequest) {
