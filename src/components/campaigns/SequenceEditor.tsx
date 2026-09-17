@@ -324,10 +324,16 @@ function StepCard({ campaignId, step, isFirst, canDelete, variables, onChanged, 
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14 }}>
         <button style={{ ...btnPri, opacity: saved ? 0.5 : 1 }} disabled={saved}
-          onClick={() => save({
-            subject: draft.subject, bodyText: draft.bodyText, bodyHtml: draft.bodyHtml,
-            useHtml: draft.useHtml, delayHours: draft.delayHours, replyToThread: draft.replyToThread,
-          })}>
+          onClick={() => {
+            // Tout le brouillon, SAUF ce qui ne s'édite pas ici. Énumérer les
+            // champs un par un se désynchronise du formulaire dès qu'on en
+            // ajoute un : c'est ainsi que le choix du modèle se perdait à
+            // l'enregistrement, en silence, puisque la sauvegarde réussissait.
+            // Le serveur, lui, filtre déjà ce qu'il accepte.
+            const { id, position, ...patch } = draft;
+            void id; void position;
+            save(patch);
+          }}>
           {saved ? 'Enregistré' : 'Enregistrer cette étape'}
         </button>
         {!saved && <button style={btnDef} onClick={() => { setDraft(step); setSaved(true); }}>Annuler</button>}
