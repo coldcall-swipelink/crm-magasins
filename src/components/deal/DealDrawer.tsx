@@ -15,6 +15,7 @@ import MeetInviteModal, { reportMeetSync } from '@/components/pipeline/MeetInvit
 import PVModal from '@/components/pipeline/PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry, type ClosingUser } from '@/components/pipeline/ClosingDateModal';
 import FlowWarningModal from '@/components/pipeline/FlowWarningModal';
+import { messageClosing } from '@/lib/closingIssue';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
   flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
@@ -852,9 +853,12 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
    * (choix PV, invitation Meet, dates de closing) ; `reportMeet` affiche le
    * diagnostic de synchro visio, comme le fait le pipeline.
    */
+  // `msg` accepte une fonction de la réponse du serveur : certains
+  // déplacements ne savent qu'APRÈS coup ce qu'ils ont à annoncer — une date de
+  // closing demandée n'est pas forcément une date enregistrée.
   const runMove = async (
     columnId: string,
-    msg: string,
+    msg: string | ((data: any) => { texte: string; type: 'success' | 'info' }),
     opts?: { payload?: Record<string, unknown>; reportMeet?: boolean },
   ) => {
     const prevColumnId = deal?.columnId;
@@ -870,7 +874,8 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       // on conserve l'état optimiste (rien n'est persisté côté base).
       if (data && !data.demo) fetchDeal();
       onUpdated();
-      toast(msg);
+      if (typeof msg === 'function') { const dit = msg(data); toast(dit.texte, dit.type); }
+      else toast(msg);
       // Invitation attendue : même diagnostic que depuis le pipeline.
       if (opts?.reportMeet) reportMeetSync(data?.meetSync);
     } catch {
@@ -1037,9 +1042,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     const par = closedBy ? ` · closé par ${closedBy.name}` : '';
     await runMove(
       closingPrompt.columnId,
-      filled.length === 0 ? `${closingPrompt.msg}${par}`
-      : filled.length === 1 ? `Étape mise à jour — date de closing enregistrée${par}`
-      : `Étape mise à jour — ${filled.length} dates de closing enregistrées${par}`,
+      // Ce que le serveur a retenu, pas ce qui a été tapé : un abonnement déjà
+      // daté n'est jamais écrasé, et l'annoncer closé serait un mensonge.
+      (data) => messageClosing(closingPrompt.msg, data?.closingIssue, par),
       {
         payload: {
           ...payload,

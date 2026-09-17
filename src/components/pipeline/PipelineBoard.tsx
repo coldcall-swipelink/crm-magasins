@@ -13,6 +13,7 @@ import NotificationCenter, { type OfferNotification } from './NotificationCenter
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
 import { useCurrentUser } from '@/lib/currentUser';
+import { messageClosing } from '@/lib/closingIssue';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
   flowForColumn, isSmartlinkColumn, subscriptionLabel, toIsoNoon,
@@ -444,12 +445,13 @@ export default function PipelineBoard() {
     });
     if (!res.ok) { toast('Erreur lors du déplacement', 'error'); throw new Error('move'); }
 
+    // Le message se fonde sur ce que le SERVEUR a retenu, pas sur ce qui a été
+    // tapé dans la pop-up : un abonnement déjà daté n'est jamais écrasé, et il
+    // faut le dire plutôt qu'annoncer un closing qui n'a pas eu lieu.
+    const data = await res.json().catch(() => null);
     const par = closedBy ? ` · closé par ${closedBy.name}` : '';
-    toast(
-      filled.length === 0 ? `Affaire déplacée dans SMARTLINKÉ${par}`
-      : filled.length === 1 ? `Affaire déplacée — date de closing enregistrée${par}`
-      : `Affaire déplacée — ${filled.length} dates de closing enregistrées${par}`,
-    );
+    const dit = messageClosing('Affaire déplacée dans SMARTLINKÉ', data?.closingIssue, par);
+    toast(dit.texte, dit.type);
     setClosing(null);
     fetchDeals();
   };
