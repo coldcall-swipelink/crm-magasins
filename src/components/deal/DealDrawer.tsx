@@ -3138,6 +3138,12 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
   const [savingPrimary, setSavingPrimary] = useState(false);
   // Création à la demande de l'Organization Supabase (bouton « Créer l'organisation »).
   const [provisioning, setProvisioning] = useState(false);
+  // Création d'un utilisateur produit (compte Auth + User + Recruiter) sur
+  // l'organisation du deal (bouton « Créer un user »).
+  const [userFormOpen, setUserFormOpen] = useState(false);
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', companyPosition: '', isAdmin: true });
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createdUser, setCreatedUser] = useState<{ userId: string; email: string } | null>(null);
 
   const load = useCallback(async () => {
     setError(false);
@@ -3241,6 +3247,43 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
       toast(e instanceof Error ? e.message : 'Échec de la création', 'error');
     } finally {
       setProvisioning(false);
+    }
+  };
+
+  // Crée le compte dans l'onglet « Authentication » de Supabase (mot de passe
+  // 00000000), sa ligne « User » (nom, prénom, email) et son « Recruiter » sur
+  // l'organisation rattachée au deal. Idempotent côté serveur : rejouer le
+  // formulaire avec le même email complète ce qui manque, sans doublon.
+  const createUser = async () => {
+    const payload = {
+      firstName: newUser.firstName.trim(),
+      lastName: newUser.lastName.trim(),
+      email: newUser.email.trim(),
+      companyPosition: newUser.companyPosition.trim(),
+      isAdmin: newUser.isAdmin,
+    };
+    if (!payload.firstName || !payload.lastName || !payload.email || !payload.companyPosition) {
+      toast('Prénom, nom, email et poste sont requis', 'error');
+      return;
+    }
+    setCreatingUser(true);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/create-user`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Erreur');
+      setCreatedUser({ userId: body.userId, email: payload.email });
+      setNewUser({ firstName: '', lastName: '', email: '', companyPosition: '', isAdmin: true });
+      setUserFormOpen(false);
+      toast(body?.authCreated
+        ? '✓ User créé dans Supabase (mot de passe 00000000)'
+        : '✓ Compte déjà existant — ligne User et Recruiter à jour');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Échec de la création du user', 'error');
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -3388,6 +3431,54 @@ function RecruitmentTab({ dealId }: { dealId: string }) {
             {addingOrg ? '⟳' : 'Ajouter'}
           </button>
         </div>
+      </div>
+
+      {/* Création d'un utilisateur produit (Authentication + User + Recruiter) */}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: 12, marginBottom: 16, background: '#f8fafc' }}>
+        <div style={{ ...sectionTitle, marginBottom: 8 }}>Utilisateur produit</div>
+        {!primaryId ? (
+          <p style={{ color: '#94a3b8', fontSize: 12.5, margin: 0 }}>
+            Rattachez d'abord une organisation principale : le user créé y est ajouté comme recruteur.
+          </p>
+        ) : !userFormOpen ? (
+          <>
+            <p style={{ color: '#94a3b8', fontSize: 12.5, margin: '0 0 8px' }}>
+              Crée le compte Supabase (onglet « Authentication », mot de passe <code>00000000</code>), sa ligne <code>User</code>, et son <code>Recruiter</code> sur « {primaryOrg?.organizationName ?? 'l\'organisation principale'} ».
+            </p>
+            <button onClick={() => setUserFormOpen(true)} style={{ ...btnPri, background: '#16a34a' }}>＋ Créer un user</button>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...inp, fontSize: 12 }} placeholder="Prénom" value={newUser.firstName} onChange={e => setNewUser(u => ({ ...u, firstName: e.target.value }))} />
+              <input style={{ ...inp, fontSize: 12 }} placeholder="Nom" value={newUser.lastName} onChange={e => setNewUser(u => ({ ...u, lastName: e.target.value }))} />
+            </div>
+            <input type="email" style={{ ...inp, fontSize: 12 }} placeholder="Email du user" value={newUser.email} onChange={e => setNewUser(u => ({ ...u, email: e.target.value }))} />
+            <input style={{ ...inp, fontSize: 12 }} placeholder="Poste (ex : Directeur)" value={newUser.companyPosition} onChange={e => setNewUser(u => ({ ...u, companyPosition: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createUser(); }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+              <input type="checkbox" checked={newUser.isAdmin} onChange={e => setNewUser(u => ({ ...u, isAdmin: e.target.checked }))} />
+              Administrateur de l'organisation
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={createUser}
+                disabled={creatingUser}
+                title="Compte Auth (mot de passe 00000000) + ligne User + Recruiter sur l'organisation du deal"
+                style={{ ...btnPri, background: '#16a34a', opacity: creatingUser ? .7 : 1, cursor: creatingUser ? 'not-allowed' : 'pointer' }}
+              >
+                {creatingUser ? '⟳ Création…' : 'Créer le user'}
+              </button>
+              <button onClick={() => setUserFormOpen(false)} disabled={creatingUser} style={{ background: 'none', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: 7, cursor: 'pointer', fontSize: 12, padding: '7px 14px' }}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+        {createdUser && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: '#16a34a' }}>
+            ✓ {createdUser.email} · <span style={{ fontFamily: 'monospace', color: '#64748b' }}>{createdUser.userId}</span>
+          </div>
+        )}
       </div>
 
       {/* Offres regroupées par organisation */}

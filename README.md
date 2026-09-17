@@ -419,6 +419,36 @@ plafonner le quota côté Google Cloud avant un gros passage.
 
 ---
 
+### Créer un utilisateur produit depuis une affaire
+
+Onglet **Recrutement** de la fiche affaire, encadré « Utilisateur produit » :
+le bouton **« ＋ Créer un user »** ouvre un petit formulaire (prénom, nom,
+email, poste) et crée, dans la base **produit** Supabase, tout ce qu'il faut
+pour que le magasin puisse se connecter :
+
+1. le compte dans l'onglet **Authentication**, avec le mot de passe
+   `00000000` et l'email déjà confirmé — c'est lui qui donne le `user_id` ;
+2. la ligne **`User`** (Table Editor) : ce `user_id`, le nom, le prénom et
+   l'email saisis ;
+3. la ligne **`Recruiter`** : ce `user_id`, l'`organization_id` rattaché à
+   l'affaire, le poste (`company_position`), et `configured_at` à la date et
+   l'heure de la création. La case « Administrateur de l'organisation »,
+   cochée par défaut, pilote `is_admin`.
+
+Le `user_id` créé s'affiche sous le formulaire, prêt à être copié.
+
+**Prérequis** — l'affaire doit porter une organisation principale : celle posée
+automatiquement en « Démo prévue », créée à la demande avec « Créer
+l'organisation dans Supabase », ou saisie à la main juste au-dessus.
+
+**Rejouable sans risque** — chaque étape regarde d'abord si elle a déjà été
+faite. Si une création s'est interrompue au milieu (compte créé, ligne `User`
+en échec), il suffit de refaire le formulaire avec le même email : le compte
+existant est réutilisé et seul ce qui manque est créé. Aucun doublon, et le
+mot de passe d'un compte déjà en place n'est pas réécrit.
+
+---
+
 ## Onglet « Campagnes » — séquences d'emails
 
 Outil de prospection par email intégré au CRM (onglet **Campagnes** du volet
