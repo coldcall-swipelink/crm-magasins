@@ -530,7 +530,8 @@ envoie les rappels.
    remontée anonymement (`POST /api/pv/events`).
 4. **Créneau** — `GET /api/pv/slots` renvoie les trous RÉELS de l'agenda des
    démos, à J+2 minimum, recalculés à chaque appel, sans cache.
-5. **Réservation** — `POST /api/pv/bookings` prend le créneau, crée l'événement
+5. **Réservation** — `POST /api/pv/bookings` prend le créneau (30 min bloquées
+   dans l'agenda pour une démo annoncée à 15 : la marge est voulue), crée l'événement
    et la visio, fait passer l'affaire en `Closing › DEMO PREVUE`, la duplique
    dans `Recrutement › SOURCING A FAIRE`, et envoie la confirmation avec son
    fichier `.ics` (lien visio + lien « déplacer »).
