@@ -7,6 +7,7 @@ import {
   provisionSmartlinkeSupportRecruiter,
 } from '@/lib/supabaseProvisioning';
 import { setPendingClosingDate, setSubscriptionClosingDates } from '@/lib/subscriptions';
+import type { ClosingIssue } from '@/lib/closingIssue';
 import { recordDealMove } from '@/lib/dealMoves';
 import { markDemoBookedIfNeeded, markDemoDoneIfNeeded } from '@/lib/demoBooking';
 
@@ -95,23 +96,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // l'auteur du déplacement (userId/userName), qui lui alimente l'historique.
     const closer = { userId: closedByUserId ?? null, userName: closedByName ?? '' };
 
+    // Ce que l'enregistrement a réellement donné, remonté jusqu'au navigateur.
+    // Sans lui, la pop-up annonce ce que l'utilisateur a tapé plutôt que ce que
+    // le serveur a retenu — et annonce donc un closing là où le garde-fou
+    // ci-dessus a, à juste titre, refusé d'écraser une date existante.
+    let closingIssue: ClosingIssue | null = null;
+
     if (Array.isArray(closingDates)) {
       // Forme explicite : la pop-up a proposé un champ par abonnement en attente.
-      await setSubscriptionClosingDates(
-        params.id,
-        closingDates
-          .filter((e: unknown): e is { subscriptionId: string; closingDate: string } =>
-            Boolean(e)
-            && typeof (e as { subscriptionId?: unknown }).subscriptionId === 'string'
-            && typeof (e as { closingDate?: unknown }).closingDate === 'string')
-          .map(e => ({ subscriptionId: e.subscriptionId, closingDate: new Date(e.closingDate) }))
-          .filter(e => !Number.isNaN(e.closingDate.getTime())),
-        closer,
-      );
+      const demandees = closingDates
+        .filter((e: unknown): e is { subscriptionId: string; closingDate: string } =>
+          Boolean(e)
+          && typeof (e as { subscriptionId?: unknown }).subscriptionId === 'string'
+          && typeof (e as { closingDate?: unknown }).closingDate === 'string')
+        .map(e => ({ subscriptionId: e.subscriptionId, closingDate: new Date(e.closingDate) }))
+        .filter(e => !Number.isNaN(e.closingDate.getTime()));
+      const posees = await setSubscriptionClosingDates(params.id, demandees, closer);
+      closingIssue = { posees, ignorees: demandees.length - posees };
     } else if (closingDate !== undefined) {
       // Forme simple, conservée pour l'affaire sans aucun abonnement (l'appel le
       // crée) et pour un onglet resté ouvert sur une version antérieure du front.
-      await setPendingClosingDate(params.id, closingDate ? new Date(closingDate) : null, closer);
+      const issue = await setPendingClosingDate(params.id, closingDate ? new Date(closingDate) : null, closer);
+      // Effacer une date n'est pas un closing ignoré : il n'y avait rien à poser.
+      closingIssue = closingDate
+        ? { posees: issue === 'skipped' ? 0 : 1, ignorees: issue === 'skipped' ? 1 : 0 }
+        : { posees: 0, ignorees: 0 };
     }
 
     // SMARTLINKÉ (pipeline Closing) → création d'un Recruiter « Support » sur
@@ -218,7 +227,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    return NextResponse.json({ ...deal, meetSync });
+    return NextResponse.json({ ...deal, meetSync, closingIssue });
   } catch (err) {
     console.error('[POST /api/deals/[id]/move]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
