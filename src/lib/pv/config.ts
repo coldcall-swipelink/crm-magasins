@@ -16,15 +16,31 @@ function num(name: string, fallback: number, min: number, max: number): number {
   return Number.isFinite(v) && v >= min && v <= max ? v : fallback;
 }
 
-/** Durée d'une démo, en minutes (15 min annoncées sur la page et dans le mail). */
+/**
+ * Durée RÉSERVÉE dans l'agenda, en minutes.
+ *
+ * Délibérément plus longue que les 15 minutes annoncées au directeur : on
+ * promet un rendez-vous court — c'est ce qui le fait accepter — et on se garde
+ * la marge pour une démo qui s'étire, une question de fin, ou simplement le
+ * temps de souffler avant la suivante. Le consultant n'est donc jamais en
+ * retard sur son créneau suivant.
+ *
+ * Ce réglage ne touche QUE la mécanique : l'événement d'agenda, l'invitation
+ * .ics et le pas de la grille de créneaux. Les « 15 min » écrits sur la page et
+ * dans les mails sont éditoriaux — ils vivent dans src/pv-assets/ et dans
+ * src/lib/pv/notifications.ts, et ne suivent pas cette valeur.
+ */
 export function pvDurationMin(): number {
-  return num('PV_DEMO_DURATION_MIN', 15, 5, 120);
+  return num('PV_DEMO_DURATION_MIN', 30, 5, 120);
 }
 
 /**
- * Pas de la grille de créneaux, en minutes. Plus large que la démo elle-même :
- * une démo de 15 min proposée toutes les 30 min laisse au consultant le temps
- * de souffler entre deux rendez-vous.
+ * Pas de la grille de créneaux, en minutes.
+ *
+ * Aligné par défaut sur la durée réservée : les créneaux proposés se suivent
+ * sans trou (9 h, 9 h 30, 10 h…), et c'est la réservation elle-même qui porte
+ * la marge, puisqu'elle bloque 30 minutes pour une démo de 15. L'élargir
+ * (45, 60) espace davantage les rendez-vous.
  */
 export function pvSlotStepMin(): number {
   return num('PV_SLOT_STEP_MIN', 30, 5, 120);
