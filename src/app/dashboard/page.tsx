@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import AiChat from '@/components/dashboard/AiChat';
 import { formatCurrency, formatDate, exportClosingsToCsv } from '@/lib/utils';
+import { averageCreditPrice } from '@/lib/payments';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, PieChart, Pie, Cell, Legend,
@@ -237,6 +238,19 @@ export default function DashboardPage() {
   const clientsPrev = distinctClients(previous);
   const avg = clients ? mrr / clients : 0;
   const avgPrev = clientsPrev ? mrrPrev / clientsPrev : 0;
+
+  // Prix de vente moyen d'UN crédit, remises comprises : la valeur saisie sur
+  // l'abonnement est le MRR réellement ajouté, donc le montant négocié. Le
+  // détail du calcul vit dans src/lib/payments.ts (même helper que l'assistant
+  // IA, pour que les deux chiffres ne puissent pas diverger).
+  const creditPrice = useMemo(
+    () => averageCreditPrice(current.map(d => ({ subscriptionType: d.type, value: d.value }))),
+    [current],
+  );
+  const creditPricePrev = useMemo(
+    () => averageCreditPrice(previous.map(d => ({ subscriptionType: d.type, value: d.value }))),
+    [previous],
+  );
   const stripeCount = current.filter(d => d.paymentMode === 'stripe').length;
   const stripeShare = current.length ? (stripeCount / current.length) * 100 : 0;
 
@@ -479,11 +493,24 @@ export default function DashboardPage() {
         </div>
 
         {/* Ligne 1 — KPIs principaux (période + total clients) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
           <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
           <Kpi label="Clients au total" value={String(clientsAllTime)} sub="depuis le début" />
           <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
+          <Kpi
+            label="Prix moyen du crédit"
+            value={creditPrice.avgPrice === null ? '—' : formatCurrency(creditPrice.avgPrice) || '0 €'}
+            delta={creditPrice.avgPrice !== null && creditPricePrev.avgPrice !== null
+              ? pctDelta(creditPrice.avgPrice, creditPricePrev.avgPrice)
+              : undefined}
+            prev={range.prevLabel && creditPricePrev.avgPrice !== null
+              ? formatCurrency(creditPricePrev.avgPrice) || '0 €'
+              : null}
+            sub={creditPrice.avgPrice === null
+              ? 'aucun abonnement avec crédits'
+              : `${creditPrice.creditsPerYear} crédits vendus${creditPrice.skipped ? ` · ${creditPrice.skipped} abo. hors calcul` : ''}`}
+          />
         </div>
 
         {/* Ligne 2 — Taux & cycle de vente */}

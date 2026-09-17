@@ -133,3 +133,91 @@ export function generatePaymentSchedule(
   }
   return out;
 }
+
+// ─── Prix unitaire du crédit ─────────────────────────────────────────────────
+//
+// Le CRM ne stocke nulle part le prix d'un crédit : il se déduit de la saisie
+// faite dans l'onglet « Abonnement ». La règle de saisie est
+//
+//     Valeur (MRR ajouté) = prix du crédit × crédits sur l'année ÷ 12
+//
+// d'où, à l'envers :
+//
+//     prix du crédit = Valeur × 12 ÷ crédits sur l'année
+//
+// Le nombre de crédits n'est pas une colonne : il est écrit dans le libellé du
+// type (« 2 crédit par mois » → 24 sur l'année, « 4 crédit par an » → 4), que
+// parseType sait déjà lire. L'invariant « CA annuel = Valeur × 12 » vaut pour
+// TOUTES les cadences (cf. computeInstallment : comptant = Valeur × 12 par an ;
+// mensuel = Valeur × 12/N tous les 12/N mois, soit Valeur × 12 sur l'année).
+
+/**
+ * Nombre de crédits fournis sur UNE ANNÉE par un type d'abonnement.
+ * Renvoie null quand le libellé ne porte pas de crédits annualisables :
+ * « multidiffusion » (offre sans crédits) ou libellé hors format.
+ */
+export function creditsPerYear(subscriptionType: string): number | null {
+  const parsed = parseType(normalizeType(subscriptionType));
+  if (parsed.multidiffusion) return null;
+  if (parsed.n <= 0) return null;
+  if (parsed.period === 'mois') return parsed.n * 12;
+  if (parsed.period === 'an') return parsed.n;
+  return null;
+}
+
+/**
+ * Prix de vente d'UN crédit pour un abonnement donné, remises comprises : la
+ * valeur saisie est le montant réellement négocié, pas un tarif catalogue.
+ * Renvoie null si le type ne porte pas de crédits ou si la valeur est absente.
+ */
+export function creditUnitPrice(
+  subscriptionType: string,
+  value: number | null | undefined,
+): number | null {
+  if (value == null || !isFinite(value)) return null;
+  const credits = creditsPerYear(subscriptionType);
+  if (!credits) return null;
+  return (value * 12) / credits;
+}
+
+export interface CreditPriceStats {
+  /** Prix moyen d'un crédit vendu, pondéré par le volume. null si rien à compter. */
+  avgPrice: number | null;
+  /** Total des crédits vendus, ramenés à l'année. */
+  creditsPerYear: number;
+  /** CA annuel des abonnements retenus (somme des valeurs × 12). */
+  annualRevenue: number;
+  /** Abonnements retenus dans le calcul. */
+  counted: number;
+  /** Abonnements écartés (multidiffusion, libellé hors format, valeur absente). */
+  skipped: number;
+}
+
+/**
+ * Prix moyen d'un crédit sur un ensemble d'abonnements. La moyenne est PONDÉRÉE
+ * (CA annuel total ÷ crédits totaux) et non une moyenne des prix unitaires :
+ * sinon un « 1 crédit par an » pèserait autant qu'un « 3 crédit par mois », qui
+ * vend 36 fois plus de crédits.
+ */
+export function averageCreditPrice(
+  subs: { subscriptionType: string; value: number | null | undefined }[],
+): CreditPriceStats {
+  let credits = 0;
+  let revenue = 0;
+  let counted = 0;
+  let skipped = 0;
+  for (const s of subs) {
+    const n = creditsPerYear(s.subscriptionType);
+    if (!n || s.value == null || !isFinite(s.value)) { skipped += 1; continue; }
+    credits += n;
+    revenue += s.value * 12;
+    counted += 1;
+  }
+  return {
+    avgPrice: credits > 0 ? revenue / credits : null,
+    creditsPerYear: credits,
+    annualRevenue: revenue,
+    counted,
+    skipped,
+  };
+}
