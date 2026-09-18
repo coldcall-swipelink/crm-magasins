@@ -193,10 +193,11 @@ export function exportClosingsToCsv(
     type?: string;
     paymentMode?: 'stripe' | 'virement';
     value?: number | null;
+    churned?: boolean;
   }>,
   fileName = 'closings',
 ): void {
-  const headers = ['Date', 'Magasin', 'Ville', 'Enseigne', 'Type', 'Paiement', 'Valeur'];
+  const headers = ['Date', 'Magasin', 'Ville', 'Enseigne', 'Type', 'Paiement', 'Valeur', 'R\u00E9sili\u00E9'];
   const rows = closings.map((c) => [
     csvCell(csvDate(c.closingDate)),
     csvCell(c.storeName || ''),
@@ -205,6 +206,7 @@ export function exportClosingsToCsv(
     csvCell(c.type || ''),
     csvCell(c.paymentMode === 'stripe' ? 'Stripe' : c.paymentMode === 'virement' ? 'Virement' : ''),
     csvNumber(c.value), // nombre brut non-quot\u00E9 \u2192 reste num\u00E9rique dans le tableur
+    csvCell(c.churned ? 'Oui' : ''),
   ]);
   downloadCsv(headers, rows, fileName);
 }
