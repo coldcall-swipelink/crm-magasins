@@ -126,11 +126,19 @@ export function textToHtml(text: string): string {
 /** Version texte brut d'un corps HTML — le pendant `text/plain` de l'envoi. */
 export function htmlToText(html: string): string {
   return (html || '')
+    // Ce qui n'est pas du contenu : commentaires (y compris les conditionnels
+    // Outlook), feuilles de style, scripts et en-tête du document.
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(style|script|head)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|h[1-6])>/gi, '\n\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&rarr;/g, '→')
+    .replace(/&#(\d+);/g, (_m, code: string) => String.fromCodePoint(Number(code)))
+    // L'indentation du HTML n'a rien à faire dans le texte.
+    .split('\n').map(line => line.trim()).join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
