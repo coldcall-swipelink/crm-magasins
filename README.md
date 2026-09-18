@@ -327,6 +327,28 @@ une variable `NEXT_PUBLIC_` est figée au moment de la compilation.
 - **Filtres** : nouvelles affaires, nouvelles offres, recherche texte
 - **Badges** : ✦ Nouvelle · ⟳ Rappelée · ⚠ Absente
 
+### Dashboard closing — ce que chaque chiffre compte
+
+Les mêmes définitions que l'écran TV et que Smartlink Brain, pour que les
+quatre outils disent la même chose :
+
+- **MRR** = la somme des valeurs des abonnements **signés et non résiliés**
+  (date de closing renseignée, case « churn » décochée). Un client résilié ne
+  compte nulle part : ni dans le MRR, ni dans les closings, ni dans le panier
+  moyen. Cocher « churn » sur l'abonnement suffit — la colonne Churn du
+  pipeline n'est qu'un reflet.
+- **MRR de la période** = les abonnements signés dans la période, résiliés
+  exclus ; **MRR total cumulé** = tous les signés non résiliés, quelle que soit
+  la date — c'est le MRR actuel, celui de l'écran TV.
+- **Prix moyen du crédit** = Σ (valeur × 12) ÷ Σ crédits par an des
+  abonnements de la période, le nombre de crédits étant lu dans le libellé du
+  type (« 2 crédit par mois » = 24 par an). Multidiffusion et libellés hors
+  format sont écartés, et le sous-titre le dit.
+- **Taux de churn** = clients résiliés dans la période ÷ clients acquis
+  jusqu'à la fin de la période (actifs et résiliés).
+- **CA sur la durée du contrat** = panier moyen × durée saisie du contrat.
+  Ce n'est pas une LTV (ni churn ni coûts) : la LTV vit dans Brain.
+
 ### Calendrier des appels d'une affaire (semaine type)
 
 Chaque clic sur **« Afficher le numéro »** dans une fiche affaire journalise un
