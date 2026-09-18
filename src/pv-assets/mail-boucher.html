@@ -21,7 +21,8 @@
      « 0 € » et « aucune facturation » passent et disent la même chose (renderInvitation le vérifie et prévient dans les journaux).
      1 seul lien d'action (tout le parcours se fait sur la page).
      Bloc références : à masquer si le magasin n'en a aucune. Bloc « On y gagne quoi, nous ? » : {{Gain1}} {{Gain2}} {{GainFin}},
-     contexte par enseigne (src/lib/pv/pitch.ts, texteMail) — le même que le volet gauche de la page.
+     contexte par enseigne (src/lib/pv/pitch.ts, texteMail) — le même que le volet gauche de la page — puis, pour Leclerc,
+     la ligne {{GainAppel}} (bloc appel, retiré quand l'enseigne n'en a pas).
   Outlook Windows : coins carrés et couleurs unies à la place des dégradés (prévu, rendu propre). -->
 <!--[if mso]><style>table,td,div,a,span{font-family:Arial,Helvetica,sans-serif !important;}</style><![endif]-->
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
@@ -69,7 +70,7 @@
     <!-- Bonjour -->
     <tr><td class="px" style="padding:30px 44px 0 44px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:25px;color:#0B0B3B;">
       Bonjour {{Prénom}},<br>
-      vous recrutez un·e <strong>{{Intitulé de l'offre}}</strong> à {{Ville}} ? Nous vous présentons <strong>2 CV de bouchers, pour 0&nbsp;€</strong>. Aucune facturation, même si vous embauchez l'un des deux.
+      Vous recherchez un boucher ? Nous pouvons en présenter <strong>2 dans 48&nbsp;h, pour 0&nbsp;€</strong>. Et même si vous en embauchez un, nous ne facturons rien.
     </td></tr>
 
     <!-- Offre -->
@@ -151,6 +152,9 @@
           <div style="font-size:15px;line-height:22px;font-weight:bold;color:#0B0B3B;margin:0 0 6px 0;">{{Gain1}}</div>
           <div style="font-size:14px;line-height:21px;color:#3A3F66;margin:0 0 6px 0;">{{Gain2}}</div>
           <div style="font-size:14px;line-height:21px;color:#3A3F66;">{{GainFin}}</div>
+          <!-- appel:start -->
+          <div style="font-size:14px;line-height:21px;font-weight:bold;color:#0B0B3B;margin:10px 0 0 0;padding-top:10px;border-top:1px solid #E3E7F8;"><a href="{{TelHref}}" style="color:#0B0B3B;text-decoration:none;">{{GainAppel}}</a></div>
+          <!-- appel:end -->
         </td></tr>
       </table>
     </td></tr>
@@ -159,12 +163,12 @@
     <tr><td class="px" style="padding:22px 44px 0 44px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td class="cta" align="center" bgcolor="#1A1AD9" style="border-radius:16px;background:#1A1AD9;background-image:linear-gradient(90deg,#1A1AD9 0%,#2F4DF5 100%);box-shadow:0 8px 20px rgba(26,26,217,0.28);">
-          <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="https://rdv.swipelink.fr/boucher?t={{token}}" style="height:58px;v-text-anchor:middle;width:512px;" arcsize="25%" stroke="f" fillcolor="#1A1AD9"><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;">Découvrir mes 2 CV &rarr;</center></v:roundrect><![endif]-->
-          <!--[if !mso]><!--><a href="https://rdv.swipelink.fr/boucher?t={{token}}" target="_blank" style="display:block;padding:19px 20px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:16px;">Découvrir mes 2 CV&nbsp;&nbsp;&rarr;</a><!--<![endif]-->
+          <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="https://rdv.swipelink.fr/boucher?t={{token}}" style="height:58px;v-text-anchor:middle;width:512px;" arcsize="25%" stroke="f" fillcolor="#1A1AD9"><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;">Demander mes 2 CV &rarr;</center></v:roundrect><![endif]-->
+          <!--[if !mso]><!--><a href="https://rdv.swipelink.fr/boucher?t={{token}}" target="_blank" style="display:block;padding:19px 20px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:16px;">Demander mes 2 CV&nbsp;&nbsp;&rarr;</a><!--<![endif]-->
         </td></tr></table>
     </td></tr>
     <tr><td class="px" style="padding:12px 44px 0 44px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:19px;color:#8A90B3;text-align:center;">
-      Réponse en 30 secondes · Démo de 15 min en visio · 0&nbsp;€, aucune facturation
+      Réponse en 30 secondes · Démo de 15 min en visio · Aucune facturation
     </td></tr>
 
     <!-- Signature -->

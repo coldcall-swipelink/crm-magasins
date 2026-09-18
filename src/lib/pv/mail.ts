@@ -86,6 +86,7 @@ export function renderInvitation(ctx: InvitationContext): RenderedEmail {
   const pitch = pitchFor(ctx.enseigne || ctx.magasin);
   let html = mailTemplate();
   if (!refs) html = removeBlock(html, 'refs');
+  if (!pitch.appelMail) html = removeBlock(html, 'appel');
 
   html = fillTemplate(html, {
     Enseigne: ctx.enseigne || ctx.magasin,
@@ -99,6 +100,8 @@ export function renderInvitation(ctx: InvitationContext): RenderedEmail {
     Gain1: pitch.texteMail[0],
     Gain2: pitch.texteMail[1],
     GainFin: GAIN_FIN,
+    GainAppel: pitch.appelMail,
+    TelHref: pitch.contact.href,
     token: ctx.token,
     date: ctx.datePublication,
     adresse: adressePostale(),
