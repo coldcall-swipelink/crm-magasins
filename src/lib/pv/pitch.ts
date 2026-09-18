@@ -45,6 +45,12 @@ export interface PvPitch {
    * « 0 € » et « aucune facturation » à la place. Deux entrées, toujours.
    */
   texteMail: [string, string];
+  /**
+   * Ligne d'appel propre au MAIL, après « On y gagne quoi, nous ? » : « Ça
+   * paraît trop beau pour être vrai ? Appelez Hugo au… ». Vide = pas de ligne.
+   * Le numéro lui-même est dans `contact`.
+   */
+  appelMail: string;
   /** Ce que nous faisons concrètement, en trois points. */
   etapes: string[];
   /** « Si vous avez des questions, appelez Hugo au 07 69 71 98 45 ». */
@@ -112,26 +118,29 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
       ],
       etapes: ETAPES,
       contact: contact(),
+      appelMail: '',
     };
   }
 
   if (slug === 'leclerc') {
-    const n = configuredCount('PV_PITCH_LECLERC_COUNT', null);
+    const n = configuredCount('PV_PITCH_LECLERC_COUNT', 40);
+    const c = contact();
+    // Même texte sur la page et dans le mail : il ne contient aucun des deux
+    // mots interdits en mail.
+    const texte = [
+      `Swipelink est déjà référencé au GALEC, et plus de ${n} centres Leclerc utilisent cette solution pour leurs recrutements les plus difficiles.`,
+      'Pour faire connaître la solution, nous avons décidé de la faire tester à tous les centres Leclerc de France, sans aucune facturation ni engagement.',
+    ] as [string, string];
     return {
       enseigne: slug,
       enseigneNom: 'E.Leclerc',
       badge: BADGE,
       titre: TITRE,
-      texte: [
-        `Swipelink est référencé au GALEC et ${partenariat(n, 'E.Leclerc')}.`,
-        'Nous faisons tester notre service gratuitement à tous les magasins de l’enseigne.',
-      ],
-      texteMail: [
-        `Swipelink est référencé au GALEC et ${partenariat(n, 'E.Leclerc')}.`,
-        'Nous faisons tester notre service à tous les magasins de l’enseigne, pour 0 € et sans aucune facturation.',
-      ],
+      texte,
+      texteMail: texte,
       etapes: ETAPES,
-      contact: contact(),
+      contact: c,
+      appelMail: `Ça paraît trop beau pour être vrai\u202F? Appelez ${c.prenom} au ${c.telephone} pour qu'il puisse vous donner plus de détails sur la démarche.`,
     };
   }
 
@@ -152,6 +161,7 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
       ],
       etapes: ETAPES,
       contact: contact(),
+      appelMail: '',
     };
   }
 
@@ -171,6 +181,7 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
     ],
     etapes: ETAPES,
     contact: contact(),
+    appelMail: '',
   };
 }
 
