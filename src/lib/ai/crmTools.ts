@@ -42,7 +42,7 @@ export const CRM_TOOLS: ToolDefinition[] = [
   {
     name: 'query_closings',
     description:
-      "Analyse des closings (ventes gagnées / abonnements signés). Un closing = un abonnement dont la date de closing est renseignée, résilié depuis ou non (une signature est un flux). Filtrable par période (from/to) et par enseigne. Renvoie : nombre de closings, nombre de clients distincts, nombre et montant des résiliés depuis (churnedSince), NOUVEAU MRR signé sur la période (somme des valeurs MENSUELLES — pas le MRR actuel du parc), ARR (×12), valeur totale du contrat, répartition par enseigne / type d'abonnement / mode de paiement, le PRIX MOYEN D'UN CRÉDIT VENDU (déjà calculé, remises comprises), et la liste des closings. À utiliser pour TOUTE question sur le chiffre d'affaires, le MRR, le nombre de ventes ou de closings sur une période (ex. « combien de closings ces 3 derniers mois »), ET pour toute question sur le prix d'un crédit (ex. « à combien on vend le crédit en moyenne »). Pour le prix du crédit, lis le champ `avgCreditPrice` et ne recalcule JAMAIS toi-même à partir du MRR : le MRR est mensuel et le nombre de crédits est caché dans le libellé du type, deux pièges qui donnent un résultat 12 fois trop petit.",
+      "Analyse des closings (ventes gagnées / abonnements signés). Un closing = un abonnement dont la date de closing est renseignée. Filtrable par période (from/to) et par enseigne. Renvoie : nombre de closings, nombre de clients distincts, MRR total (somme des valeurs MENSUELLES), ARR (MRR×12), valeur totale du contrat, répartition par enseigne / type d'abonnement / mode de paiement, le PRIX MOYEN D'UN CRÉDIT VENDU (déjà calculé, remises comprises), et la liste des closings. À utiliser pour TOUTE question sur le chiffre d'affaires, le MRR, le nombre de ventes ou de closings sur une période (ex. « combien de closings ces 3 derniers mois »), ET pour toute question sur le prix d'un crédit (ex. « à combien on vend le crédit en moyenne »). Pour le prix du crédit, lis le champ `avgCreditPrice` et ne recalcule JAMAIS toi-même à partir du MRR : le MRR est mensuel et le nombre de crédits est caché dans le libellé du type, deux pièges qui donnent un résultat 12 fois trop petit.",
     input_schema: {
       type: 'object',
       properties: {
@@ -123,9 +123,10 @@ async function queryClosings(input: Record<string, any>) {
   if (to) closingDate.lte = to;
 
   const where: Record<string, unknown> = {
-    // TOUS les signés de la période, résiliés depuis compris — cohérent avec
-    // le Dashboard : un closing est un flux, il ne se défait pas au churn.
+    // Abonnements résiliés (churn) exclus : cohérent avec le Dashboard, leur
+    // valeur ne compte plus dans le MRR ni les analyses de closing.
     closingDate: { not: null, ...closingDate },
+    churned: false,
   };
   if (brandName) {
     where.deal = { store: { brand: { name: { equals: brandName, mode: 'insensitive' } } } };
@@ -135,7 +136,6 @@ async function queryClosings(input: Record<string, any>) {
     where,
     select: {
       value: true,
-      churned: true,
       subscriptionType: true,
       paymentMode: true,
       subscriptionMonths: true,
@@ -208,11 +208,7 @@ async function queryClosings(input: Record<string, any>) {
     mrr: round(mrr),
     arr: round(mrr * 12),
     totalContractValue: round(contractValue),
-    // Les résiliés depuis comptent dans les closings (un flux) ; on dit
-    // combien, pour que l'assistant puisse distinguer signé et encore actif.
-    churnedSince: subs.filter((x) => x.churned).length,
-    churnedSinceMrr: round(subs.filter((x) => x.churned).reduce((s, x) => s + (x.value ?? 0), 0)),
-    note: "value = montant MENSUEL de l'abonnement. mrr = NOUVEAU MRR signé sur la période (somme des montants mensuels des closings, résiliés depuis compris — churnedSince en dit le nombre et churnedSinceMrr le montant). ARR = mrr×12. Ce n'est PAS le MRR actuel du parc.",
+    note: "value = montant MENSUEL de l'abonnement. MRR = somme des montants mensuels. ARR = MRR×12.",
     // Prix de vente moyen d'UN crédit, remises comprises (la valeur saisie est
     // le montant réellement négocié). Déjà calculé : à lire tel quel.
     avgCreditPrice: creditStats.avgPrice == null ? null : round(creditStats.avgPrice),
@@ -234,7 +230,6 @@ async function queryClosings(input: Record<string, any>) {
       brand: x.deal?.store?.brand?.name ?? 'Sans enseigne',
       type: x.subscriptionType || null,
       monthlyValue: x.value ?? 0,
-      churned: x.churned,
       creditPrice: (() => {
         const p = creditUnitPrice(x.subscriptionType ?? '', x.value);
         return p == null ? null : round(p);

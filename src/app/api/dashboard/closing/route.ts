@@ -11,17 +11,12 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const [subs, brands, demoDeals, churnedSubs] = await Promise.all([
     prisma.subscription.findMany({
-      // TOUS les abonnements signés, résiliés depuis compris : un closing est
-      // un FLUX — un client signé en mars et parti en octobre a bien été signé
-      // en mars, et l'exclure réécrivait le passé à chaque churn (closings,
-      // nouveau MRR, panier moyen et taux de closing d'un mois révolu
-      // baissaient après coup). Le dashboard lit `churned` pour retirer les
-      // partis de ce qui est un STOCK (MRR cumulé, clients actifs).
-      where: { closingDate: { not: null } },
+      // On exclut les abonnements résiliés (churn) : leur valeur ne doit plus
+      // compter dans le MRR ni dans aucune autre donnée du Dashboard.
+      where: { closingDate: { not: null }, churned: false },
       select: {
         id: true,
         value: true,
-        churned: true,
         subscriptionType: true,
         paymentMode: true,
         subscriptionMonths: true,
@@ -73,7 +68,6 @@ export async function GET() {
       id: s.id,
       dealId: s.deal?.id ?? '',
       value: s.value ?? 0,
-      churned: s.churned,
       months: s.subscriptionMonths ?? 12,
       type: s.subscriptionType || '',
       paymentMode: s.paymentMode === 'virement' ? 'virement' : 'stripe',

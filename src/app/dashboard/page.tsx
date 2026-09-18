@@ -18,10 +18,6 @@ interface Closing {
   id: string;
   dealId: string;
   value: number;        // montant mensuel de l'abonnement
-  // Résilié depuis. Une signature est un FLUX : elle compte dans les closings
-  // de sa période, résiliée ou non. Le STOCK (MRR cumulé, clients actifs,
-  // panier global) retire les partis.
-  churned: boolean;
   months: number;
   type: string;
   paymentMode: 'stripe' | 'virement';
@@ -330,12 +326,10 @@ export default function DashboardPage() {
   const arr = mrr * 12;
   const arrPrev = mrrPrev * 12;
 
-  // Cumul tout temps (sur l'enseigne filtrée) : un STOCK — les résiliés n'y
-  // sont plus. C'est le MRR actuel, celui de l'écran TV et de Brain.
-  const stock = useMemo(() => byBrand.filter(d => !d.churned), [byBrand]);
-  const mrrAllTime = sumValue(stock);
-  const clientsAllTime = distinctClients(stock);
-  const subsAllTime = stock.length;
+  // Cumul tout temps (sur l'enseigne filtrée)
+  const mrrAllTime = sumValue(byBrand);
+  const clientsAllTime = distinctClients(byBrand);
+  const subsAllTime = byBrand.length;
   const arrAllTime = mrrAllTime * 12;
 
   // Durée d'abonnement moyenne (mois), moyenne sur les abonnements.
@@ -348,7 +342,7 @@ export default function DashboardPage() {
   // ni churn constaté, ni coûts déduits — Brain (Unit Economics) calcule la
   // vraie, et ne lit ce chiffre-ci que comme repère de réconciliation.
   const arpuAllTime = clientsAllTime ? mrrAllTime / clientsAllTime : 0;
-  const avgDurationAllTime = avgDurationOf(stock);
+  const avgDurationAllTime = avgDurationOf(byBrand);
   const ltvAllTime = arpuAllTime * avgDurationAllTime;
 
   // Série temporelle (adaptative jour/mois selon la durée de la période)
@@ -507,7 +501,7 @@ export default function DashboardPage() {
 
         {/* Ligne 1 — KPIs principaux (période + total clients) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
-          <Kpi label="Nouveau MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} sub={current.some(d => d.churned) ? `signé sur la période, dont ${formatCurrency(sumValue(current.filter(d => d.churned)))} résilié depuis` : 'signé sur la période'} accent />
+          <Kpi label="MRR de la période" value={formatCurrency(mrr) || '0 €'} delta={pctDelta(mrr, mrrPrev)} prev={range.prevLabel ? formatCurrency(mrrPrev) || '0 €' : null} accent />
           <Kpi label="Nouveaux clients" value={String(clients)} delta={pctDelta(clients, clientsPrev)} prev={range.prevLabel ? String(clientsPrev) : null} />
           <Kpi label="Clients au total" value={String(clientsAllTime)} sub="depuis le début" />
           <Kpi label="Panier moyen" value={formatCurrency(avg) || '0 €'} delta={pctDelta(avg, avgPrev)} prev={range.prevLabel ? formatCurrency(avgPrev) || '0 €' : null} />
@@ -695,10 +689,7 @@ export default function DashboardPage() {
                   {[...current].sort((a, b) => new Date(b.closingDate).getTime() - new Date(a.closingDate).getTime()).slice(0, 100).map(d => (
                     <tr key={d.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                       <td style={td}>{formatDate(d.closingDate)}</td>
-                      <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>
-                        {d.storeName || '—'}{d.city ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {d.city}</span> : null}
-                        {d.churned ? <span title="Résilié depuis : compte dans les closings de la période, plus dans le MRR cumulé" style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999, color: '#b91c1c', background: '#fee2e2' }}>résilié</span> : null}
-                      </td>
+                      <td style={{ ...td, fontWeight: 600, color: '#0f172a' }}>{d.storeName || '—'}{d.city ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {d.city}</span> : null}</td>
                       <td style={td}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: d.brandColor }} />{d.brandName}</span></td>
                       <td style={{ ...td, color: d.type ? '#334155' : '#cbd5e1' }}>{d.type || '—'}</td>
                       <td style={td}>
