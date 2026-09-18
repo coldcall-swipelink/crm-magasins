@@ -4,8 +4,11 @@
 // gauche de la page du parcours (rdv.swipelink.fr/boucher), adapté à l'enseigne.
 //
 // La page est un site web, pas un mail : elle n'est pas soumise aux filtres
-// anti-spam, on peut donc y écrire « gratuit » sans détour. Le mail, lui, reste
-// sur « offert » (cf. src/pv-assets/mail-boucher.html).
+// anti-spam, on peut donc y écrire « gratuit » sans détour. Le mail, lui, ne
+// doit contenir NI « gratuit » NI « offert » — ces deux mots l'envoyaient en
+// courrier indésirable. « 0 € » et « aucune facturation » passent, et disent la
+// même chose : c'est la variante `texteMail`, utilisée par le paragraphe « On y
+// gagne quoi, nous ? » du mail (cf. src/lib/pv/mail.ts).
 //
 // Le message change selon l'enseigne parce que la RAISON de la gratuité change :
 //
@@ -37,6 +40,11 @@ export interface PvPitch {
   titre: string;
   /** Paragraphes d'explication, dans l'ordre. Le premier est mis en avant. */
   texte: string[];
+  /**
+   * Les mêmes paragraphes pour le MAIL : sans « gratuit » ni « offert », avec
+   * « 0 € » et « aucune facturation » à la place. Deux entrées, toujours.
+   */
+  texteMail: [string, string];
   /** Ce que nous faisons concrètement, en trois points. */
   etapes: string[];
   /** « Si vous avez des questions, appelez Hugo au 07 69 71 98 45 ». */
@@ -98,6 +106,10 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
         `Swipelink ${partenariat(n, 'Intermarché')}.`,
         "Notre objectif : obtenir le référencement au Groupement des Mousquetaires. Pour y arriver, nous faisons tester notre service gratuitement à tous les magasins.",
       ],
+      texteMail: [
+        `Swipelink ${partenariat(n, 'Intermarché')}.`,
+        'Notre objectif : obtenir le référencement au Groupement des Mousquetaires. Pour y arriver, nous faisons tester notre service à tous les magasins, pour 0 € et sans aucune facturation.',
+      ],
       etapes: ETAPES,
       contact: contact(),
     };
@@ -113,6 +125,10 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
       texte: [
         `Swipelink est référencé au GALEC et ${partenariat(n, 'E.Leclerc')}.`,
         'Nous faisons tester notre service gratuitement à tous les magasins de l’enseigne.',
+      ],
+      texteMail: [
+        `Swipelink est référencé au GALEC et ${partenariat(n, 'E.Leclerc')}.`,
+        'Nous faisons tester notre service à tous les magasins de l’enseigne, pour 0 € et sans aucune facturation.',
       ],
       etapes: ETAPES,
       contact: contact(),
@@ -130,6 +146,10 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
         `Swipelink ${partenariat(n, 'Super U et Hyper U')}.`,
         'Notre objectif : obtenir le référencement à la Coopérative U. Pour y arriver, nous faisons tester notre service gratuitement à tous les magasins.',
       ],
+      texteMail: [
+        `Swipelink ${partenariat(n, 'Super U et Hyper U')}.`,
+        'Notre objectif : obtenir le référencement à la Coopérative U. Pour y arriver, nous faisons tester notre service à tous les magasins, pour 0 € et sans aucune facturation.',
+      ],
       etapes: ETAPES,
       contact: contact(),
     };
@@ -144,6 +164,10 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
     texte: [
       `Swipelink ${partenariat(nItm, 'Intermarché')} et est référencé au GALEC (E.Leclerc).`,
       'Nous vous proposons de tester notre service gratuitement, sans engagement.',
+    ],
+    texteMail: [
+      `Swipelink ${partenariat(nItm, 'Intermarché')} et est référencé au GALEC (E.Leclerc).`,
+      'Nous vous proposons de tester notre service pour 0 €, sans aucune facturation ni engagement.',
     ],
     etapes: ETAPES,
     contact: contact(),

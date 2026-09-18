@@ -34,6 +34,7 @@ import {
 } from '@/lib/pv/config';
 import { fillTemplate, mailTemplate, removeBlock } from '@/lib/pv/templates';
 import { referencesSentence, referencesTitle, type PvReference } from '@/lib/pv/references';
+import { pitchFor } from '@/lib/pv/pitch';
 
 export interface InvitationContext {
   /** Nom complet du magasin (« E.Leclerc Montpellier Est »). */
@@ -64,6 +65,16 @@ function adressePostale(): string {
 }
 
 /**
+ * Ce que le mail répond à « On y gagne quoi, nous ? » : le contexte par
+ * enseigne (le même que le volet gauche de la page), puis ce qui se passe après
+ * le test. Sans « gratuit » ni « offert » : ces mots faisaient tomber le mail en
+ * courrier indésirable. « 0 € » et « aucune facturation » passent.
+ */
+const GAIN_FIN =
+  "Si les profils vous plaisent, vous les embauchez : aucune facturation, même dans ce cas. " +
+  'Si le test vous convainc, on continue ensemble ; sinon, on en reste là.';
+
+/**
  * Mail d'invitation, modèle rempli.
  *
  * Le bloc « déjà avec Swipelink dans votre région » est RETIRÉ quand le magasin
@@ -72,6 +83,7 @@ function adressePostale(): string {
  */
 export function renderInvitation(ctx: InvitationContext): RenderedEmail {
   const refs = referencesSentence(ctx.references);
+  const pitch = pitchFor(ctx.enseigne || ctx.magasin);
   let html = mailTemplate();
   if (!refs) html = removeBlock(html, 'refs');
 
@@ -84,6 +96,9 @@ export function renderInvitation(ctx: InvitationContext): RenderedEmail {
     Ville: ctx.ville,
     References: refs,
     ReferencesTitre: referencesTitle(ctx.references, ctx.enseigne),
+    Gain1: pitch.texteMail[0],
+    Gain2: pitch.texteMail[1],
+    GainFin: GAIN_FIN,
     token: ctx.token,
     date: ctx.datePublication,
     adresse: adressePostale(),
@@ -94,6 +109,16 @@ export function renderInvitation(ctx: InvitationContext): RenderedEmail {
   html = html.replace(/Bonjour\s+,/, 'Bonjour,');
 
   const subject = `2 CV de bouchers pour votre magasin ${ctx.enseigne || ctx.magasin}`;
+
+  // Les deux mots qui ont envoyé ce mail en indésirable ne doivent plus y
+  // figurer, ni dans le modèle ni dans ce qu'on y injecte (nom de magasin,
+  // références…). On prévient sans bloquer : un mail qui part avec un mot de
+  // trop vaut mieux qu'un pilote à l'arrêt, et le journal dit où regarder.
+  const motsInterdits = (subject + html).match(/gratuit|offert/gi);
+  if (motsInterdits) {
+    console.warn(`[pv/mail] mot à risque anti-spam dans l'invitation de ${ctx.magasin} : ${motsInterdits.join(', ')}`);
+  }
+
   return { subject, html, text: htmlToText(html) };
 }
 
