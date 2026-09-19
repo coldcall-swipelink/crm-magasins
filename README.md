@@ -470,10 +470,20 @@ compte dans Supabase, la création s'arrête sur un message d'erreur sans rien
 
 ---
 
-## Onglet « Campagnes » — séquences d'emails
+## Outil « Campagnes » — séquences d'emails
 
-Outil de prospection par email intégré au CRM (onglet **Campagnes** du volet
-gauche) : import de leads, séquences d'emails espacés de délais d'attente,
+Outil de prospection par email intégré à l'application, mais **espace à part
+entière** : le sélecteur en haut du volet gauche (logo + « CRM Magasins »)
+bascule entre le **CRM** (pipeline, paiements, carte, offres reçues…) et
+**Campagnes**. Dans cet espace, le volet gauche porte ses propres écrans :
+Vue d'ensemble (`/campagnes`), Campagnes (`/campagnes/sequences`), Leads
+(`/campagnes/leads`), Déclencheurs (`/campagnes/declencheurs`), Historique
+(`/campagnes/historique`) et Boîtes d'envoi (`/campagnes/boites`). Quand on
+rebascule vers un espace, on revient sur la dernière page qu'on y avait
+ouverte (mémoire de l'onglet du navigateur). Les deux espaces et leurs menus
+sont décrits dans `src/lib/workspace.ts`.
+
+Fonctions : import de leads, séquences d'emails espacés de délais d'attente,
 arrêt automatique dès qu'un lead répond, tableaux de bord.
 
 ### Ce qui le distingue du reste du CRM
