@@ -11,10 +11,10 @@
 // Les leads déjà inscrits dans la campagne sont affichés grisés plutôt que
 // masqués : sinon on cherche en vain un lead qu'on a déjà ajouté.
 //
-// Filtre CRM : pour les leads rattachés à une affaire, on choisit le pipeline
-// puis les colonnes à retenir — plusieurs à la fois. C'est le garde-fou contre
-// le double contact : on inscrit les « à appeler », pas les « en contact » ni
-// ceux qui ont déjà répondu.
+// Filtres : l'enseigne, et, pour les leads rattachés à une affaire, le
+// pipeline puis les colonnes à retenir — plusieurs à la fois. Le filtre par
+// colonnes est le garde-fou contre le double contact : on inscrit les « à
+// appeler », pas les « en contact » ni ceux qui ont déjà répondu.
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
@@ -47,6 +47,10 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  // Enseigne : les valeurs présentes dans la recherche, avec leur volume,
+  // telles que la liste les renvoie.
+  const [companies, setCompanies] = useState<Array<{ name: string; count: number }>>([]);
+  const [company, setCompany] = useState('');
   // Périmètre CRM : le pipeline, puis les colonnes retenues (vide = toutes).
   const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
   const [pipelineId, setPipelineId] = useState('');
@@ -77,6 +81,7 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
       const params = new URLSearchParams({ page: String(page) });
       if (search) params.set('q', search);
       if (status) params.set('status', status);
+      if (company) params.set('company', company);
       if (pipelineId) params.set('pipelineId', pipelineId);
       if (pipelineId && columnIds.length) params.set('columnIds', columnIds.join(','));
       const [list, enrolled] = await Promise.all([
@@ -87,6 +92,7 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
         fetch(`/api/campaigns/${campaignId}/enrollments?page=1`).then(res => res.json()),
       ]);
       setLeads(list.leads || []);
+      setCompanies(list.companies || []);
       setTotal(list.total || 0);
       setPages(list.pages || 1);
       setEnrolledIds(new Set<string>(
@@ -95,7 +101,7 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, page, search, status, pipelineId, columnIds]);
+  }, [campaignId, page, search, status, company, pipelineId, columnIds]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -127,6 +133,7 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
         ? { filter: {
             q: search || undefined,
             status: status || undefined,
+            company: company || undefined,
             pipelineId: pipelineId || undefined,
             columnIds: pipelineId && columnIds.length ? columnIds : undefined,
           } }
@@ -160,7 +167,7 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
           à la recherche. Les désinscrits et les adresses mortes sont écartés automatiquement.
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <input style={{ ...inp, flex: 1 }} placeholder="Rechercher (email, nom, enseigne…)"
             value={query} onChange={event => setQuery(event.target.value)} />
           <select style={{ ...inp, width: 170 }} value={status}
@@ -168,7 +175,24 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
             <option value="">Tous les statuts</option>
             {LEAD_STATUSES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
-          <select style={{ ...inp, width: 190 }} value={pipelineId}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <select style={{ ...inp, flex: 1 }} value={company}
+            title="Ne garder que les leads de cette enseigne"
+            onChange={event => { setCompany(event.target.value); setPage(1); }}>
+            <option value="">Toutes les enseignes</option>
+            {/* L'enseigne choisie reste listée même si la recherche courante ne
+                la contient plus : sinon le sélecteur afficherait une valeur
+                absente de ses options. */}
+            {company && !companies.some(item => item.name.toLowerCase() === company.toLowerCase()) && (
+              <option value={company}>{company}</option>
+            )}
+            {companies.map(item => (
+              <option key={item.name} value={item.name}>{item.name} ({item.count})</option>
+            ))}
+          </select>
+          <select style={{ ...inp, flex: 1 }} value={pipelineId}
             title="Ne garder que les leads rattachés à une affaire de ce pipeline"
             onChange={event => {
               setPipelineId(event.target.value);
