@@ -4,6 +4,9 @@
 //        campagne, avec l'avancement de chacun
 //   POST /api/campaigns/<id>/enrollments               → en inscrit de
 //        nouveaux, par liste d'identifiants ou par filtre de recherche
+//   DELETE /api/campaigns/<id>/enrollments  { enrollmentIds, userName }
+//        → retire plusieurs leads de la campagne d'un coup (leurs
+//        inscriptions seulement : les leads restent dans la liste générale)
 //
 // Inscrire par filtre reprend exactement la recherche de l'écran Leads : ce
 // qu'on voit à l'écran est ce qu'on inscrit.
@@ -139,4 +142,58 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 422 });
   }
+}
+
+/** Au-delà, mieux vaut plusieurs lots : garde-fou volontaire. */
+const MAX_REMOVE = 2000;
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = await req.json().catch(() => null);
+  const enrollmentIds: string[] = Array.isArray(body?.enrollmentIds)
+    ? body.enrollmentIds.map((id: unknown) => String(id)).filter(Boolean)
+    : [];
+  const userName = body?.userName ? String(body.userName).trim() : null;
+
+  if (enrollmentIds.length === 0) {
+    return NextResponse.json({ error: 'Aucun lead sélectionné' }, { status: 400 });
+  }
+  if (enrollmentIds.length > MAX_REMOVE) {
+    return NextResponse.json({
+      error: `Sélection trop large (${enrollmentIds.length}, maximum ${MAX_REMOVE}).`,
+    }, { status: 413 });
+  }
+
+  // On ne retire que les inscriptions de CETTE campagne : un identifiant
+  // d'une autre campagne glissé dans la liste est ignoré, pas exécuté.
+  const enrollments = await prisma.campaignEnrollment.findMany({
+    where: { id: { in: enrollmentIds }, campaignId: params.id },
+    select: { id: true, leadId: true, sentSteps: true, campaign: { select: { name: true } } },
+  });
+  if (enrollments.length === 0) {
+    return NextResponse.json({ error: 'Aucune inscription trouvée dans cette campagne' }, { status: 404 });
+  }
+
+  const ids = enrollments.map(enrollment => enrollment.id);
+  const campaignName = enrollments[0].campaign.name;
+
+  // Compté AVANT : les messages partent avec les inscriptions (Cascade), et
+  // l'écran doit pouvoir dire ce que le retrait a emporté des statistiques.
+  const messages = await prisma.campaignMessage.count({ where: { enrollmentId: { in: ids } } });
+
+  // Même contrat que le retrait unitaire : l'inscription part, le lead reste,
+  // et sa frise garde une ligne pour que le retrait reste lisible.
+  const [result] = await prisma.$transaction([
+    prisma.campaignEnrollment.deleteMany({ where: { id: { in: ids } } }),
+    prisma.leadEvent.createMany({
+      data: enrollments.map(enrollment => ({
+        leadId: enrollment.leadId,
+        type: 'stopped',
+        label: `Retiré de la campagne « ${campaignName} »`,
+        userName,
+        payload: { campaignId: params.id, action: 'remove', sentSteps: enrollment.sentSteps },
+      })),
+    }),
+  ]);
+
+  return NextResponse.json({ removed: result.count, messages });
 }

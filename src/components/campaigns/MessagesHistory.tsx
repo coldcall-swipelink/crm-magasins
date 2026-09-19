@@ -30,7 +30,7 @@ type Upcoming = {
   campaign: { id: string; name: string; status: string };
 };
 
-type Detail = {
+export type MessageDetailData = {
   message: Message & { bodyHtml: string; messageId: string | null; lead: { email: string } | null };
   replies: Array<{ id: string; subject: string; snippet: string; receivedAt: string; fromAddress: string }>;
 };
@@ -58,7 +58,7 @@ export default function MessagesHistory({ campaignId }: { campaignId?: string })
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detail, setDetail] = useState<MessageDetailData | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => { setSearch(query.trim()); setPage(1); }, 300);
@@ -312,7 +312,8 @@ function UpcomingTable({ items, showCampaign, summary }: {
 
 // ─── Contenu d'un email envoyé ────────────────────────────────────────────
 
-function MessageDetail({ detail, onClose }: { detail: Detail; onClose: () => void }) {
+/** Un email tel qu'il est parti. Exporté : la fiche d'un lead dans une campagne l'ouvre aussi. */
+export function MessageDetail({ detail, onClose }: { detail: MessageDetailData; onClose: () => void }) {
   const { message, replies } = detail;
   return (
     <div style={overlay}
