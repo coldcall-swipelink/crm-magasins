@@ -251,3 +251,12 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
    blanc. Il reste donc clair, même dans le thème sombre — et son texte avec. */
 .camp .camp-email-preview { background: #fff; color: #111827; border-radius: 8px; }
 .camp .camp-email-preview * { color: inherit; }
+
+/* Éditeur de séquence en deux volets (schéma à gauche, étape à droite).
+   Sur un écran étroit, les volets s'empilent : le schéma passe au-dessus. */
+.camp .camp-seq-node:hover { border-color: #3b71f5 !important; filter: none; }
+@media (max-width: 900px) {
+  .camp .camp-seq { flex-direction: column; overflow-y: auto; }
+  .camp .camp-seq-flow { width: auto !important; border-right: none !important; border-bottom: 1px solid #262b38; overflow: visible !important; }
+  .camp .camp-seq-editor { overflow: visible !important; }
+}

@@ -94,8 +94,11 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
   const activeBoxes = campaign.mailboxes.filter(link => link.mailbox.active).length;
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      <div style={{ padding: '14px 24px', background: '#171a23', borderBottom: '1px solid #262b38' }}>
+    // Colonne : le bandeau reste fixe, le corps de l'onglet défile. L'onglet
+    // Séquence gère lui-même son défilement (deux volets indépendants), les
+    // autres défilent d'un bloc.
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ padding: '14px 24px', background: '#171a23', borderBottom: '1px solid #262b38', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button style={btnXs} onClick={onBack}>← Campagnes</button>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{campaign.name}</div>
@@ -134,8 +137,9 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
         </div>
       </div>
 
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: tab === 'sequence' ? 'hidden' : 'auto' }}>
       {campaign.status === 'draft' && activeBoxes === 0 && (
-        <div style={{ margin: '14px 24px 0', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#fbbf24' }}>
+        <div style={{ margin: '14px 24px 0', flexShrink: 0, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 8, padding: '10px 14px', fontSize: 12.5, color: '#fbbf24' }}>
           Aucune boîte d&apos;envoi active n&apos;est affectée : la campagne ne pourra pas être lancée.
           Choisissez-en une dans l&apos;onglet <strong>Réglages</strong>.
         </div>
@@ -147,13 +151,18 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
         </div>
       )}
 
-      {tab === 'sequence' && <SequenceEditor campaignId={campaignId} steps={campaign.steps} onChanged={load} />}
+      {tab === 'sequence' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <SequenceEditor campaignId={campaignId} steps={campaign.steps} onChanged={load} />
+        </div>
+      )}
       {tab === 'leads' && <CampaignLeadsTab campaignId={campaignId} onChanged={load} />}
       {tab === 'history' && <MessagesHistory campaignId={campaignId} />}
       {tab === 'stats' && <CampaignStatsTab stats={stats} trackOpens={campaign.trackOpens} />}
       {tab === 'settings' && (
         <SettingsTab campaign={campaign} mailboxes={mailboxes} onPatch={patch} onDelete={remove} />
       )}
+      </div>
     </div>
   );
 }
