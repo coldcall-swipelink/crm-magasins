@@ -127,11 +127,45 @@ async function findLinkedDeal(leadId: string, dealId: string | null, leadEmail: 
   const email = normalizeEmail(leadEmail);
   if (!email) return null;
 
-  const byEmail = await prisma.deal.findFirst({ where: { dealEmail: email }, select });
+  // L'email d'une affaire est enregistré tel que saisi dans le CRM — avec ses
+  // majuscules, parfois un espace. Une comparaison exacte manquait alors le
+  // lien, et la modification passait sans rien proposer. On cherche donc
+  // large (sans tenir compte de la casse), puis on compare normalisé.
+  const candidates = await prisma.deal.findMany({
+    where: { dealEmail: { contains: email, mode: 'insensitive' } },
+    select, take: 10,
+  });
+  const byEmail = candidates.find(deal => normalizeEmail(deal.dealEmail) === email);
   if (!byEmail) return null;
 
   await prisma.lead.update({ where: { id: leadId }, data: { dealId: byEmail.id } }).catch(() => {});
   return byEmail;
+}
+
+/** Ce que la fiche lead affiche de sa liaison : l'affaire, et les champs partagés. */
+export type LeadLinkInfo = {
+  dealId: string;
+  /** « l'affaire « Carrefour Lille » ». */
+  target: string;
+  /** Champs du lead qui se répercutent sur l'affaire. */
+  sharedFields: string[];
+};
+
+/**
+ * La liaison d'un lead, telle qu'on la montre sur sa fiche — pour que « rien
+ * n'a été demandé » ait une explication visible : pas d'affaire liée, ou champ
+ * non partagé.
+ */
+export async function describeLeadLink(
+  leadId: string, dealId: string | null, leadEmail: string,
+): Promise<LeadLinkInfo | null> {
+  const deal = await findLinkedDeal(leadId, dealId, leadEmail);
+  if (!deal) return null;
+  return {
+    dealId: deal.id,
+    target: dealLabel(deal.store?.brand?.name, deal.store?.name),
+    sharedFields: LINKED_FIELDS.map(field => field.lead),
+  };
 }
 
 /**
