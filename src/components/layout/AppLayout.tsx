@@ -2,12 +2,13 @@
 import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import ProspectionModeToggle from './ProspectionModeToggle';
+import { workspaceOf } from '@/lib/workspace';
 import Toast from '@/components/ui/Toast';
 import NewOffersModal from '@/components/import/NewOffersModal';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  // L'onglet Campagnes bascule tout le cadre en sombre (cf. Sidebar).
-  const dark = usePathname().startsWith('/campagnes');
+  // L'outil Campagnes bascule tout le cadre en sombre (cf. Sidebar).
+  const dark = workspaceOf(usePathname()).key === 'campaigns';
   const bar = dark ? '#12141c' : '#fff';
   const border = dark ? '#242836' : '#e2e8f0';
 
