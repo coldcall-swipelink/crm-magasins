@@ -208,17 +208,17 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
           </select>
         </div>
 
-        {pipelineId && (
-          <div style={{ marginBottom: 10 }}>
-            <ColumnPicker
-              pipelineChosen
-              compact
-              columns={columns}
-              selected={columnIds}
-              onChange={ids => { setColumnIds(ids); setPage(1); }}
-            />
-          </div>
-        )}
+        {/* Toujours affiché : tant qu'aucun pipeline n'est choisi, il dit à
+            quoi il sert — sinon on ne devine pas que le filtre existe. */}
+        <div style={{ marginBottom: 10 }}>
+          <ColumnPicker
+            pipelineChosen={pipelineId !== ''}
+            compact
+            columns={columns}
+            selected={columnIds}
+            onChange={ids => { setColumnIds(ids); setPage(1); }}
+          />
+        </div>
 
         <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #262b38', borderRadius: 9, minHeight: 200 }}>
           {loading ? (
