@@ -2,26 +2,25 @@
 // src/components/campaigns/CampaignsPanel.tsx
 //
 // Écran « Campagnes » : la liste des séquences, et l'ouverture de l'une
-// d'elles. Chaque carte donne l'essentiel — état, volume envoyé, taux de
-// réponse — pour repérer d'un coup d'œil celle qui travaille.
+// d'elles. Chaque carte donne l'essentiel — leads inscrits, progression,
+// taux d'ouverture et de réponse, état — pour repérer d'un coup d'œil celle
+// qui travaille. Les chiffres sont ceux de la vue d'ensemble, calculés au
+// même endroit (src/lib/campaigns/stats.ts).
 
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
+import type { CampaignRow } from '@/lib/campaigns/stats';
 import CampaignDetail from './CampaignDetail';
-import { CAMPAIGN_STATUS, btnDef, btnPri, card, inp, label, modal, overlay } from './ui';
+import { CAMPAIGN_STATUS, T, btnDef, btnPri, card, inp, label, modal, overlay } from './ui';
 
-type CampaignRow = {
-  id: string; name: string; description: string; status: string;
-  sentCount: number; replyCount: number;
-  _count: { enrollments: number; steps: number };
-  mailboxes: Array<{ mailbox: { id: string; email: string; active: boolean } }>;
-  createdAt: string;
-};
+/** Une ligne de la liste : les chiffres viennent du même calcul que la vue d'ensemble. */
+type Row = CampaignRow;
 
+/** Les actives d'abord : c'est l'ordre que renvoie l'API, on le garde tel quel. */
 export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: () => void }) {
   const { user } = useCurrentUser();
-  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
+  const [campaigns, setCampaigns] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -43,25 +42,34 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
     return <CampaignDetail campaignId={selected} onBack={() => setSelected(null)} onChanged={load} />;
   }
 
+  const running = campaigns.filter(campaign => campaign.status === 'running').length;
+
   return (
-    <div style={{ padding: '18px 24px', maxWidth: 1000, overflowY: 'auto', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+    <div style={{ padding: '18px 24px 32px', maxWidth: 1100, overflowY: 'auto', height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Séquences d&apos;emails</div>
-          <div style={{ fontSize: 12, color: '#9aa1b4', marginTop: 2 }}>
-            Une campagne enchaîne plusieurs emails espacés de délais d&apos;attente, et s&apos;arrête
-            d&apos;elle-même pour tout lead qui répond.
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em' }}>Campagnes</div>
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 3 }}>
+            {campaigns.length === 0
+              ? 'Une campagne enchaîne plusieurs emails espacés de délais d’attente, et s’arrête d’elle-même pour tout lead qui répond.'
+              : <>
+                  {campaigns.length} campagne{campaigns.length > 1 ? 's' : ''}
+                  {' · '}
+                  <span style={{ color: running > 0 ? '#4ade80' : T.textMuted }}>
+                    {running} en cours
+                  </span>
+                </>}
           </div>
         </div>
         <button style={{ ...btnPri, marginLeft: 'auto' }} onClick={() => setCreating(true)}>+ Nouvelle campagne</button>
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
+        <div style={{ fontSize: 13, color: T.textFaint }}>Chargement…</div>
       ) : campaigns.length === 0 ? (
-        <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 32, textAlign: 'center' }}>
+        <div style={{ background: T.surface, border: `1px dashed #333a4a`, borderRadius: 12, padding: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Aucune campagne</div>
-          <div style={{ fontSize: 12.5, color: '#9aa1b4', marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 14 }}>
             Il faut d&apos;abord une boîte d&apos;envoi connectée et des leads importés.
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
@@ -70,33 +78,26 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {campaigns.map(campaign => {
-            const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
-            const replyRate = campaign.sentCount > 0
-              ? Math.round((campaign.replyCount / campaign.sentCount) * 1000) / 10 : 0;
-            return (
-              <div key={campaign.id} onClick={() => setSelected(campaign.id)}
-                style={{ ...card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{campaign.name}</span>
-                    <span style={{ padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600, color: state.color, background: `${state.color}18` }}>
-                      {state.label}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#9aa1b4', marginTop: 4 }}>
-                    {campaign._count.steps} étape{campaign._count.steps > 1 ? 's' : ''} ·
-                    {' '}{campaign._count.enrollments} lead{campaign._count.enrollments > 1 ? 's' : ''} ·
-                    {' '}{campaign.mailboxes.map(link => link.mailbox.email).join(', ') || 'aucune boîte'}
-                  </div>
-                </div>
-                <Stat label="Envoyés" value={campaign.sentCount} />
-                <Stat label="Réponses" value={campaign.replyCount} />
-                <Stat label="Taux" value={`${replyRate} %`} accent />
-              </div>
-            );
-          })}
+        <div className="camp-campaign-list">
+          {/* Intitulés de colonnes, alignés sur la grille des cartes. */}
+          <div className="camp-campaign-grid" style={{ ...GRID, padding: '0 18px 8px', fontSize: 11, fontWeight: 600, color: T.textFaint, letterSpacing: '.02em', textTransform: 'uppercase' }}>
+            <div>Campagne</div>
+            <div style={{ textAlign: 'right' }}>Leads</div>
+            <div>Progression</div>
+            <div style={{ textAlign: 'right' }}>Ouverture</div>
+            <div style={{ textAlign: 'right' }}>Réponse</div>
+            <div style={{ textAlign: 'right' }}>État</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {campaigns.map(campaign => (
+              <CampaignCard key={campaign.id} campaign={campaign} onOpen={() => setSelected(campaign.id)} />
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 14, lineHeight: 1.6 }}>
+            Progression : part des envois prévus déjà partis — une séquence arrêtée (réponse,
+            désinscription, adresse morte) compte comme terminée. Ouverture mesurée sur les emails
+            envoyés, réponse sur les leads contactés.
+          </div>
         </div>
       )}
 
@@ -108,11 +109,104 @@ export default function CampaignsPanel({ onGoToMailboxes }: { onGoToMailboxes: (
   );
 }
 
-function Stat({ label: text, value, accent }: { label: string; value: number | string; accent?: boolean }) {
+/** Grille commune aux intitulés et aux cartes : les colonnes tombent l'une sous l'autre. */
+const GRID: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) 90px 200px 100px 100px 118px',
+  gap: 20, alignItems: 'center',
+};
+
+function formatCreated(value: string): string {
+  return new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Une campagne : son nom et sa date, ses leads, sa progression, ses taux, son état. */
+function CampaignCard({ campaign, onOpen }: { campaign: Row; onOpen: () => void }) {
+  const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: T.textMuted };
+  const live = campaign.status === 'running';
+  const done = campaign.progress >= 100;
+  const untouched = campaign.sent === 0;
+
   return (
-    <div style={{ textAlign: 'right', minWidth: 68 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: accent ? '#8fb0ff' : '#e7e9ef' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: '#6b7283' }}>{text}</div>
+    <div className="camp-campaign-card camp-campaign-grid" onClick={onOpen} style={{
+      ...GRID, ...card, padding: '14px 18px', cursor: 'pointer',
+      // Une campagne en cours se repère à son liseré, avant même de lire l'état.
+      borderLeft: `3px solid ${live ? '#4ade80' : T.border}`,
+    }}>
+      {/* Nom, date de création, taille de la séquence */}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {campaign.name}
+        </div>
+        <div style={{ fontSize: 11.5, color: T.textFaint, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          Créée le {formatCreated(campaign.createdAt)}
+          {' · '}{campaign.steps} étape{campaign.steps > 1 ? 's' : ''}
+          {campaign.sent > 0 && <>{' · '}{campaign.sent} email{campaign.sent > 1 ? 's' : ''} envoyé{campaign.sent > 1 ? 's' : ''}</>}
+        </div>
+      </div>
+
+      {/* Leads inscrits */}
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{campaign.enrolled}</div>
+        <div style={{ fontSize: 10.5, color: T.textFaint, marginTop: 3, whiteSpace: 'nowrap' }}>
+          {campaign.contacted} contacté{campaign.contacted > 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Progression */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 650, fontVariantNumeric: 'tabular-nums', color: done ? '#4ade80' : T.text }}>
+            {campaign.progress} %
+          </span>
+          <span style={{ fontSize: 10.5, color: T.textFaint }}>
+            {done ? 'terminée' : campaign.enrolled === 0 ? 'aucun lead' : `${campaign.completed} séquence${campaign.completed > 1 ? 's' : ''} complète${campaign.completed > 1 ? 's' : ''}`}
+          </span>
+        </div>
+        <Bar value={campaign.progress} color={done ? T.success : T.primary} height={6} />
+      </div>
+
+      {/* Taux d'ouverture */}
+      <Rate value={campaign.openRate} count={campaign.opened} noun="ouverture" color={T.violet} muted={untouched} />
+
+      {/* Taux de réponse */}
+      <Rate value={campaign.replyRate} count={campaign.replied} noun="réponse" color={T.success} muted={untouched} />
+
+      {/* État */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999,
+          fontSize: 11.5, fontWeight: 600, color: state.color, background: `${state.color}18`,
+          border: `1px solid ${state.color}33`, whiteSpace: 'nowrap',
+        }}>
+          <span className={live ? 'camp-live-dot' : undefined}
+            style={{ width: 7, height: 7, borderRadius: '50%', background: state.color, display: 'inline-block' }} />
+          {live ? 'Active' : state.label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Un taux : le chiffre, le nombre derrière, et une jauge fine pour le lire d'un coup d'œil. */
+function Rate({ value, count, noun, color, muted }: { value: number; count: number; noun: string; color: string; muted: boolean }) {
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <div style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1, color: muted ? T.textFaint : T.text }}>
+        {muted ? '—' : `${value} %`}
+      </div>
+      <div style={{ fontSize: 10.5, color: T.textFaint, marginTop: 3, marginBottom: 5 }}>
+        {muted ? 'rien d’envoyé' : `${count} ${noun}${count > 1 ? 's' : ''}`}
+      </div>
+      <Bar value={muted ? 0 : value} color={color} height={3} />
+    </div>
+  );
+}
+
+function Bar({ value, color, height }: { value: number; color: string; height: number }) {
+  return (
+    <div style={{ height, borderRadius: height, background: T.surfaceHi, overflow: 'hidden' }}>
+      <div style={{ width: `${Math.max(0, Math.min(100, value))}%`, height: '100%', background: color, borderRadius: height, transition: 'width .3s ease' }} />
     </div>
   );
 }

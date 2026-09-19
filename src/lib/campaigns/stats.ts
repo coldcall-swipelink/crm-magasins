@@ -143,6 +143,8 @@ export type CampaignRow = {
   id: string;
   name: string;
   status: string;
+  /** Date de création, ISO. */
+  createdAt: string;
   /** Nombre d'étapes de la séquence. */
   steps: number;
   /** Leads inscrits, tous états confondus. */
@@ -184,7 +186,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
     funnel(),
     prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, status: true, _count: { select: { steps: true } } },
+      select: { id: true, name: true, status: true, createdAt: true, _count: { select: { steps: true } } },
     }),
     prisma.mailbox.findMany({ orderBy: { createdAt: 'asc' } }),
     // Une seule lecture des messages récents : la courbe et les compteurs par
@@ -250,11 +252,14 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
  * complètes, ouvertures et réponses — avec les mêmes conventions que
  * l'entonnoir (ouverture sur les messages, réponse sur les leads).
  *
+ * Sert la vue d'ensemble ET la liste des campagnes : les deux écrans montrent
+ * ainsi les mêmes chiffres, calculés au même endroit.
+ *
  * Tout se calcule en quelques agrégats groupés par campagne, puis se recoupe
  * en mémoire : le nombre de campagnes reste petit, pas celui des messages.
  */
-async function campaignRowStats(
-  campaigns: Array<{ id: string; name: string; status: string; _count: { steps: number } }>,
+export async function campaignRowStats(
+  campaigns: Array<{ id: string; name: string; status: string; createdAt: Date; _count: { steps: number } }>,
 ): Promise<CampaignRow[]> {
   const sentScope = { status: 'sent' };
   const [sentBy, contactedBy, openedBy, repliedBy, enrollmentsBy, completedBy] = await Promise.all([
@@ -314,6 +319,7 @@ async function campaignRowStats(
       const replied = replyMap.get(campaign.id) || 0;
       return {
         id: campaign.id, name: campaign.name, status: campaign.status,
+        createdAt: campaign.createdAt.toISOString(),
         steps, enrolled: enr.total, contacted, sent, progress,
         completed: completedMap.get(campaign.id) || 0,
         opened, openRate: rate(opened, sent),
