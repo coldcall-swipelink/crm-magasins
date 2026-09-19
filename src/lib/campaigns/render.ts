@@ -160,6 +160,23 @@ export function unsubscribeUrl(token: string): string {
   return base ? `${base}/api/campaigns/unsubscribe/${token}` : '';
 }
 
+/**
+ * Ajoute le pixel de suivi d'ouverture à un HTML d'email.
+ *
+ * Le pixel se place en tout dernier : s'il est bloqué, rien ne bouge dans la
+ * mise en page. Largeur et hauteur à 1, sans bordure. Dans un document
+ * complet, il se glisse juste avant `</body>` ; dans un fragment, à la fin.
+ * Sans adresse publique (cf. `appUrl`), le HTML repart intact.
+ */
+export function withTrackingPixel(html: string, trackingId: string): string {
+  const pixel = trackingUrl(trackingId);
+  if (!pixel) return html;
+  const img = `<img src="${pixel}" width="1" height="1" alt="" `
+    + `style="display:block;width:1px;height:1px;border:0" />`;
+  const close = html.search(/<\/body\s*>/i);
+  return close >= 0 ? html.slice(0, close) + img + html.slice(close) : html + img;
+}
+
 export type BuildEmailOptions = {
   subjectTemplate: string;
   bodyTemplate: string;
@@ -199,13 +216,7 @@ export function buildEmail(options: BuildEmailOptions): BuiltEmail {
       + `<a href="${unsubUrl}" style="color:#9ca3af">Se désinscrire de ces emails</a></div>`;
   }
 
-  // Le pixel se place en tout dernier : s'il est bloqué, rien ne bouge dans la
-  // mise en page. Largeur et hauteur à 1, sans bordure.
-  const pixel = options.trackingId ? trackingUrl(options.trackingId) : '';
-  if (pixel) {
-    html += `<img src="${pixel}" width="1" height="1" alt="" `
-      + `style="display:block;width:1px;height:1px;border:0" />`;
-  }
+  if (options.trackingId) html = withTrackingPixel(html, options.trackingId);
 
   return {
     subject: subject.text,
