@@ -12,6 +12,7 @@ import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
 import LeadDrawer, { type LeadRow } from './LeadDrawer';
 import DealImportModal from './DealImportModal';
+import EnrollInCampaignModal from './EnrollInCampaignModal';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
 import ReadErrorBanner from './ReadErrorBanner';
@@ -39,6 +40,10 @@ export default function LeadsPanel() {
   const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
   const [pipelineId, setPipelineId] = useState('');
   const [columnId, setColumnId] = useState('');
+  // Enseigne : les valeurs présentes dans la recherche, avec leur volume,
+  // telles que la liste les renvoie.
+  const [companies, setCompanies] = useState<Array<{ name: string; count: number }>>([]);
+  const [company, setCompany] = useState('');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,6 +58,8 @@ export default function LeadsPanel() {
   // Sélection multiple : les identifiants cochés, toutes pages confondues.
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  // Envoi des leads cochés (ou de toute la recherche) vers une campagne.
+  const [enrolling, setEnrolling] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -61,6 +68,7 @@ export default function LeadsPanel() {
       const params = new URLSearchParams({ page: String(page) });
       if (status) params.set('status', status);
       if (search) params.set('q', search);
+      if (company) params.set('company', company);
       if (pipelineId) params.set('pipelineId', pipelineId);
       if (columnId) params.set('columnId', columnId);
       const res = await fetch(`/api/campaigns/leads?${params}`);
@@ -78,6 +86,7 @@ export default function LeadsPanel() {
       setSchemaLag(false);
       setLeads(data.leads || []);
       setCounts(data.statusCounts || {});
+      setCompanies(data.companies || []);
       setTotal(data.total || 0);
       setPages(data.pages || 1);
     } catch (err) {
@@ -85,7 +94,7 @@ export default function LeadsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, pipelineId, columnId]);
+  }, [page, status, search, company, pipelineId, columnId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -177,7 +186,26 @@ export default function LeadsPanel() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11.5, color: '#6b7283' }}>Dans le CRM</span>
+          <span style={{ fontSize: 11.5, color: '#6b7283' }}>Enseigne</span>
+          <select style={{ ...inp, width: 220, height: 30, padding: '0 8px', fontSize: 12 }}
+            value={company}
+            title="Ne garder que les leads de cette enseigne"
+            onChange={event => { setCompany(event.target.value); setPage(1); }}>
+            <option value="">Toutes les enseignes</option>
+            {/* L'enseigne choisie reste listée même si la recherche courante ne
+                la contient plus : sinon le sélecteur afficherait une valeur
+                absente de ses options. */}
+            {company && !companies.some(item => item.name.toLowerCase() === company.toLowerCase()) && (
+              <option value={company}>{company}</option>
+            )}
+            {companies.map(item => (
+              <option key={item.name} value={item.name}>{item.name} ({item.count})</option>
+            ))}
+          </select>
+          {company && (
+            <button style={btnXs} onClick={() => { setCompany(''); setPage(1); }}>Effacer</button>
+          )}
+          <span style={{ fontSize: 11.5, color: '#6b7283', marginLeft: 8 }}>Dans le CRM</span>
           <select style={{ ...inp, width: 200, height: 30, padding: '0 8px', fontSize: 12 }}
             value={pipelineId}
             onChange={event => {
@@ -218,7 +246,10 @@ export default function LeadsPanel() {
               {picked.size} lead{picked.size > 1 ? 's' : ''} sélectionné{picked.size > 1 ? 's' : ''}
             </span>
             <button style={btnXs} onClick={() => setPicked(new Set())}>Tout décocher</button>
-            <button style={{ ...btnDanger, marginLeft: 'auto', opacity: deleting ? 0.6 : 1 }}
+            <button style={{ ...btnPri, marginLeft: 'auto', padding: '6px 12px', fontSize: 12.5 }} onClick={() => setEnrolling(true)}>
+              📣 Envoyer dans une campagne
+            </button>
+            <button style={{ ...btnDanger, opacity: deleting ? 0.6 : 1 }}
               disabled={deleting} onClick={removePicked}>
               {deleting ? 'Suppression…' : `Supprimer ${picked.size} lead${picked.size > 1 ? 's' : ''}`}
             </button>
@@ -231,7 +262,7 @@ export default function LeadsPanel() {
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
         ) : error ? null : leads.length === 0 ? (
           <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
-            {search || status || pipelineId || columnId
+            {search || status || company || pipelineId || columnId
               ? 'Aucun lead ne correspond à ce filtre.'
               : 'Aucun lead pour l\'instant — importez un fichier pour commencer.'}
           </div>
@@ -325,6 +356,22 @@ export default function LeadsPanel() {
 
       {fromCrm && (
         <DealImportModal userName={user?.name} onClose={() => setFromCrm(false)} onDone={load} />
+      )}
+
+      {enrolling && (
+        <EnrollInCampaignModal
+          leadIds={Array.from(picked)}
+          filter={{
+            q: search || undefined,
+            status: status || undefined,
+            company: company || undefined,
+            pipelineId: pipelineId || undefined,
+            columnIds: pipelineId && columnId ? [columnId] : undefined,
+          }}
+          filterTotal={total}
+          onClose={() => setEnrolling(false)}
+          onDone={() => { setPicked(new Set()); load(); }}
+        />
       )}
     </div>
   );

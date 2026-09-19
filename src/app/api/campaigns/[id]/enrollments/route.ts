@@ -16,6 +16,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { enrollLeads, runDueSends } from '@/lib/campaigns/engine';
 import { isLeadStatus } from '@/lib/campaigns/leadFields';
+import { leadWhereForCrmScope, parseIds } from '@/lib/campaigns/crmScope';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -108,15 +109,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Inscription par filtre : on résout la sélection côté serveur pour ne pas
   // faire transiter des milliers d'identifiants.
   if (!leadIds.length && body.filter) {
-    const filter = body.filter as { q?: string; status?: string; importId?: string };
+    const filter = body.filter as {
+      q?: string; status?: string; importId?: string; company?: string;
+      pipelineId?: string; columnIds?: unknown;
+    };
     const where: Prisma.LeadWhereInput = {};
     if (filter.status && isLeadStatus(filter.status)) where.status = filter.status;
     if (filter.importId) where.importId = String(filter.importId);
+    if (filter.company) where.company = { equals: String(filter.company), mode: 'insensitive' };
+    // Périmètre CRM (pipeline, colonnes) : le même que la liste affichée.
+    Object.assign(where, await leadWhereForCrmScope({
+      pipelineId: filter.pipelineId ? String(filter.pipelineId) : undefined,
+      columnIds: parseIds(filter.columnIds),
+    }));
     if (filter.q) {
       where.OR = [
         { email:     { contains: filter.q, mode: 'insensitive' } },
         { firstName: { contains: filter.q, mode: 'insensitive' } },
         { lastName:  { contains: filter.q, mode: 'insensitive' } },
+        { contactCalling: { contains: filter.q, mode: 'insensitive' } },
         { company:   { contains: filter.q, mode: 'insensitive' } },
         { jobTitle:  { contains: filter.q, mode: 'insensitive' } },
         { city:      { contains: filter.q, mode: 'insensitive' } },
