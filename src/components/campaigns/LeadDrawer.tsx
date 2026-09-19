@@ -74,12 +74,16 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
   // d'appliquer tant qu'on n'a pas vu ce que ça changerait sur l'affaire.
   const [pendingLink, setPendingLink] = useState<{ link: LinkPreview; payload: Record<string, unknown> } | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // L'affaire du CRM liée à ce lead, et les champs qu'ils partagent. Null :
+  // aucune affaire, les modifications restent dans Campagnes.
+  const [crmLink, setCrmLink] = useState<{ dealId: string; target: string; sharedFields: string[] } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/campaigns/leads/${leadId}`);
     if (!res.ok) { toast('Lead introuvable', 'error'); onClose(); return; }
     const data = await res.json();
     setLead(data.lead);
+    setCrmLink(data.link ?? null);
     setDraft(Object.fromEntries(EDITABLE.map(([key]) => [key, data.lead[key] || ''])));
     setDirty(false);
   }, [leadId, onClose]);
@@ -107,15 +111,20 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
     onChanged();
   };
 
-  /** Deuxième passage, après confirmation : la répercussion est autorisée. */
-  const confirmLink = async () => {
+  /**
+   * Deuxième passage, une fois l'écran tranché : « both » répercute sur
+   * l'affaire, « side » n'enregistre que le lead. Le mode choisi doit
+   * voyager tel quel — l'envoyer toujours comme « both » faisait répercuter
+   * une modification qu'on avait justement demandé de garder ici.
+   */
+  const confirmLink = async (mode: LinkMode) => {
     if (!pendingLink) return;
     setConfirming(true);
     try {
       const res = await fetch(`/api/campaigns/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...pendingLink.payload, userName, confirmLink: true }),
+        body: JSON.stringify({ ...pendingLink.payload, userName, linkMode: mode }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || 'Modification refusée', 'error'); return; }
@@ -123,7 +132,9 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
       setLead(data.lead);
       setDirty(false);
       setPendingLink(null);
-      toast("Modification appliquée au lead et à l'affaire");
+      toast(mode === 'both'
+        ? "Modification appliquée au lead et à l'affaire du CRM"
+        : "Lead modifié — l'affaire du CRM reste en l'état");
       onChanged();
     } finally {
       setConfirming(false);
@@ -214,10 +225,31 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
         </div>
 
         <div style={label}>INFORMATIONS</div>
+        {/* Liaison avec le CRM, dite d'avance : on sait AVANT de modifier si
+            la fiche affaire suivra, et pour quels champs. */}
+        {crmLink ? (
+          <div style={{ fontSize: 11.5, color: '#9aa1b4', background: 'rgba(59,113,245,.10)', border: '1px solid rgba(59,113,245,.30)', borderRadius: 8, padding: '8px 11px', marginBottom: 10, lineHeight: 1.55 }}>
+            <span style={{ color: '#8fb0ff', fontWeight: 600 }}>Lié à {crmLink.target}</span> dans le CRM.
+            Les champs marqués <span style={{ color: '#8fb0ff', fontWeight: 600 }}>CRM</span> se répercutent sur
+            la fiche affaire, après confirmation. Prénom, enseigne, ville et site web restent propres au lead.
+          </div>
+        ) : (
+          <div style={{ fontSize: 11.5, color: '#6b7283', marginBottom: 10, lineHeight: 1.55 }}>
+            Aucune affaire du CRM liée à ce lead : les modifications restent dans Campagnes.
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
           {EDITABLE.map(([key, text]) => (
             <div key={key}>
-              <label style={label}>{text}</label>
+              <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 5 }}>
+                {text}
+                {crmLink?.sharedFields.includes(key) && (
+                  <span title="Partagé avec la fiche affaire du CRM"
+                    style={{ fontSize: 9, fontWeight: 700, color: '#8fb0ff', background: 'rgba(59,113,245,.16)', borderRadius: 4, padding: '0 4px', letterSpacing: '.04em' }}>
+                    CRM
+                  </span>
+                )}
+              </label>
               <input style={inp} value={draft[key] || ''}
                 onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setDirty(true); }} />
             </div>

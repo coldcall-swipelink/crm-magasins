@@ -1,6 +1,6 @@
 // src/app/api/campaigns/leads/[id]/route.ts
 //
-//   GET    /api/campaigns/leads/<id>  → fiche complète (notes + frise)
+//   GET    /api/campaigns/leads/<id>  → fiche complète (notes + frise + affaire liée)
 //   PATCH  /api/campaigns/leads/<id>  → modification / changement de statut
 //   DELETE /api/campaigns/leads/<id>  → suppression
 //
@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isLeadStatus, isValidEmail, normalizeEmail, statusLabel } from '@/lib/campaigns/leadFields';
-import { applyLeadToDeal, previewLeadToDeal } from '@/lib/campaigns/crmLink';
+import { applyLeadToDeal, describeLeadLink, previewLeadToDeal } from '@/lib/campaigns/crmLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +37,10 @@ const FULL_LEAD = {
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const lead = await prisma.lead.findUnique({ where: { id: params.id }, ...FULL_LEAD });
   if (!lead) return NextResponse.json({ error: 'Lead introuvable' }, { status: 404 });
-  return NextResponse.json({ lead });
+  // L'affaire liée voyage avec la fiche : l'écran dit ainsi d'emblée si une
+  // modification se répercutera, et sur quels champs.
+  const link = await describeLeadLink(lead.id, lead.dealId, lead.email);
+  return NextResponse.json({ lead, link });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
