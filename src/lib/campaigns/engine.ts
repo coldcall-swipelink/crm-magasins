@@ -18,7 +18,7 @@ import type { Mailbox } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createTransport, fromHeader } from '@/lib/campaigns/mailboxes';
 import { BLOCKING_STATUSES } from '@/lib/campaigns/leadFields';
-import { buildEmail, leadVariables, threadSubject } from '@/lib/campaigns/render';
+import { buildEmail, leadVariables, threadSubject, withTrackingPixel } from '@/lib/campaigns/render';
 import { markInvitationSent, mintInvitationEmail, prepareInvitation } from '@/lib/pv/invitation';
 import {
   dailyCap, isSendWindowOpen, nextOpenSlot, randomDelayMs, startOfLocalDay,
@@ -468,15 +468,16 @@ async function sendEnrollmentStep(
     },
   });
 
-  // Le modèle du pilote part TEL QUEL : ni pixel de suivi (le modèle s'en
-  // passe délibérément), ni lien de désinscription ajouté (il en porte déjà un,
-  // qui révoque l'invitation en plus de désinscrire), ni signature de boîte
-  // (il a la sienne). Le sujet de l'étape, s'il est rempli, l'emporte quand
-  // même : c'est l'objet qu'on teste d'une campagne à l'autre.
+  // Le modèle du pilote part presque tel quel : ni lien de désinscription
+  // ajouté (il en porte déjà un, qui révoque l'invitation en plus de
+  // désinscrire), ni signature de boîte (il a la sienne). Seul le pixel de
+  // suivi s'y glisse, comme dans une étape libre, pour que ses ouvertures
+  // comptent dans les tableaux de bord. Le sujet de l'étape, s'il est rempli,
+  // l'emporte quand même : c'est l'objet qu'on teste d'une campagne à l'autre.
   const email = minted
     ? {
         subject: step.subject.trim() || minted.subject,
-        html: minted.html,
+        html: campaign.trackOpens ? withTrackingPixel(minted.html, message.trackingId) : minted.html,
         text: minted.text,
         unsubscribeUrl: '',
         missing: [] as string[],
