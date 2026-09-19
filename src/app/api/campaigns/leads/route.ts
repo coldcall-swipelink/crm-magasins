@@ -1,27 +1,25 @@
 // src/app/api/campaigns/leads/route.ts
 //
-//   GET  /api/campaigns/leads?q=…&status=…&pipelineId=…&columnId=…&page=1
-//        → liste filtrée, paginée
+//   GET  /api/campaigns/leads?q=…&status=…&company=…&pipelineId=…&columnIds=a,b&page=1
+//        → liste filtrée, paginée (`columnId=…` reste accepté pour une seule)
 //   POST /api/campaigns/leads                      → création manuelle
 //   POST /api/campaigns/leads { …, campaignId }    → création PUIS inscription
 //         dans la campagne : c'est la saisie d'un lead depuis une campagne.
 //
 // La liste sert l'écran « Leads » de l'onglet Campagnes. Elle renvoie aussi le
-// décompte par statut, pour que les filtres affichent leur volume sans un
-// second aller-retour.
+// décompte par statut et par enseigne, pour que les filtres affichent leur
+// volume sans un second aller-retour.
 //
-// Filtre par pipeline / étape : un lead repris du CRM porte l'identifiant de
-// son affaire (Lead.dealId). On traduit donc le filtre en liste d'affaires
-// concernées, puis on cherche les leads qui en viennent. Le détour par une
-// liste d'identifiants tient au fait que Lead.dealId n'est pas une relation
-// Prisma — poser une clé étrangère sur une colonne déjà remplie ferait échouer
-// la synchronisation de schéma au moindre rattachement orphelin.
+// Filtre par pipeline / étapes : cf. src/lib/campaigns/crmScope.ts. Le même
+// périmètre sert à l'inscription par filtre dans une campagne, pour que ce
+// qu'on voit soit ce qu'on inscrit.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isLeadStatus, isValidEmail, normalizeEmail } from '@/lib/campaigns/leadFields';
 import { enrollLeads } from '@/lib/campaigns/engine';
+import { leadWhereForCrmScope, parseIds } from '@/lib/campaigns/crmScope';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,13 +58,19 @@ async function listLeads(req: NextRequest) {
   const q = (params.get('q') || '').trim();
   const status = (params.get('status') || '').trim();
   const importId = (params.get('importId') || '').trim();
+  // Enseigne : le champ `company` du lead, tel qu'il est écrit (comparé sans
+  // tenir compte de la casse). C'est l'enseigne du magasin pour un lead repris
+  // du CRM, la colonne « Enseigne » pour un lead importé d'un fichier.
+  const company = (params.get('company') || '').trim();
   const pipelineId = (params.get('pipelineId') || '').trim();
-  const columnId = (params.get('columnId') || '').trim();
+  // Plusieurs étapes à la fois (« a,b,c »), ou une seule par l'ancien paramètre.
+  const columnIds = parseIds(params.get('columnIds')) ?? parseIds(params.get('columnId'));
   const page = Math.max(1, Number(params.get('page')) || 1);
 
   const where: Prisma.LeadWhereInput = {};
   if (status && isLeadStatus(status)) where.status = status;
   if (importId) where.importId = importId;
+  if (company) where.company = { equals: company, mode: 'insensitive' };
   if (q) {
     // Recherche sur les champs qu'on lit à l'œil dans la liste.
     where.OR = [
@@ -80,20 +84,9 @@ async function listLeads(req: NextRequest) {
     ];
   }
 
-  if (pipelineId || columnId) {
-    const deals = await prisma.deal.findMany({
-      where: {
-        ...(pipelineId ? { pipelineId } : {}),
-        ...(columnId ? { columnId } : {}),
-      },
-      select: { id: true },
-    });
-    // Aucune affaire dans ce périmètre : la liste est vide, et le dire par un
-    // `in: []` évite d'aller chercher des leads qu'on écarterait ensuite.
-    where.dealId = { in: deals.map(deal => deal.id) };
-  }
+  Object.assign(where, await leadWhereForCrmScope({ pipelineId: pipelineId || undefined, columnIds }));
 
-  const [rows, total, statusCounts] = await Promise.all([
+  const [rows, total, statusCounts, companyCounts] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -107,6 +100,16 @@ async function listLeads(req: NextRequest) {
       by: ['status'],
       _count: { _all: true },
       where: { ...where, status: undefined },
+    }),
+    // Enseignes présentes dans la recherche, filtre d'enseigne exclu (sinon la
+    // liste se réduirait à l'enseigne choisie et on ne pourrait plus en
+    // changer). Les plus fournies d'abord : ce sont celles qu'on cherche.
+    prisma.lead.groupBy({
+      by: ['company'],
+      _count: { _all: true },
+      where: { ...where, company: { not: null } },
+      orderBy: { _count: { company: 'desc' } },
+      take: 300,
     }),
   ]);
 
@@ -122,6 +125,9 @@ async function listLeads(req: NextRequest) {
     pageSize: PAGE_SIZE,
     pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     statusCounts: Object.fromEntries(statusCounts.map(c => [c.status, c._count._all])),
+    companies: companyCounts
+      .filter(c => c.company && c.company.trim())
+      .map(c => ({ name: c.company as string, count: c._count._all })),
   });
 }
 

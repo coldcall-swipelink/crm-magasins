@@ -529,7 +529,15 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    double contact : on laisse de côté les colonnes « en contact » ou « a
    répondu » et l'on ne reprend que les étapes qu'on n'a pas encore jointes.
    Aucune colonne cochée vaut toutes les colonnes.
+   La liste des leads se filtre aussi par **enseigne**, et les leads cochés
+   (ou toute la recherche en cours) s'envoient dans la campagne de son choix
+   d'un clic (« Envoyer dans une campagne »).
 5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
+   Depuis la campagne, « + Depuis mes leads » propose le même filtre CRM :
+   pipeline, puis colonnes à retenir (plusieurs à la fois) pour n'inscrire
+   que les leads dont l'affaire est à une étape qu'on n'a pas encore jointe.
+   « Inscrire les N leads de la recherche » inscrit tout ce que le filtre
+   renvoie, sans cocher un par un.
 
 ### Garde-fous d'envoi
 

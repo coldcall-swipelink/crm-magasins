@@ -10,15 +10,30 @@
 //
 // Les leads déjà inscrits dans la campagne sont affichés grisés plutôt que
 // masqués : sinon on cherche en vain un lead qu'on a déjà ajouté.
+//
+// Filtre CRM : pour les leads rattachés à une affaire, on choisit le pipeline
+// puis les colonnes à retenir — plusieurs à la fois. C'est le garde-fou contre
+// le double contact : on inscrit les « à appeler », pas les « en contact » ni
+// ceux qui ont déjà répondu.
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
-import { btnDef, btnPri, btnXs, card, inp, label, modal, overlay } from './ui';
+import ColumnPicker from './ColumnPicker';
+import { btnDef, btnPri, btnXs, inp, modal, overlay } from './ui';
 
 type Lead = {
   id: string; email: string; civility: string | null; firstName: string | null;
   lastName: string | null; company: string | null; jobTitle: string | null; status: string;
+  /** Étape de l'affaire liée, si le lead vient du CRM (telle que la liste la sert). */
+  crm: { dealId: string; pipeline: string; column: string; color: string } | null;
+};
+
+/** Un pipeline du CRM et ses étapes, tels que les sert /api/pipelines. */
+type PipelineOption = {
+  id: string;
+  name: string;
+  columns: Array<{ id: string; title: string; color: string }>;
 };
 
 export default function LeadPickerModal({ campaignId, onClose, onDone }: {
@@ -32,6 +47,10 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  // Périmètre CRM : le pipeline, puis les colonnes retenues (vide = toutes).
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
+  const [pipelineId, setPipelineId] = useState('');
+  const [columnIds, setColumnIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -44,12 +63,22 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
     return () => clearTimeout(timer);
   }, [query]);
 
+  // Pipelines et leurs étapes, chargés une fois : ils alimentent le filtre CRM.
+  useEffect(() => {
+    fetch('/api/pipelines')
+      .then(res => res.json())
+      .then(data => setPipelines(data.pipelines || []))
+      .catch(() => { /* le filtre CRM est un confort : son absence ne bloque rien */ });
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (search) params.set('q', search);
       if (status) params.set('status', status);
+      if (pipelineId) params.set('pipelineId', pipelineId);
+      if (pipelineId && columnIds.length) params.set('columnIds', columnIds.join(','));
       const [list, enrolled] = await Promise.all([
         fetch(`/api/campaigns/leads?${params}`).then(res => res.json()),
         // Qui est déjà dans la campagne ? On ne lit que la page courante des
@@ -66,9 +95,11 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, page, search, status]);
+  }, [campaignId, page, search, status, pipelineId, columnIds]);
 
   useEffect(() => { load(); }, [load]);
+
+  const columns = pipelines.find(pipeline => pipeline.id === pipelineId)?.columns ?? [];
 
   const toggle = (id: string) => {
     setSelected(current => {
@@ -93,7 +124,12 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
     setBusy(true);
     try {
       const body = useFilter
-        ? { filter: { q: search || undefined, status: status || undefined } }
+        ? { filter: {
+            q: search || undefined,
+            status: status || undefined,
+            pipelineId: pipelineId || undefined,
+            columnIds: pipelineId && columnIds.length ? columnIds : undefined,
+          } }
         : { leadIds: Array.from(selected) };
 
       const res = await fetch(`/api/campaigns/${campaignId}/enrollments`, {
@@ -127,12 +163,38 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <input style={{ ...inp, flex: 1 }} placeholder="Rechercher (email, nom, enseigne…)"
             value={query} onChange={event => setQuery(event.target.value)} />
-          <select style={{ ...inp, width: 190 }} value={status}
+          <select style={{ ...inp, width: 170 }} value={status}
             onChange={event => { setStatus(event.target.value); setPage(1); }}>
             <option value="">Tous les statuts</option>
             {LEAD_STATUSES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
+          <select style={{ ...inp, width: 190 }} value={pipelineId}
+            title="Ne garder que les leads rattachés à une affaire de ce pipeline"
+            onChange={event => {
+              setPipelineId(event.target.value);
+              // Les colonnes appartiennent au pipeline : celles de l'ancien
+              // laisseraient la liste vide sans qu'on comprenne.
+              setColumnIds([]);
+              setPage(1);
+            }}>
+            <option value="">Tous les pipelines</option>
+            {pipelines.map(pipeline => (
+              <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>
+            ))}
+          </select>
         </div>
+
+        {pipelineId && (
+          <div style={{ marginBottom: 10 }}>
+            <ColumnPicker
+              pipelineChosen
+              compact
+              columns={columns}
+              selected={columnIds}
+              onChange={ids => { setColumnIds(ids); setPage(1); }}
+            />
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #262b38', borderRadius: 9, minHeight: 200 }}>
           {loading ? (
@@ -158,6 +220,15 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
                     {lead.email}{lead.company ? ` · ${lead.company}` : ''}{lead.jobTitle ? ` · ${lead.jobTitle}` : ''}
                   </div>
                 </div>
+                {lead.crm && (
+                  <span title={`Affaire dans « ${lead.crm.pipeline} »`} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '1px 7px', borderRadius: 999,
+                    fontSize: 10.5, fontWeight: 600, color: '#9aa1b4', background: '#1c1f2a', whiteSpace: 'nowrap',
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: lead.crm.color }} />
+                    {lead.crm.column}
+                  </span>
+                )}
                 <span style={{ padding: '1px 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 600, color: statusColor(lead.status), background: `${statusColor(lead.status)}18` }}>
                   {statusLabel(lead.status)}
                 </span>
