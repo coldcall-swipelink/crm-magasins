@@ -47,12 +47,32 @@ export type DealImportPreview = {
   sample: DealLead[];
   /** Pipelines disponibles, pour le filtre de l'écran. */
   pipelines: Array<{ id: string; name: string; deals: number }>;
-  /** Enseignes disponibles dans le pipeline choisi, avec leur volume. */
+  /**
+   * Colonnes du pipeline choisi, dans l'ordre du tableau, avec leur volume.
+   * Vide tant qu'aucun pipeline n'est choisi : une colonne n'a de sens que
+   * dans son pipeline.
+   */
+  columns: Array<{ id: string; title: string; color: string; deals: number }>;
+  /** Enseignes disponibles dans le périmètre choisi, avec leur volume. */
   brands: Array<{ id: string; name: string; deals: number }>;
 };
 
-/** Périmètre d'une reprise : pipeline et/ou enseigne. */
-export type DealScope = { pipelineId?: string; brandId?: string };
+/**
+ * Périmètre d'une reprise : pipeline, colonnes de ce pipeline, enseigne.
+ *
+ * Le filtre par colonnes est ce qui évite d'écrire à quelqu'un qu'on a déjà
+ * au téléphone : les affaires « en contact » ou « à relancer » restent dans
+ * leur colonne, on ne reprend que celles des colonnes choisies. Plusieurs
+ * colonnes à la fois, parce qu'une reprise couvre souvent plusieurs étapes.
+ * Une liste vide vaut « toutes les colonnes ».
+ */
+export type DealScope = { pipelineId?: string; columnIds?: string[]; brandId?: string };
+
+/** Le filtre de colonnes ne s'applique que dans un pipeline, et seulement s'il est renseigné. */
+function columnFilter(filter: DealScope): Prisma.DealWhereInput {
+  if (!filter.pipelineId || !filter.columnIds?.length) return {};
+  return { columnId: { in: filter.columnIds } };
+}
 
 export type DealImportReport = {
   created: number;
@@ -103,6 +123,7 @@ function toDealLead(deal: SelectedDeal): DealLead | null {
 async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals: number; withEmail: number }> {
   const scope: Prisma.DealWhereInput = {
     ...(filter.pipelineId ? { pipelineId: filter.pipelineId } : {}),
+    ...columnFilter(filter),
     // L'enseigne n'est pas portée par l'affaire mais par son magasin.
     ...(filter.brandId ? { store: { brandId: filter.brandId } } : {}),
   };
@@ -139,16 +160,37 @@ async function collect(filter: DealScope = {}): Promise<{ all: DealLead[]; deals
 }
 
 /**
+ * Colonnes du pipeline choisi, avec le nombre d'affaires de chacune.
+ *
+ * Toutes les colonnes sont listées, même vides : l'écran doit montrer le
+ * tableau tel que l'utilisateur le connaît, dans le même ordre.
+ */
+async function columnOptions(pipelineId?: string) {
+  if (!pipelineId) return [];
+  const columns = await prisma.pipelineColumn.findMany({
+    where: { pipelineId },
+    orderBy: { position: 'asc' },
+    select: { id: true, title: true, color: true, _count: { select: { deals: true } } },
+  });
+  return columns.map(c => ({ id: c.id, title: c.title, color: c.color, deals: c._count.deals }));
+}
+
+/**
  * Enseignes présentes parmi les affaires exploitables.
  *
- * Calculées dans le pipeline choisi mais SANS le filtre d'enseigne : sinon la
- * liste se réduirait à l'enseigne sélectionnée et on ne pourrait plus en
- * changer. Prisma ne sachant pas grouper sur un champ de relation, on compte
- * en mémoire — le volume reste celui des affaires ayant une adresse.
+ * Calculées dans le pipeline et les colonnes choisis mais SANS le filtre
+ * d'enseigne : sinon la liste se réduirait à l'enseigne sélectionnée et on ne
+ * pourrait plus en changer. Prisma ne sachant pas grouper sur un champ de
+ * relation, on compte en mémoire — le volume reste celui des affaires ayant
+ * une adresse.
  */
-async function brandOptions(pipelineId?: string) {
+async function brandOptions(filter: DealScope) {
   const rows = await prisma.deal.findMany({
-    where: { ...(pipelineId ? { pipelineId } : {}), dealEmail: { not: '' } },
+    where: {
+      ...(filter.pipelineId ? { pipelineId: filter.pipelineId } : {}),
+      ...columnFilter(filter),
+      dealEmail: { not: '' },
+    },
     select: { store: { select: { brandId: true, brand: { select: { name: true } } } } },
   });
 
@@ -174,13 +216,14 @@ export async function previewDealLeads(filter: DealScope = {}): Promise<DealImpo
     ? await prisma.lead.count({ where: { email: { in: emails } } })
     : 0;
 
-  // Volume par pipeline, pour que le filtre affiche ses chiffres.
-  const [pipelines, brands] = await Promise.all([
+  // Volume par pipeline et par colonne, pour que les filtres affichent leurs chiffres.
+  const [pipelines, columns, brands] = await Promise.all([
     prisma.pipeline.findMany({
       orderBy: { position: 'asc' },
       select: { id: true, name: true, _count: { select: { deals: true } } },
     }),
-    brandOptions(filter.pipelineId),
+    columnOptions(filter.pipelineId),
+    brandOptions(filter),
   ]);
 
   return {
@@ -191,6 +234,7 @@ export async function previewDealLeads(filter: DealScope = {}): Promise<DealImpo
     fresh: all.length - known,
     sample: all.slice(0, 5),
     pipelines: pipelines.map(p => ({ id: p.id, name: p.name, deals: p._count.deals })),
+    columns,
     brands,
   };
 }
@@ -205,11 +249,13 @@ export async function importDealLeads(options: DealScope & {
   onlyNew?: boolean;
   userName?: string;
 } = {}): Promise<DealImportReport> {
-  const { all } = await collect({ pipelineId: options.pipelineId, brandId: options.brandId });
+  const { all } = await collect({
+    pipelineId: options.pipelineId, columnIds: options.columnIds, brandId: options.brandId,
+  });
 
   const batch = await prisma.leadImport.create({
     data: {
-      filename: options.brandId || options.pipelineId
+      filename: options.brandId || options.pipelineId || options.columnIds?.length
         ? 'CRM — affaires filtrées'
         : 'CRM — toutes les affaires',
       mapping: {
