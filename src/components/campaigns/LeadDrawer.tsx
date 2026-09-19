@@ -167,6 +167,22 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
     onChanged();
   };
 
+  /** Retire le lead d'UNE campagne : son inscription part, le lead reste. */
+  const removeFromCampaign = async (enrollment: Enrollment) => {
+    const sent = enrollment.sentSteps > 0
+      ? `Les ${enrollment.sentSteps} email${enrollment.sentSteps > 1 ? 's' : ''} déjà envoyé${enrollment.sentSteps > 1 ? 's' : ''} disparaîtront des statistiques de la campagne. `
+      : '';
+    if (!confirm(`Retirer ce lead de « ${enrollment.campaign.name} » ?\n\n${sent}Le lead reste dans votre liste de leads.`)) return;
+    const params = new URLSearchParams();
+    if (userName) params.set('userName', userName);
+    const res = await fetch(`/api/campaigns/${enrollment.campaign.id}/enrollments/${enrollment.id}?${params}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || 'Retrait impossible', 'error'); return; }
+    toast('Lead retiré de la campagne');
+    load();
+    onChanged();
+  };
+
   const remove = async () => {
     if (!lead || !confirm(`Supprimer définitivement ${lead.email} ?`)) return;
     const res = await fetch(`/api/campaigns/leads/${leadId}`, { method: 'DELETE' });
@@ -312,6 +328,9 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
                       <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
                         onClick={() => actOnEnrollment(enrollment, 'stop')}>Arrêter pour ce lead</button>
                     )}
+                    <button style={{ ...btnDef, padding: '3px 9px', fontSize: 11.5, color: '#f87171', marginLeft: 'auto' }}
+                      title="Retirer ce lead de la campagne (il reste dans la liste des leads)"
+                      onClick={() => removeFromCampaign(enrollment)}>Retirer de la campagne</button>
                   </div>
                 </div>
               );

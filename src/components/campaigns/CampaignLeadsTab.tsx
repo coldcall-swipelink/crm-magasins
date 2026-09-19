@@ -2,8 +2,9 @@
 // src/components/campaigns/CampaignLeadsTab.tsx
 //
 // Les leads d'une campagne, et leur pilotage UN PAR UN : mettre en pause,
-// reprendre ou arrêter la séquence d'un seul lead sans toucher aux autres ni
-// à la campagne.
+// reprendre, arrêter ou retirer la séquence d'un seul lead sans toucher aux
+// autres ni à la campagne. « Retirer » enlève le lead de CETTE campagne
+// seulement : il reste dans la liste générale des leads.
 //
 // Trois façons d'ajouter des leads, parce que les trois usages existent :
 //   • depuis les leads déjà en base, en cochant (ou d'un bloc par recherche) ;
@@ -75,6 +76,23 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
     onChanged();
   };
 
+  /** Retire le lead de la campagne (son inscription seulement, pas le lead). */
+  const remove = async (enrollment: Enrollment) => {
+    const who = [enrollment.lead.firstName, enrollment.lead.lastName].filter(Boolean).join(' ') || enrollment.lead.email;
+    const sent = enrollment.sentSteps > 0
+      ? `Les ${enrollment.sentSteps} email${enrollment.sentSteps > 1 ? 's' : ''} déjà envoyé${enrollment.sentSteps > 1 ? 's' : ''} disparaîtront des statistiques de la campagne. `
+      : '';
+    if (!confirm(`Retirer ${who} de cette campagne ?\n\n${sent}Le lead reste dans votre liste de leads.`)) return;
+    const params = new URLSearchParams();
+    if (user?.name) params.set('userName', user.name);
+    const res = await fetch(`/api/campaigns/${campaignId}/enrollments/${enrollment.id}?${params}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || 'Retrait impossible', 'error'); return; }
+    toast('Lead retiré de la campagne');
+    load();
+    onChanged();
+  };
+
   return (
     <div style={{ padding: '18px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -108,7 +126,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                 <th style={th}>Boîte</th>
                 <th style={th}>Prochain envoi</th>
                 <th style={th}>État</th>
-                <th style={{ ...th, width: 190 }}></th>
+                <th style={{ ...th, width: 240 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -162,6 +180,8 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                           <button style={{ ...btnXs, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
                             onClick={() => act(enrollment, 'stop')}>Arrêter</button>
                         )}
+                        <button style={{ ...btnXs, color: '#f87171' }} title="Retirer ce lead de la campagne (il reste dans la liste des leads)"
+                          onClick={() => remove(enrollment)}>Retirer</button>
                       </div>
                     </td>
                   </tr>
