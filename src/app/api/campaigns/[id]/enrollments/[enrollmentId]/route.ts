@@ -1,11 +1,12 @@
 // src/app/api/campaigns/[id]/enrollments/[enrollmentId]/route.ts
 //
 //   PATCH  /api/campaigns/<id>/enrollments/<enrollmentId>  { action }
-//   DELETE  …                                              → désinscrit le lead
+//   DELETE  …  ?userName=…                                → retire le lead de la campagne
+//            (son inscription seulement : le lead reste dans la liste générale)
 //
 // C'est ici que se joue le traitement lead par lead demandé pour l'outil :
-// mettre en pause, reprendre ou arrêter UN lead ne change rien aux autres, ni
-// à l'état de la campagne.
+// mettre en pause, reprendre, arrêter ou retirer UN lead ne change rien aux
+// autres, ni à l'état de la campagne.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -60,15 +61,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ enrollment: updated });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; enrollmentId: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string; enrollmentId: string } }) {
   const enrollment = await prisma.campaignEnrollment.findFirst({
     where: { id: params.enrollmentId, campaignId: params.id },
-    select: { id: true },
+    select: { id: true, leadId: true, sentSteps: true, campaign: { select: { name: true } } },
   });
   if (!enrollment) return NextResponse.json({ error: 'Inscription introuvable' }, { status: 404 });
 
+  const userName = req.nextUrl.searchParams.get('userName')?.trim() || null;
+
+  // Retirer un lead d'une campagne ne supprime QUE son inscription : le lead
+  // reste dans la liste générale, avec ses notes, ses réponses et sa frise.
   // Les messages déjà envoyés partent avec l'inscription (Cascade) : c'est
-  // voulu, « désinscrire » efface la trace de ce lead dans CETTE campagne.
-  await prisma.campaignEnrollment.delete({ where: { id: enrollment.id } });
+  // voulu, « retirer » efface la trace de ce lead dans CETTE campagne. On
+  // garde donc une ligne dans la frise du lead pour que le retrait reste
+  // lisible depuis sa fiche.
+  await prisma.$transaction([
+    prisma.campaignEnrollment.delete({ where: { id: enrollment.id } }),
+    prisma.leadEvent.create({
+      data: {
+        leadId: enrollment.leadId,
+        type: 'stopped',
+        label: `Retiré de la campagne « ${enrollment.campaign.name} »`,
+        userName,
+        payload: { campaignId: params.id, action: 'remove', sentSteps: enrollment.sentSteps },
+      },
+    }),
+  ]);
   return NextResponse.json({ ok: true });
 }
