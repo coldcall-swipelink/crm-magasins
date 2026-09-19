@@ -4,7 +4,11 @@
 // Les leads d'une campagne, et leur pilotage UN PAR UN : mettre en pause,
 // reprendre, arrêter ou retirer la séquence d'un seul lead sans toucher aux
 // autres ni à la campagne. « Retirer » enlève le lead de CETTE campagne
-// seulement : il reste dans la liste générale des leads.
+// seulement : il reste dans la liste générale des leads. Plusieurs leads
+// cochés se retirent d'un coup.
+//
+// Un clic sur une ligne ouvre l'historique du lead dans la campagne : chaque
+// email parti et son état (envoyé, ouvert, répondu).
 //
 // Trois façons d'ajouter des leads, parce que les trois usages existent :
 //   • depuis les leads déjà en base, en cochant (ou d'un bloc par recherche) ;
@@ -15,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
 import DealImportModal from './DealImportModal';
+import EnrollmentDrawer, { type EnrollmentAction } from './EnrollmentDrawer';
 import LeadFormModal from './LeadFormModal';
 import LeadImportModal from './LeadImportModal';
 import LeadPickerModal from './LeadPickerModal';
@@ -46,6 +51,13 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
   // Quelle fenêtre d'ajout est ouverte : aucune, le choix parmi les leads
   // existants, la saisie manuelle, ou l'import de fichier.
   const [adding, setAdding] = useState<'pick' | 'manual' | 'import' | 'crm' | null>(null);
+  // Sélection multiple : les inscriptions cochées, toutes pages confondues.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState(false);
+  // Le lead dont l'historique est ouvert dans le volet de droite.
+  const [opened, setOpened] = useState<string | null>(null);
+  // Incrémenté à chaque rechargement : le volet se remet à jour avec.
+  const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +70,7 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
       setCounts(data.statusCounts || {});
       setTotal(data.total || 0);
       setPages(data.pages || 1);
+      setVersion(v => v + 1);
     } finally {
       setLoading(false);
     }
@@ -65,8 +78,8 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
 
   useEffect(() => { load(); }, [load]);
 
-  const act = async (enrollment: Enrollment, action: 'pause' | 'resume' | 'stop') => {
-    const res = await fetch(`/api/campaigns/${campaignId}/enrollments/${enrollment.id}`, {
+  const act = async (enrollmentId: string, action: EnrollmentAction) => {
+    const res = await fetch(`/api/campaigns/${campaignId}/enrollments/${enrollmentId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, userName: user?.name }),
     });
@@ -77,20 +90,74 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
   };
 
   /** Retire le lead de la campagne (son inscription seulement, pas le lead). */
-  const remove = async (enrollment: Enrollment) => {
-    const who = [enrollment.lead.firstName, enrollment.lead.lastName].filter(Boolean).join(' ') || enrollment.lead.email;
-    const sent = enrollment.sentSteps > 0
+  const remove = async (enrollmentId: string) => {
+    const enrollment = enrollments.find(item => item.id === enrollmentId);
+    const who = enrollment
+      ? [enrollment.lead.firstName, enrollment.lead.lastName].filter(Boolean).join(' ') || enrollment.lead.email
+      : 'ce lead';
+    const sent = enrollment && enrollment.sentSteps > 0
       ? `Les ${enrollment.sentSteps} email${enrollment.sentSteps > 1 ? 's' : ''} déjà envoyé${enrollment.sentSteps > 1 ? 's' : ''} disparaîtront des statistiques de la campagne. `
       : '';
     if (!confirm(`Retirer ${who} de cette campagne ?\n\n${sent}Le lead reste dans votre liste de leads.`)) return;
     const params = new URLSearchParams();
     if (user?.name) params.set('userName', user.name);
-    const res = await fetch(`/api/campaigns/${campaignId}/enrollments/${enrollment.id}?${params}`, { method: 'DELETE' });
+    const res = await fetch(`/api/campaigns/${campaignId}/enrollments/${enrollmentId}?${params}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { toast(data.error || 'Retrait impossible', 'error'); return; }
     toast('Lead retiré de la campagne');
+    if (opened === enrollmentId) setOpened(null);
+    setPicked(current => { const next = new Set(current); next.delete(enrollmentId); return next; });
     load();
     onChanged();
+  };
+
+  const toggle = (id: string) => setPicked(current => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  /** Coche ou décoche toute la page affichée. */
+  const togglePage = () => {
+    const ids = enrollments.map(enrollment => enrollment.id);
+    const allPicked = ids.every(id => picked.has(id));
+    setPicked(current => {
+      const next = new Set(current);
+      for (const id of ids) { if (allPicked) next.delete(id); else next.add(id); }
+      return next;
+    });
+  };
+
+  /** Retire d'un coup tous les leads cochés (leurs inscriptions seulement). */
+  const removePicked = async () => {
+    const ids = Array.from(picked);
+    if (ids.length === 0) return;
+    // Ce que la sélection a déjà reçu, pour l'annoncer avant : on ne connaît
+    // que la page affichée, le serveur dira le compte exact après.
+    const sentOnPage = enrollments.filter(item => picked.has(item.id)).reduce((sum, item) => sum + item.sentSteps, 0);
+    if (!confirm(
+      `Retirer ${ids.length} lead${ids.length > 1 ? 's' : ''} de cette campagne ?\n\n`
+      + (sentOnPage > 0 ? 'Les emails déjà envoyés disparaîtront des statistiques de la campagne. ' : '')
+      + 'Les leads restent dans votre liste de leads.',
+    )) return;
+
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/enrollments`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrollmentIds: ids, userName: user?.name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || 'Retrait impossible', 'error'); return; }
+      toast(`${data.removed} lead${data.removed > 1 ? 's' : ''} retiré${data.removed > 1 ? 's' : ''} de la campagne`
+        + (data.messages ? ` · ${data.messages} email${data.messages > 1 ? 's' : ''} d'historique` : ''));
+      setPicked(new Set());
+      if (opened && ids.includes(opened)) setOpened(null);
+      load();
+      onChanged();
+    } finally {
+      setRemoving(false);
+    }
   };
 
   return (
@@ -110,6 +177,19 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
         </div>
       </div>
 
+      {picked.size > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '8px 12px', background: 'rgba(59,113,245,.10)', border: '1px solid rgba(59,113,245,.35)', borderRadius: 10 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+            {picked.size} lead{picked.size > 1 ? 's' : ''} sélectionné{picked.size > 1 ? 's' : ''}
+          </span>
+          <button style={btnXs} onClick={() => setPicked(new Set())}>Tout décocher</button>
+          <button style={{ ...btnXs, marginLeft: 'auto', borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
+            disabled={removing} onClick={removePicked}>
+            {removing ? 'Retrait…' : 'Retirer de la campagne'}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
       ) : enrollments.length === 0 ? (
@@ -121,6 +201,11 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: '#1c1f2a', textAlign: 'left', color: '#9aa1b4' }}>
+                <th style={{ ...th, width: 34, paddingRight: 0 }}>
+                  <input type="checkbox" title="Tout cocher sur cette page"
+                    checked={enrollments.length > 0 && enrollments.every(enrollment => picked.has(enrollment.id))}
+                    onChange={togglePage} />
+                </th>
                 <th style={th}>Lead</th>
                 <th style={th}>Avancement</th>
                 <th style={th}>Boîte</th>
@@ -134,7 +219,12 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                 const state = ENROLLMENT_STATUS[enrollment.status] || { label: enrollment.status, color: '#9aa1b4' };
                 const last = enrollment.messages[0];
                 return (
-                  <tr key={enrollment.id} style={{ borderTop: '1px solid #222634' }}>
+                  <tr key={enrollment.id} onClick={() => setOpened(enrollment.id)} title="Voir l'historique de ce lead dans la campagne"
+                    style={{ borderTop: '1px solid #222634', cursor: 'pointer', background: opened === enrollment.id ? 'rgba(59,113,245,.16)' : picked.has(enrollment.id) ? 'rgba(59,113,245,.07)' : undefined }}>
+                    {/* La case ne doit pas ouvrir l'historique : on arrête le clic ici. */}
+                    <td style={{ ...td, paddingRight: 0 }} onClick={event => event.stopPropagation()}>
+                      <input type="checkbox" checked={picked.has(enrollment.id)} onChange={() => toggle(enrollment.id)} />
+                    </td>
                     <td style={td}>
                       <div style={{ fontWeight: 600 }}>
                         {[enrollment.lead.firstName, enrollment.lead.lastName].filter(Boolean).join(' ') || enrollment.lead.email}
@@ -168,20 +258,21 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
                         </div>
                       )}
                     </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
+                    {/* Les boutons non plus. */}
+                    <td style={{ ...td, textAlign: 'right' }} onClick={event => event.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
                         {enrollment.status === 'active' && (
-                          <button style={btnXs} onClick={() => act(enrollment, 'pause')}>Pause</button>
+                          <button style={btnXs} onClick={() => act(enrollment.id, 'pause')}>Pause</button>
                         )}
                         {(enrollment.status === 'paused' || enrollment.status === 'stopped') && (
-                          <button style={btnXs} onClick={() => act(enrollment, 'resume')}>Reprendre</button>
+                          <button style={btnXs} onClick={() => act(enrollment.id, 'resume')}>Reprendre</button>
                         )}
                         {enrollment.status !== 'stopped' && enrollment.status !== 'finished' && (
                           <button style={{ ...btnXs, borderColor: 'rgba(239,68,68,.35)', background: 'rgba(239,68,68,.13)', color: '#f87171' }}
-                            onClick={() => act(enrollment, 'stop')}>Arrêter</button>
+                            onClick={() => act(enrollment.id, 'stop')}>Arrêter</button>
                         )}
                         <button style={{ ...btnXs, color: '#f87171' }} title="Retirer ce lead de la campagne (il reste dans la liste des leads)"
-                          onClick={() => remove(enrollment)}>Retirer</button>
+                          onClick={() => remove(enrollment.id)}>Retirer</button>
                       </div>
                     </td>
                   </tr>
@@ -202,6 +293,11 @@ export default function CampaignLeadsTab({ campaignId, onChanged }: {
           </>
         )}
       </div>
+
+      {opened && (
+        <EnrollmentDrawer campaignId={campaignId} enrollmentId={opened} refreshKey={version}
+          onClose={() => setOpened(null)} onAction={act} onRemove={remove} />
+      )}
 
       {adding === 'pick' && (
         <LeadPickerModal campaignId={campaignId} onClose={() => setAdding(null)}

@@ -1,5 +1,9 @@
 // src/app/api/campaigns/[id]/enrollments/[enrollmentId]/route.ts
 //
+//   GET    /api/campaigns/<id>/enrollments/<enrollmentId>  → l'historique du
+//          lead DANS cette campagne : chaque email parti avec son état
+//          (envoyé, ouvert, répondu, en échec), les étapes à venir, les
+//          réponses reçues et les événements de la frise liés à la campagne
 //   PATCH  /api/campaigns/<id>/enrollments/<enrollmentId>  { action }
 //   DELETE  …  ?userName=…                                → retire le lead de la campagne
 //            (son inscription seulement : le lead reste dans la liste générale)
@@ -13,6 +17,65 @@ import { prisma } from '@/lib/prisma';
 import { nextOpenSlot } from '@/lib/campaigns/schedule';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET(_req: NextRequest, { params }: { params: { id: string; enrollmentId: string } }) {
+  const enrollment = await prisma.campaignEnrollment.findFirst({
+    where: { id: params.enrollmentId, campaignId: params.id },
+    include: {
+      lead: { select: { id: true, email: true, civility: true, firstName: true, lastName: true, company: true, status: true } },
+      mailbox: { select: { email: true } },
+      campaign: {
+        select: {
+          id: true, name: true, status: true,
+          steps: { orderBy: { position: 'asc' }, select: { id: true, position: true, subject: true, delayHours: true } },
+        },
+      },
+      messages: {
+        orderBy: { sentAt: 'asc' },
+        select: {
+          id: true, stepId: true, stepPosition: true, status: true, subject: true,
+          toAddress: true, fromAddress: true, sentAt: true,
+          openedAt: true, openCount: true, repliedAt: true, error: true,
+        },
+      },
+    },
+  });
+  if (!enrollment) return NextResponse.json({ error: 'Inscription introuvable' }, { status: 404 });
+
+  const since = enrollment.startedAt ?? enrollment.createdAt;
+  const [replies, events] = await Promise.all([
+    // Les réponses du lead depuis son inscription : celles rattachées à la
+    // campagne, et celles arrivées sans rattachement (ancien relevé) mais
+    // après le premier envoi — elles concernent presque toujours ce fil.
+    prisma.campaignReply.findMany({
+      where: {
+        leadId: enrollment.leadId,
+        OR: [{ campaignId: params.id }, { campaignId: null, receivedAt: { gte: since } }],
+      },
+      orderBy: { receivedAt: 'asc' },
+      take: 20,
+      select: { id: true, subject: true, snippet: true, receivedAt: true, fromAddress: true },
+    }),
+    prisma.leadEvent.findMany({
+      where: { leadId: enrollment.leadId, createdAt: { gte: since } },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      select: { id: true, type: true, label: true, userName: true, createdAt: true, payload: true },
+    }),
+  ]);
+
+  // Ne garder que ce qui parle de CETTE campagne : les événements qui la
+  // nomment, et ceux sans campagne (réponse, rebond) survenus pendant la
+  // séquence, qui en découlent. Les envois sont déjà dans `messages`.
+  const campaignEvents = events.filter(event => {
+    if (event.type === 'email_sent' || event.type === 'email_opened') return false;
+    const payload = event.payload as { campaignId?: string } | null;
+    if (payload?.campaignId) return payload.campaignId === params.id;
+    return ['replied', 'bounced', 'unsubscribed', 'stopped'].includes(event.type);
+  }).map(({ payload: _payload, ...event }) => event);
+
+  return NextResponse.json({ enrollment, replies, events: campaignEvents });
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string; enrollmentId: string } }) {
   const enrollment = await prisma.campaignEnrollment.findFirst({
