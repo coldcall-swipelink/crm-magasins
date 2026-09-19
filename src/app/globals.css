@@ -217,9 +217,6 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
 .camp button:disabled { opacity: .45; cursor: not-allowed; }
 .camp button:not(:disabled):active { transform: translateY(.5px); }
 
-/* Onglets du bandeau : un survol discret, sans déplacer le trait actif. */
-.camp .camp-tab:hover { color: #e7e9ef !important; filter: none; }
-
 /* Champs : le focus doit se voir sans épaissir la bordure (pas de saut). */
 .camp input, .camp select, .camp textarea {
   transition: border-color .14s ease, box-shadow .14s ease;
@@ -260,3 +257,9 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
   .camp .camp-seq-flow { width: auto !important; border-right: none !important; border-bottom: 1px solid #262b38; overflow: visible !important; }
   .camp .camp-seq-editor { overflow: visible !important; }
 }
+
+/* ── Sélecteur d'espace (haut du volet gauche) ─────────────────────────────
+   CRM ↔ Campagnes. Le survol est en CSS : un style en ligne ne le sait pas. */
+.ws-switch:hover { border-color: rgba(148, 163, 184, .35) !important; }
+.ws-option:hover { filter: brightness(.96); }
+aside[data-dark="true"] .ws-option:hover { filter: brightness(1.18); }
