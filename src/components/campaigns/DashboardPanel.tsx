@@ -2,8 +2,8 @@
 // src/components/campaigns/DashboardPanel.tsx
 //
 // Vue d'ensemble de l'outil Campagnes : ce qui est parti, ce qui a été ouvert,
-// ce qui a répondu — toutes campagnes confondues — plus l'état de santé des
-// boîtes d'envoi.
+// ce qui a répondu — toutes campagnes confondues, puis campagne par campagne —
+// plus l'état de santé des boîtes d'envoi.
 //
 // Les boîtes sont en bonne place volontairement : un mot de passe expiré ou un
 // quota atteint arrête les envois sans bruit, et c'est ici qu'on doit le voir.
@@ -12,18 +12,17 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
-import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
-import { CAMPAIGN_STATUS, btnXs, card } from './ui';
+import type { CampaignRow } from '@/lib/campaigns/stats';
+import { CAMPAIGN_STATUS, T, btnXs, card } from './ui';
 
 type Stats = {
   sent: number; contacted: number; opened: number; replied: number;
   bounced: number; failed: number; unsubscribed: number;
   openRate: number; replyRate: number; bounceRate: number;
   campaigns: { total: number; running: number };
-  leads: Record<string, number>;
   mailboxes: Array<{ id: string; email: string; sentToday: number; sentTotal: number; active: boolean; lastError: string | null }>;
   daily: Array<{ date: string; sent: number; opened: number; replied: number }>;
-  topCampaigns: Array<{ id: string; name: string; status: string; sent: number; openRate: number; replyRate: number }>;
+  campaignRows: CampaignRow[];
   lastRun: string | null;
 };
 
@@ -56,7 +55,6 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
     ...point,
     label: new Date(point.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
   }));
-  const totalLeads = Object.values(stats.leads).reduce((sum, count) => sum + count, 0);
 
   return (
     <div style={{ padding: '18px 24px', maxWidth: 1100, overflowY: 'auto', height: '100%' }}>
@@ -107,96 +105,67 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14, marginBottom: 18 }}>
-        <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Boîtes d&apos;envoi</div>
-          {stats.mailboxes.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucune boîte connectée.</div>
-          ) : stats.mailboxes.map(mailbox => (
-            <div key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #1c1f2a' }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                background: mailbox.lastError ? '#f87171' : mailbox.active ? '#4ade80' : '#333a4a',
-              }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 500 }}>{mailbox.email}</div>
-                {mailbox.lastError && (
-                  <div style={{ fontSize: 11, color: '#f87171', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {mailbox.lastError}
-                  </div>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{mailbox.sentToday}</div>
-                <div style={{ fontSize: 10, color: '#6b7283' }}>aujourd&apos;hui</div>
-              </div>
-              <div style={{ textAlign: 'right', minWidth: 54 }}>
-                <div style={{ fontSize: 12.5, color: '#b3b9c9' }}>{mailbox.sentTotal}</div>
-                <div style={{ fontSize: 10, color: '#6b7283' }}>au total</div>
-              </div>
+      <div style={{ ...card, marginBottom: 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Boîtes d&apos;envoi</div>
+        {stats.mailboxes.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucune boîte connectée.</div>
+        ) : stats.mailboxes.map(mailbox => (
+          <div key={mailbox.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #1c1f2a' }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+              background: mailbox.lastError ? '#f87171' : mailbox.active ? '#4ade80' : '#333a4a',
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 500 }}>{mailbox.email}</div>
+              {mailbox.lastError && (
+                <div style={{ fontSize: 11, color: '#f87171', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mailbox.lastError}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-
-        <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
-            Leads <span style={{ fontWeight: 400, color: '#6b7283' }}>({totalLeads})</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{mailbox.sentToday}</div>
+              <div style={{ fontSize: 10, color: '#6b7283' }}>aujourd&apos;hui</div>
+            </div>
+            <div style={{ textAlign: 'right', minWidth: 54 }}>
+              <div style={{ fontSize: 12.5, color: '#b3b9c9' }}>{mailbox.sentTotal}</div>
+              <div style={{ fontSize: 10, color: '#6b7283' }}>au total</div>
+            </div>
           </div>
-          {LEAD_STATUSES.filter(status => stats.leads[status.key]).map(status => {
-            const count = stats.leads[status.key] || 0;
-            return (
-              <div key={status.key} style={{ marginBottom: 7 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-                  <span style={{ color: statusColor(status.key) }}>{statusLabel(status.key)}</span>
-                  <strong>{count}</strong>
-                </div>
-                <div style={{ height: 5, borderRadius: 3, background: '#222634', overflow: 'hidden' }}>
-                  <div style={{ width: `${(count / Math.max(1, totalLeads)) * 100}%`, height: '100%', background: statusColor(status.key) }} />
-                </div>
-              </div>
-            );
-          })}
-          {totalLeads === 0 && <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucun lead importé.</div>}
-        </div>
+        ))}
       </div>
 
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Campagnes</div>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>Campagne par campagne</div>
           <button style={{ ...btnXs, marginLeft: 'auto' }} onClick={onOpenCampaigns}>Voir toutes</button>
         </div>
-        {stats.topCampaigns.length === 0 ? (
+        {stats.campaignRows.length === 0 ? (
           <div style={{ fontSize: 12.5, color: '#6b7283' }}>Aucune campagne créée.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ textAlign: 'left', color: '#9aa1b4' }}>
-                <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Campagne</th>
-                <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Envoyés</th>
-                <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Ouverture</th>
-                <th style={{ padding: '6px 8px', fontWeight: 600, fontSize: 11.5 }}>Réponse</th>
+                <th style={th}>Campagne</th>
+                <th style={{ ...th, textAlign: 'right' }}>Contactés</th>
+                <th style={{ ...th, minWidth: 150 }}>Progression</th>
+                <th style={{ ...th, textAlign: 'right' }}>Séquence complète</th>
+                <th style={{ ...th, textAlign: 'right' }}>Ouverture</th>
+                <th style={{ ...th, textAlign: 'right' }}>Réponse</th>
               </tr>
             </thead>
             <tbody>
-              {stats.topCampaigns.map(campaign => {
-                const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
-                return (
-                  <tr key={campaign.id} style={{ borderTop: '1px solid #222634' }}>
-                    <td style={{ padding: '8px' }}>
-                      {campaign.name}
-                      <span style={{ marginLeft: 8, padding: '1px 7px', borderRadius: 999, fontSize: 10, fontWeight: 600, color: state.color, background: `${state.color}18` }}>
-                        {state.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px' }}>{campaign.sent}</td>
-                    <td style={{ padding: '8px' }}>{campaign.openRate} %</td>
-                    <td style={{ padding: '8px', fontWeight: 600 }}>{campaign.replyRate} %</td>
-                  </tr>
-                );
-              })}
+              {stats.campaignRows.map(campaign => (
+                <CampaignTableRow key={campaign.id} campaign={campaign} />
+              ))}
             </tbody>
           </table>
         )}
+        <div style={{ fontSize: 11, color: '#6b7283', marginTop: 10, lineHeight: 1.6 }}>
+          Progression : part des envois prévus déjà partis — une séquence arrêtée (réponse,
+          désinscription, adresse morte) compte comme terminée puisqu&apos;elle n&apos;a plus rien à envoyer.
+          Séquence complète : leads qui ont reçu toutes les étapes sans répondre.
+        </div>
       </div>
 
       <div style={{ fontSize: 11, color: '#6b7283', marginTop: 14, lineHeight: 1.6 }}>
@@ -206,6 +175,54 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
         reçues dans les boîtes — c&apos;est le seul chiffre solide.
       </div>
     </div>
+  );
+}
+
+const th: React.CSSProperties = { padding: '6px 8px', fontWeight: 600, fontSize: 11.5, whiteSpace: 'nowrap' };
+const td: React.CSSProperties = { padding: '8px', verticalAlign: 'middle' };
+const num: React.CSSProperties = { ...td, textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' };
+
+/** Une ligne du tableau campagne par campagne. */
+function CampaignTableRow({ campaign }: { campaign: CampaignRow }) {
+  const state = CAMPAIGN_STATUS[campaign.status] || { label: campaign.status, color: '#9aa1b4' };
+  const done = campaign.progress >= 100;
+  return (
+    <tr style={{ borderTop: '1px solid #222634' }}>
+      <td style={td}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{campaign.name}</span>
+          <span style={{ padding: '1px 7px', borderRadius: 999, fontSize: 10, fontWeight: 600, color: state.color, background: `${state.color}18`, whiteSpace: 'nowrap' }}>
+            {state.label}
+          </span>
+        </div>
+        <div style={{ fontSize: 10.5, color: '#6b7283', marginTop: 2 }}>
+          {campaign.enrolled} inscrit{campaign.enrolled > 1 ? 's' : ''} · {campaign.steps} étape{campaign.steps > 1 ? 's' : ''} · {campaign.sent} email{campaign.sent > 1 ? 's' : ''}
+        </div>
+      </td>
+      <td style={{ ...num, fontWeight: 600 }}>{campaign.contacted}</td>
+      <td style={td}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#222634', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, campaign.progress)}%`, height: '100%', background: done ? T.success : T.primary }} />
+          </div>
+          <span style={{ fontSize: 11.5, minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: done ? '#4ade80' : '#b3b9c9' }}>
+            {campaign.progress} %
+          </span>
+        </div>
+      </td>
+      <td style={num}>
+        {campaign.completed}
+        <span style={{ color: '#6b7283', fontSize: 11 }}> / {campaign.enrolled}</span>
+      </td>
+      <td style={num}>
+        {campaign.openRate} %
+        <span style={{ color: '#6b7283', fontSize: 11 }}> · {campaign.opened}</span>
+      </td>
+      <td style={{ ...num, fontWeight: 600 }}>
+        {campaign.replyRate} %
+        <span style={{ color: '#6b7283', fontSize: 11, fontWeight: 400 }}> · {campaign.replied}</span>
+      </td>
+    </tr>
   );
 }
 
