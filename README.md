@@ -533,9 +533,10 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    (ou toute la recherche en cours) s'envoient dans la campagne de son choix
    d'un clic (« Envoyer dans une campagne »).
 5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
-   Depuis la campagne, « + Depuis mes leads » propose le même filtre CRM :
-   pipeline, puis colonnes à retenir (plusieurs à la fois) pour n'inscrire
-   que les leads dont l'affaire est à une étape qu'on n'a pas encore jointe.
+   Depuis la campagne, « + Depuis mes leads » propose le filtre par enseigne
+   et le même filtre CRM : pipeline, puis colonnes à retenir (plusieurs à la
+   fois) pour n'inscrire que les leads dont l'affaire est à une étape qu'on
+   n'a pas encore jointe.
    « Inscrire les N leads de la recherche » inscrit tout ce que le filtre
    renvoie, sans cocher un par un.
 
