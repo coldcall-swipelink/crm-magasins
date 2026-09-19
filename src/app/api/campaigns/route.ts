@@ -1,7 +1,7 @@
 // src/app/api/campaigns/route.ts
 //
-//   GET  /api/campaigns  → la liste, avec le compte des inscriptions et des
-//                          envois (de quoi afficher la carte d'une campagne)
+//   GET  /api/campaigns  → la liste, avec les chiffres de chaque campagne
+//                          (inscrits, progression, ouverture, réponse)
 //   POST /api/campaigns  → crée une campagne (brouillon, avec une étape vide)
 //
 // Une campagne naît toujours en brouillon : elle n'envoie rien tant qu'elle
@@ -9,37 +9,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { campaignRowStats } from '@/lib/campaigns/stats';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // Les mêmes lignes que le tableau de la vue d'ensemble : une campagne
+  // affiche les mêmes chiffres partout, et les actives passent en tête.
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: 'desc' },
-    include: {
-      _count: { select: { enrollments: true, steps: true } },
-      mailboxes: { include: { mailbox: { select: { id: true, email: true, active: true } } } },
-    },
+    select: { id: true, name: true, status: true, createdAt: true, _count: { select: { steps: true } } },
   });
-
-  // Compteurs d'envoi par campagne, en deux agrégats plutôt qu'en N requêtes.
-  const [sent, replies] = await Promise.all([
-    prisma.campaignMessage.groupBy({
-      by: ['campaignId'], where: { status: 'sent' }, _count: { _all: true },
-    }),
-    prisma.campaignMessage.groupBy({
-      by: ['campaignId'], where: { repliedAt: { not: null } }, _count: { _all: true },
-    }),
-  ]);
-  const sentBy = Object.fromEntries(sent.map(row => [row.campaignId, row._count._all]));
-  const replyBy = Object.fromEntries(replies.map(row => [row.campaignId, row._count._all]));
-
-  return NextResponse.json({
-    campaigns: campaigns.map(campaign => ({
-      ...campaign,
-      sentCount: sentBy[campaign.id] || 0,
-      replyCount: replyBy[campaign.id] || 0,
-    })),
-  });
+  return NextResponse.json({ campaigns: await campaignRowStats(campaigns) });
 }
 
 export async function POST(req: NextRequest) {

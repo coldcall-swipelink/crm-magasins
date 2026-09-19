@@ -263,3 +263,18 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
 .ws-switch:hover { border-color: rgba(148, 163, 184, .35) !important; }
 .ws-option:hover { filter: brightness(.96); }
 aside[data-dark="true"] .ws-option:hover { filter: brightness(1.18); }
+
+/* Liste des campagnes : la carte réagit au survol, et le point d'une campagne
+   active bat doucement — c'est ce qui dit « ça tourne » sans lire l'état. */
+.camp .camp-campaign-card { transition: border-color .14s ease, background .14s ease, transform .14s ease; }
+.camp .camp-campaign-card:hover { background: #1c1f2a; box-shadow: 0 0 0 1px #3b71f5, 0 6px 20px rgba(0, 0, 0, .35); transform: translateY(-1px); }
+.camp .camp-live-dot { animation: camp-pulse 1.8s ease-in-out infinite; }
+@keyframes camp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, .45); }
+  50%      { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+@media (max-width: 900px) {
+  /* Écran étroit : nom, leads et état ; progression et taux attendent la fiche. */
+  .camp .camp-campaign-grid { grid-template-columns: minmax(0, 1fr) 80px 100px !important; gap: 12px !important; }
+  .camp .camp-campaign-grid > :nth-child(3), .camp .camp-campaign-grid > :nth-child(4), .camp .camp-campaign-grid > :nth-child(5) { display: none; }
+}
