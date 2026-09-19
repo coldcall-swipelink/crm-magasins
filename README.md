@@ -522,6 +522,13 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    obligatoire. Les colonnes non reconnues deviennent des champs personnalisés,
    donc des variables : une colonne « Effectif du magasin » donne
    `{{effectif_du_magasin}}`.
+   Ou **Importer depuis le CRM** : les contacts des affaires du pipeline sont
+   repris tels quels, chaque lead restant rattaché à son affaire. Le périmètre
+   se règle par pipeline, puis par **colonnes de ce pipeline** (plusieurs à la
+   fois), puis par enseigne. Le filtre par colonnes est le garde-fou contre le
+   double contact : on laisse de côté les colonnes « en contact » ou « a
+   répondu » et l'on ne reprend que les étapes qu'on n'a pas encore jointes.
+   Aucune colonne cochée vaut toutes les colonnes.
 5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
 
 ### Garde-fous d'envoi
