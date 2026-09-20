@@ -44,16 +44,30 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
   const [stats, setStats] = useState<Stats | null>(null);
   const [mailboxes, setMailboxes] = useState<MailboxOption[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('sequence');
+  // Erreur de chargement, affichée à la place de « Chargement… ». Sans cela,
+  // une route qui tombe (base en retard sur le schéma, par exemple) laisse
+  // l'écran tourner indéfiniment sans rien dire — c'est arrivé.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [detail, boxes] = await Promise.all([
-      fetch(`/api/campaigns/${campaignId}`).then(res => res.json()),
-      fetch('/api/campaigns/mailboxes').then(res => res.json()),
-    ]);
-    if (detail.error) { toast(detail.error, 'error'); onBack(); return; }
-    setCampaign(detail.campaign);
-    setStats(detail.stats);
-    setMailboxes(boxes.mailboxes || []);
+    setLoadError(null);
+    try {
+      const [detailRes, boxesRes] = await Promise.all([
+        fetch(`/api/campaigns/${campaignId}`),
+        fetch('/api/campaigns/mailboxes'),
+      ]);
+      // Une erreur serveur non prévue arrive en texte, pas en JSON : on la
+      // lit telle quelle plutôt que de laisser `res.json()` casser en silence.
+      const detail = await detailRes.json().catch(() => ({ error: `Erreur serveur (${detailRes.status})` }));
+      const boxes = await boxesRes.json().catch(() => ({ mailboxes: [] }));
+      if (detailRes.status === 404) { toast(detail.error || 'Campagne introuvable', 'error'); onBack(); return; }
+      if (!detailRes.ok || detail.error) { setLoadError(detail.error || `Erreur serveur (${detailRes.status})`); return; }
+      setCampaign(detail.campaign);
+      setStats(detail.stats);
+      setMailboxes(boxes.mailboxes || []);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Chargement impossible');
+    }
   }, [campaignId, onBack]);
 
   useEffect(() => { load(); }, [load]);
@@ -85,6 +99,23 @@ export default function CampaignDetail({ campaignId, onBack, onChanged }: {
     onChanged();
     onBack();
   };
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 24, maxWidth: 720 }}>
+        <button style={btnXs} onClick={onBack}>← Campagnes</button>
+        <div style={{ marginTop: 14, background: 'rgba(239,68,68,.13)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#f87171', lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>La campagne n&apos;a pas pu être chargée</div>
+          <div>{loadError}</div>
+          <div style={{ color: '#9aa1b4', marginTop: 8 }}>
+            Si l&apos;erreur parle d&apos;une table ou d&apos;une colonne inconnue, la base est en retard sur
+            l&apos;application : lancez la synchronisation du schéma (route <code>/api/admin/db-sync</code>) puis réessayez.
+          </div>
+        </div>
+        <button style={{ ...btnDef, marginTop: 12 }} onClick={load}>Réessayer</button>
+      </div>
+    );
+  }
 
   if (!campaign || !stats) {
     return <div style={{ padding: 24, fontSize: 13, color: '#6b7283' }}>Chargement…</div>;

@@ -17,16 +17,25 @@ export const maxDuration = 60;
 const VALID_STATUS = ['draft', 'running', 'paused', 'finished', 'archived'];
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const campaign = await prisma.campaign.findUnique({
-    where: { id: params.id },
-    include: {
-      steps: { orderBy: { position: 'asc' }, include: { variants: { orderBy: { key: 'asc' } } } },
-      mailboxes: { include: { mailbox: { select: { id: true, email: true, displayName: true, active: true } } } },
-    },
-  });
-  if (!campaign) return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 });
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: {
+        steps: { orderBy: { position: 'asc' }, include: { variants: { orderBy: { key: 'asc' } } } },
+        mailboxes: { include: { mailbox: { select: { id: true, email: true, displayName: true, active: true } } } },
+      },
+    });
+    if (!campaign) return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 });
 
-  return NextResponse.json({ campaign, stats: await campaignStats(params.id) });
+    return NextResponse.json({ campaign, stats: await campaignStats(params.id) });
+  } catch (err) {
+    // Une base en retard sur le schéma (table ou colonne pas encore créée)
+    // tombe ici. En JSON, avec le message de Prisma : l'écran peut l'afficher
+    // et dire quoi faire, au lieu d'un 500 muet qui le laisse « charger ».
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[campaigns/GET]', message);
+    return NextResponse.json({ error: message.split('\n').filter(Boolean).slice(-1)[0] || 'Erreur serveur' }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
