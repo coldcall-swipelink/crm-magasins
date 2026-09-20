@@ -252,6 +252,11 @@ main > div > div[style*="max-width: 700px"] > div:last-child {
 /* Éditeur de séquence en deux volets (schéma à gauche, étape à droite).
    Sur un écran étroit, les volets s'empilent : le schéma passe au-dessus. */
 .camp .camp-seq-node:hover { border-color: #3b71f5 !important; filter: none; }
+/* Comparaison A/B : sur un écran étroit, les barres passent sous le sujet. */
+@media (max-width: 720px) {
+  .camp .camp-ab-row { grid-template-columns: 34px minmax(0, 1fr) 70px !important; }
+  .camp .camp-ab-row > :nth-child(4), .camp .camp-ab-row > :nth-child(5) { grid-column: 2 / -1; }
+}
 @media (max-width: 900px) {
   .camp .camp-seq { flex-direction: column; overflow-y: auto; }
   .camp .camp-seq-flow { width: auto !important; border-right: none !important; border-bottom: 1px solid #262b38; overflow: visible !important; }

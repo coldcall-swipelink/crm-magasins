@@ -1106,11 +1106,52 @@ model CampaignStep {
   /// dont le bouton n'ouvre rien.
   templateKey String @default("")
 
+  /// Test A/B : les versions concurrentes de cette étape (cf. CampaignStepVariant).
+  ///
+  /// Vide = pas de test, le sujet et le corps ci-dessus partent tels quels.
+  /// Sinon, le moteur IGNORE le sujet et le corps de l'étape et tire une
+  /// variante active à chaque envoi, en équilibrant les volumes. Le test se
+  /// clôt en « gardant » une variante : son contenu est recopié ici et les
+  /// variantes disparaissent — l'étape redevient une étape simple.
+  variants CampaignStepVariant[]
+  /// Lettre de la variante conservée à la clôture d'un test A/B ('' sinon).
+  /// Sert aux statistiques : dire laquelle a été retenue, même après coup.
+  abWinner String @default("")
+
   messages  CampaignMessage[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
   @@unique([campaignId, position])
+}
+
+// Une version concurrente d'une étape, dans un test A/B.
+//
+// Une étape en test porte au moins deux variantes (A et B) ; une seule
+// variante n'est pas un test, et l'interface clôt automatiquement le test
+// quand il n'en reste qu'une. Le délai, le fil de discussion et le modèle du
+// CRM restent portés par l'étape : on teste un texte, pas une mécanique. Sur
+// une étape à modèle (« boucher »), seule le sujet de la variante compte.
+model CampaignStepVariant {
+  id     String       @id @default(cuid())
+  stepId String
+  step   CampaignStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  // Lettre affichée partout : A, B, C, D. Stable pour la durée du test — on
+  // ne renomme pas C en B quand B disparaît, sinon les statistiques mentent.
+  key    String
+
+  subject  String  @default("")
+  bodyText String  @default("")
+  bodyHtml String  @default("")
+  useHtml  Boolean @default(false)
+  // Une variante en pause ne reçoit plus d'envoi mais garde ses chiffres :
+  // c'est ainsi qu'on écarte la perdante sans perdre la comparaison.
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stepId, key])
 }
 
 // Un lead inscrit dans une campagne : l'unité de pilotage du moteur.
@@ -1170,6 +1211,10 @@ model CampaignMessage {
   mailbox      Mailbox?           @relation(fields: [mailboxId], references: [id], onDelete: SetNull)
 
   stepPosition Int     @default(1)
+  // Lettre de la variante A/B envoyée ('' hors test). Portée par le message,
+  // et non par une relation : la variante peut être supprimée ou le test clos,
+  // le message doit continuer de dire quelle version le lead a reçue.
+  variantKey   String  @default("")
   // sent · failed
   status       String  @default("sent")
   toAddress    String

@@ -65,7 +65,10 @@ export async function GET(req: NextRequest) {
         campaign: {
           select: {
             id: true, name: true, status: true,
-            steps: { orderBy: { position: 'asc' }, select: { position: true, subject: true, delayHours: true } },
+            steps: {
+              orderBy: { position: 'asc' },
+              select: { position: true, subject: true, delayHours: true, variants: { select: { key: true }, where: { active: true } } },
+            },
           },
         },
       },
@@ -94,7 +97,11 @@ export async function GET(req: NextRequest) {
       stepCount: enrollment.campaign.steps.length,
       // Le sujet est encore un modèle : les variables ne sont remplacées qu'à
       // l'envoi, avec les valeurs du lead à ce moment-là.
-      subjectTemplate: step?.subject ?? '',
+      // Une étape en test A/B n'a pas UN sujet : la variante n'est tirée qu'à
+      // l'envoi. On le dit plutôt que d'afficher un texte qui ne partira pas.
+      subjectTemplate: step?.variants.length
+        ? `Test A/B (${step.variants.map(variant => variant.key).join(' / ')})`
+        : (step?.subject ?? ''),
       lead: enrollment.lead,
       mailbox: enrollment.mailbox,
       campaign: { id: enrollment.campaign.id, name: enrollment.campaign.name, status: enrollment.campaign.status },

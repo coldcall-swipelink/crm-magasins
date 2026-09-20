@@ -11,11 +11,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
-import { MessageDetail, type MessageDetailData } from './MessagesHistory';
+import { MessageDetail, VariantTag, type MessageDetailData } from './MessagesHistory';
 import { ENROLLMENT_STATUS, STOP_REASONS, T, btnDef, btnXs, formatDelay, pill } from './ui';
 
 type Message = {
-  id: string; stepId: string | null; stepPosition: number; status: string; subject: string;
+  id: string; stepId: string | null; stepPosition: number; variantKey?: string; status: string; subject: string;
   toAddress: string; fromAddress: string; sentAt: string;
   openedAt: string | null; openCount: number; repliedAt: string | null; error: string | null;
 };
@@ -179,6 +179,7 @@ export default function EnrollmentDrawer({ campaignId, enrollmentId, onClose, on
                           <div key={message.id} style={{ marginTop: 6 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                               <span style={pill(messageStatus.color)}>{messageStatus.label}</span>
+                              {message.variantKey && <VariantTag letter={message.variantKey} />}
                               <button style={{ ...btnXs, padding: '2px 8px', marginLeft: 'auto' }} onClick={() => openMessage(message.id)}>Voir l&apos;email</button>
                             </div>
                             <div style={{ fontSize: 11.5, color: T.textMuted, lineHeight: 1.7, marginTop: 4 }}>

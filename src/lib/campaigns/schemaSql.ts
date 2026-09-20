@@ -361,4 +361,29 @@ END $$;`,
   ALTER TABLE "OfferTriggerHit" ADD CONSTRAINT "OfferTriggerHit_triggerId_fkey" FOREIGN KEY ("triggerId") REFERENCES "OfferTrigger"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;`,
+
+  // Tests A/B : plusieurs versions d'une même étape, tirées au sort à l'envoi.
+  // La lettre reçue est notée sur le message, pour que les statistiques
+  // survivent à la fin du test.
+  `CREATE TABLE IF NOT EXISTS "CampaignStepVariant" (
+    "id" TEXT NOT NULL,
+    "stepId" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "subject" TEXT NOT NULL DEFAULT '',
+    "bodyText" TEXT NOT NULL DEFAULT '',
+    "bodyHtml" TEXT NOT NULL DEFAULT '',
+    "useHtml" BOOLEAN NOT NULL DEFAULT false,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CampaignStepVariant_pkey" PRIMARY KEY ("id")
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "CampaignStepVariant_stepId_key_key" ON "CampaignStepVariant"("stepId", "key");`,
+  `DO $$ BEGIN
+  ALTER TABLE "CampaignStepVariant" ADD CONSTRAINT "CampaignStepVariant_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "CampaignStep"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;`,
+  `ALTER TABLE "CampaignStep" ADD COLUMN IF NOT EXISTS "abWinner" TEXT NOT NULL DEFAULT '';`,
+  `ALTER TABLE "CampaignMessage" ADD COLUMN IF NOT EXISTS "variantKey" TEXT NOT NULL DEFAULT '';`,
 ];

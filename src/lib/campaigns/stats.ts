@@ -75,6 +75,22 @@ async function funnel(campaignId?: string): Promise<Funnel> {
   };
 }
 
+/** Chiffres d'une variante A/B d'une étape (mêmes conventions que l'étape). */
+export type VariantStats = {
+  key: string;
+  subject: string;
+  sent: number;
+  opened: number;
+  replied: number;
+  openRate: number;
+  replyRate: number;
+  /**
+   * running : reçoit encore des envois · paused : en pause · kept : retenue à
+   * la clôture du test · dropped : supprimée ou écartée à la clôture.
+   */
+  state: 'running' | 'paused' | 'kept' | 'dropped';
+};
+
 export type StepStats = {
   stepId: string;
   position: number;
@@ -84,6 +100,14 @@ export type StepStats = {
   replied: number;
   openRate: number;
   replyRate: number;
+  /** Test A/B en cours sur cette étape. */
+  testing: boolean;
+  /**
+   * Variantes ayant envoyé au moins un email, ou existant encore : vide hors
+   * test et sans historique de test. Les lettres viennent des MESSAGES, pour
+   * que la comparaison survive à la fin du test.
+   */
+  variants: VariantStats[];
 };
 
 export type CampaignStats = Funnel & {
@@ -100,25 +124,66 @@ export async function campaignStats(campaignId: string): Promise<CampaignStats> 
     funnel(campaignId),
     prisma.campaignEnrollment.groupBy({ by: ['status'], where: { campaignId }, _count: { _all: true } }),
     prisma.campaignEnrollment.groupBy({ by: ['stopReason'], where: { campaignId, stopReason: { not: null } }, _count: { _all: true } }),
-    prisma.campaignStep.findMany({ where: { campaignId }, orderBy: { position: 'asc' } }),
+    prisma.campaignStep.findMany({
+      where: { campaignId }, orderBy: { position: 'asc' },
+      include: { variants: { orderBy: { key: 'asc' } } },
+    }),
     prisma.campaignEnrollment.count({
       where: { campaignId, status: 'active', nextSendAt: { lte: new Date() } },
     }),
   ]);
 
-  const stepStats: StepStats[] = await Promise.all(steps.map(async step => {
-    const where = { campaignId, stepId: step.id, status: 'sent' };
-    const [sent, opened, replied] = await Promise.all([
-      prisma.campaignMessage.count({ where }),
-      prisma.campaignMessage.count({ where: { ...where, openedAt: { not: null } } }),
-      prisma.campaignMessage.count({ where: { ...where, repliedAt: { not: null } } }),
-    ]);
+  // Trois agrégats par (étape, variante) suffisent pour toute la campagne :
+  // l'étape se lit en sommant ses variantes, la lettre vide étant « hors test ».
+  const sentScope = { campaignId, status: 'sent' };
+  const [sentBy, openedBy, repliedBy] = await Promise.all([
+    prisma.campaignMessage.groupBy({ by: ['stepId', 'variantKey'], where: sentScope, _count: { _all: true } }),
+    prisma.campaignMessage.groupBy({ by: ['stepId', 'variantKey'], where: { ...sentScope, openedAt: { not: null } }, _count: { _all: true } }),
+    prisma.campaignMessage.groupBy({ by: ['stepId', 'variantKey'], where: { ...sentScope, repliedAt: { not: null } }, _count: { _all: true } }),
+  ]);
+  const cell = (rows: Array<{ stepId: string | null; variantKey: string; _count: { _all: number } }>) =>
+    new Map(rows.map(row => [`${row.stepId}|${row.variantKey}`, row._count._all]));
+  const sentMap = cell(sentBy);
+  const openMap = cell(openedBy);
+  const replyMap = cell(repliedBy);
+
+  const stepStats: StepStats[] = steps.map(step => {
+    const keys = new Set<string>();
+    for (const row of sentBy) if (row.stepId === step.id && row.variantKey) keys.add(row.variantKey);
+    for (const variant of step.variants) keys.add(variant.key);
+
+    const variants: VariantStats[] = Array.from(keys).sort().map(key => {
+      const live = step.variants.find(variant => variant.key === key);
+      const sent = sentMap.get(`${step.id}|${key}`) || 0;
+      const opened = openMap.get(`${step.id}|${key}`) || 0;
+      const replied = replyMap.get(`${step.id}|${key}`) || 0;
+      const state: VariantStats['state'] = live
+        ? (live.active ? 'running' : 'paused')
+        : (step.abWinner === key ? 'kept' : 'dropped');
+      return {
+        key,
+        // Après clôture, la variante gardée est devenue l'étape : son sujet
+        // est encore lisible ; les autres n'ont plus de texte à montrer.
+        subject: live?.subject ?? (state === 'kept' ? step.subject : ''),
+        sent, opened, replied,
+        openRate: rate(opened, sent), replyRate: rate(replied, sent),
+        state,
+      };
+    });
+
+    let sent = 0, opened = 0, replied = 0;
+    for (const [id, count] of Array.from(sentMap)) if (id.startsWith(`${step.id}|`)) sent += count;
+    for (const [id, count] of Array.from(openMap)) if (id.startsWith(`${step.id}|`)) opened += count;
+    for (const [id, count] of Array.from(replyMap)) if (id.startsWith(`${step.id}|`)) replied += count;
+
     return {
       stepId: step.id, position: step.position, subject: step.subject,
       sent, opened, replied,
       openRate: rate(opened, sent), replyRate: rate(replied, sent),
+      testing: step.variants.length > 0,
+      variants,
     };
-  }));
+  });
 
   return {
     ...base,

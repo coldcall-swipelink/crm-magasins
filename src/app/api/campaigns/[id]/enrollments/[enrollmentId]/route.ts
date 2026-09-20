@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string;
       messages: {
         orderBy: { sentAt: 'asc' },
         select: {
-          id: true, stepId: true, stepPosition: true, status: true, subject: true,
+          id: true, stepId: true, stepPosition: true, variantKey: true, status: true, subject: true,
           toAddress: true, fromAddress: true, sentAt: true,
           openedAt: true, openCount: true, repliedAt: true, error: true,
         },

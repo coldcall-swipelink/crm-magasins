@@ -1,6 +1,6 @@
 // src/app/api/campaigns/[id]/preview/route.ts
 //
-//   POST /api/campaigns/<id>/preview  { stepId, leadId? }
+//   POST /api/campaigns/<id>/preview  { stepId, variantId?, leadId? }
 //
 // Rend une étape telle qu'elle partira : variables remplacées par les valeurs
 // d'un vrai lead (le premier inscrit, à défaut n'importe lequel), signature de
@@ -19,8 +19,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = await req.json().catch(() => null);
   const stepId = String(body?.stepId || '');
 
-  const step = await prisma.campaignStep.findFirst({ where: { id: stepId, campaignId: params.id } });
+  const step = await prisma.campaignStep.findFirst({
+    where: { id: stepId, campaignId: params.id },
+    include: { variants: { orderBy: { key: 'asc' } } },
+  });
   if (!step) return NextResponse.json({ error: 'Étape introuvable' }, { status: 404 });
+
+  // En test A/B, l'aperçu porte sur UNE variante : celle demandée, à défaut
+  // la première. Hors test, sur le contenu de l'étape.
+  let content: { subject: string; bodyText: string; bodyHtml: string; useHtml: boolean } = step;
+  if (step.variants.length > 0) {
+    const wanted = body?.variantId ? String(body.variantId) : '';
+    const variant = step.variants.find(item => item.id === wanted) ?? step.variants[0];
+    content = variant;
+  }
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
@@ -45,9 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const variables = leadVariables(lead, mailbox ?? undefined);
   const email = buildEmail({
-    subjectTemplate: step.subject,
-    bodyTemplate: step.useHtml ? step.bodyHtml : step.bodyText,
-    useHtml: step.useHtml,
+    subjectTemplate: content.subject,
+    bodyTemplate: content.useHtml ? content.bodyHtml : content.bodyText,
+    useHtml: content.useHtml,
     variables,
     signatureHtml: mailbox?.signatureHtml,
     // Ni pixel ni lien de désinscription dans un aperçu : ils fausseraient les
