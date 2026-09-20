@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       take: PAGE_SIZE,
       select: {
         id: true, subject: true, toAddress: true, fromAddress: true,
-        status: true, stepPosition: true, sentAt: true,
+        status: true, stepPosition: true, variantKey: true, sentAt: true,
         openedAt: true, openCount: true, repliedAt: true, error: true,
         campaign: { select: { id: true, name: true } },
         lead: { select: { id: true, firstName: true, lastName: true, company: true, status: true } },

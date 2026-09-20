@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { stepIsUsable } from '@/lib/campaigns/variants';
 import { lastCronRun, lastEngineRun } from '@/lib/campaigns/engine';
 import { dailyCap, isSendWindowOpen, nextOpenSlot, startOfLocalDay } from '@/lib/campaigns/schedule';
 
@@ -31,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
-      steps: { orderBy: { position: 'asc' } },
+      steps: { orderBy: { position: 'asc' }, include: { variants: true } },
       mailboxes: { include: { mailbox: true } },
     },
   });
@@ -55,13 +56,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // 2. Y a-t-il une étape rédigée ?
   // Une étape à modèle du CRM n'a ni sujet ni corps à rédiger : ils viennent du
   // modèle. La déclarer bloquante enverrait chercher un problème inexistant.
-  const usable = campaign.steps.filter(step =>
-    step.templateKey
-      ? true
-      : step.subject.trim() && (step.bodyText.trim() || step.bodyHtml.trim()));
+  // Une étape en test A/B est prête si l'une de ses variantes est active et
+  // rédigée ; une étape en test sans variante envoyable BLOQUE ses leads,
+  // et c'est la première chose à dire.
+  const usable = campaign.steps.filter(stepIsUsable);
   checks.push(usable.length > 0
     ? { key: 'steps', label: 'Séquence', level: 'ok', detail: `${usable.length} étape(s) prête(s).` }
     : { key: 'steps', label: 'Séquence', level: 'error', detail: 'Aucune étape exploitable : il faut un sujet ET un corps, ou un modèle du CRM.' });
+  const stuckTests = campaign.steps.filter(step => step.variants.length > 0 && !stepIsUsable(step));
+  if (stuckTests.length > 0) {
+    checks.push({
+      key: 'ab', label: 'Test A/B', level: 'error',
+      detail: `Étape ${stuckTests.map(step => step.position).join(', ')} : aucune variante active et rédigée — les leads arrivés à cette étape attendent.`,
+    });
+  }
 
   // 3. Des leads en attente d'envoi ?
   const [active, due, stopped, finished] = await Promise.all([

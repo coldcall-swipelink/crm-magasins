@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { campaignStats } from '@/lib/campaigns/stats';
 import { runDueSends } from '@/lib/campaigns/engine';
+import { stepIsUsable } from '@/lib/campaigns/variants';
 
 export const dynamic = 'force-dynamic';
 // Le lancement déclenche un premier passage du moteur : il lui faut du temps.
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
-      steps: { orderBy: { position: 'asc' } },
+      steps: { orderBy: { position: 'asc' }, include: { variants: { orderBy: { key: 'asc' } } } },
       mailboxes: { include: { mailbox: { select: { id: true, email: true, displayName: true, active: true } } } },
     },
   });
@@ -31,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const existing = await prisma.campaign.findUnique({
     where: { id: params.id },
-    include: { steps: true, mailboxes: true },
+    include: { steps: { include: { variants: true } }, mailboxes: true },
   });
   if (!existing) return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 });
 
@@ -54,7 +55,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // rédigée et une boîte active. Mieux vaut le refuser ici que laisser le
     // moteur tourner à vide.
     if (status === 'running') {
-      const usable = existing.steps.some(step => step.subject.trim() && (step.bodyText.trim() || step.bodyHtml.trim()));
+      // Une étape en test A/B compte si l'une de ses variantes est rédigée ;
+      // une étape à modèle du CRM compte toujours (cf. stepIsUsable).
+      const usable = existing.steps.some(stepIsUsable);
       if (!usable) {
         return NextResponse.json({ error: 'Rédigez au moins une étape (sujet et corps) avant de lancer.' }, { status: 422 });
       }
@@ -94,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     data,
     include: {
-      steps: { orderBy: { position: 'asc' } },
+      steps: { orderBy: { position: 'asc' }, include: { variants: { orderBy: { key: 'asc' } } } },
       mailboxes: { include: { mailbox: { select: { id: true, email: true, displayName: true, active: true } } } },
     },
   });

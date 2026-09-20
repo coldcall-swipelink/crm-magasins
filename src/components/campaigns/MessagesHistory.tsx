@@ -15,7 +15,7 @@ import { CAMPAIGN_STATUS, ENROLLMENT_STATUS, STOP_REASONS, T, btnDef, card, inp,
 
 type Message = {
   id: string; subject: string; toAddress: string; fromAddress: string;
-  status: string; stepPosition: number; sentAt: string;
+  status: string; stepPosition: number; variantKey?: string; sentAt: string;
   openedAt: string | null; openCount: number; repliedAt: string | null; error: string | null;
   campaign: { id: string; name: string };
   lead: { id: string; firstName: string | null; lastName: string | null; company: string | null; status: string } | null;
@@ -209,7 +209,10 @@ function MessagesTable({ messages, showCampaign, onOpen }: {
                 </div>
               </td>
               {showCampaign && <td style={{ ...td, color: '#b3b9c9' }}>{message.campaign.name}</td>}
-              <td style={td}>{message.stepPosition}</td>
+              <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                {message.stepPosition}
+                {message.variantKey && <VariantTag letter={message.variantKey} />}
+              </td>
               <td style={{ ...td, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {message.subject || <span style={{ color: '#6b7283' }}>(sans objet)</span>}
               </td>
@@ -220,6 +223,16 @@ function MessagesTable({ messages, showCampaign, onOpen }: {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Lettre de la variante A/B reçue, à côté du numéro d'étape. */
+export function VariantTag({ letter }: { letter: string }) {
+  return (
+    <span title={`Variante ${letter} du test A/B`} style={{
+      display: 'inline-block', marginLeft: 5, padding: '0 6px', borderRadius: 999, fontSize: 10.5, fontWeight: 700,
+      color: T.violetText, background: T.violetSoft, verticalAlign: 'middle',
+    }}>{letter}</span>
   );
 }
 
@@ -325,7 +338,7 @@ export function MessageDetail({ detail, onClose }: { detail: MessageDetailData; 
         <div style={{ fontSize: 12, color: '#9aa1b4', lineHeight: 1.7, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #262b38' }}>
           De : {message.fromAddress}<br />
           À : {message.lead?.email || message.toAddress}<br />
-          Envoyé le {formatDateTime(message.sentAt)} · étape {message.stepPosition} · campagne « {message.campaign.name} »
+          Envoyé le {formatDateTime(message.sentAt)} · étape {message.stepPosition}{message.variantKey ? ` (variante ${message.variantKey})` : ''} · campagne « {message.campaign.name} »
           {message.openedAt && <><br />Ouvert le {formatDateTime(message.openedAt)}{message.openCount > 1 ? ` (${message.openCount} fois)` : ''}</>}
           {message.repliedAt && <><br />Réponse reçue le {formatDateTime(message.repliedAt)}</>}
           {message.error && <><br /><span style={{ color: '#f87171' }}>Échec : {message.error}</span></>}

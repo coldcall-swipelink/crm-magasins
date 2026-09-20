@@ -23,6 +23,7 @@ import { markInvitationSent, mintInvitationEmail, prepareInvitation } from '@/li
 import {
   dailyCap, isSendWindowOpen, nextOpenSlot, randomDelayMs, startOfLocalDay,
 } from '@/lib/campaigns/schedule';
+import { pickVariant } from '@/lib/campaigns/variants';
 
 /** Budget de temps d'un passage, en millisecondes (marge sous maxDuration). */
 const DEFAULT_BUDGET_MS = 240_000;
@@ -255,10 +256,17 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
       }
       else if (outcome.kind === 'failed') { result.failed++; result.errors.push({ enrollmentId: enrollment.id, message: outcome.message }); }
       else {
-        // Rien n'est parti (séquence terminée, ou lead écarté entre-temps) :
-        // le créneau réservé est rendu, le lead suivant n'a pas à attendre un
-        // délai d'envoi pour un email qui n'a jamais existé.
-        if (outcome.kind === 'finished') result.finished++; else result.stopped++;
+        // Rien n'est parti (séquence terminée, lead écarté entre-temps, ou
+        // test A/B sans variante envoyable) : le créneau réservé est rendu, le
+        // lead suivant n'a pas à attendre un délai d'envoi pour un email qui
+        // n'a jamais existé.
+        if (outcome.kind === 'finished') result.finished++;
+        else if (outcome.kind === 'stopped') result.stopped++;
+        else if (!result.errors.some(item => item.message === outcome.message)) {
+          // Un seul message par cause : vingt leads à la même étape en test
+          // n'ont pas à remplir vingt lignes du compte rendu.
+          result.errors.push({ enrollmentId: enrollment.id, message: outcome.message });
+        }
         await prisma.mailbox.update({ where: { id: mailbox.id }, data: { nextSendAt: new Date() } });
         continue;
       }
@@ -351,7 +359,11 @@ async function claimNextEnrollment(mailboxId: string) {
     where: { id: candidate.id },
     include: {
       lead: true,
-      campaign: { include: { steps: { orderBy: { position: 'asc' } } } },
+      campaign: {
+        include: {
+          steps: { orderBy: { position: 'asc' }, include: { variants: { orderBy: { key: 'asc' } } } },
+        },
+      },
     },
   });
 }
@@ -362,6 +374,8 @@ type Outcome =
   | { kind: 'failed'; message: string }
   /** La boîte d'envoi est en cause : le lead est intact, la file s'arrête. */
   | { kind: 'mailboxError'; message: string }
+  /** Rien n'est parti et rien n'est perdu : le lead est remis en file plus tard. */
+  | { kind: 'deferred'; message: string }
   | { kind: 'finished' }
   | { kind: 'stopped' };
 
@@ -451,6 +465,27 @@ async function sendEnrollmentStep(
     minted = await mintInvitationEmail(prep);
   }
 
+  // ─── Test A/B ────────────────────────────────────────────────────────────
+  //
+  // Une étape en test ne part jamais avec son propre contenu : c'est une de
+  // ses variantes qui part, tirée pour équilibrer les volumes. Si aucune n'est
+  // envoyable (toutes en pause, ou vides), le lead attend : on ne substitue
+  // pas un texte qui n'est pas celui du test, et on le dit dans le compte
+  // rendu du passage plutôt que de laisser la file avancer en silence.
+  const variant = await pickVariant(step);
+  if (variant === null) {
+    await prisma.campaignEnrollment.update({
+      where: { id: enrollment.id },
+      data: { status: 'active', nextSendAt: new Date(Date.now() + 60 * 60_000) },
+    });
+    return {
+      kind: 'deferred',
+      message: `Étape ${step.position} : test A/B sans variante active et rédigée — envois reportés d'une heure`,
+    };
+  }
+  const content = variant ?? step;
+  const variantKey = variant?.key ?? '';
+
   const isFollowUp = enrollment.sentSteps > 0 && step.replyToThread && Boolean(enrollment.threadMessageId);
   const message = await prisma.campaignMessage.create({
     data: {
@@ -460,6 +495,7 @@ async function sendEnrollmentStep(
       leadId: lead.id,
       mailboxId: mailbox.id,
       stepPosition: step.position,
+      variantKey,
       status: 'failed',            // rectifié après l'envoi réussi
       toAddress: lead.email,
       fromAddress: fromHeader(mailbox),
@@ -476,16 +512,16 @@ async function sendEnrollmentStep(
   // l'emporte quand même : c'est l'objet qu'on teste d'une campagne à l'autre.
   const email = minted
     ? {
-        subject: step.subject.trim() || minted.subject,
+        subject: content.subject.trim() || minted.subject,
         html: campaign.trackOpens ? withTrackingPixel(minted.html, message.trackingId) : minted.html,
         text: minted.text,
         unsubscribeUrl: '',
         missing: [] as string[],
       }
     : buildEmail({
-        subjectTemplate: step.subject,
-        bodyTemplate: step.useHtml ? step.bodyHtml : step.bodyText,
-        useHtml: step.useHtml,
+        subjectTemplate: content.subject,
+        bodyTemplate: content.useHtml ? content.bodyHtml : content.bodyText,
+        useHtml: content.useHtml,
         variables: leadVariables(lead, mailbox),
         signatureHtml: mailbox.signatureHtml,
         trackingId: campaign.trackOpens ? message.trackingId : null,
@@ -570,8 +606,8 @@ async function sendEnrollmentStep(
       data: {
         leadId: lead.id,
         type: 'email_sent',
-        label: `Étape ${step.position} · ${campaign.name} — « ${subject} »`,
-        payload: { campaignId: campaign.id, messageId: message.id, mailbox: mailbox.email },
+        label: `Étape ${step.position}${variantKey ? ` (variante ${variantKey})` : ''} · ${campaign.name} — « ${subject} »`,
+        payload: { campaignId: campaign.id, messageId: message.id, mailbox: mailbox.email, variantKey },
       },
     });
 
