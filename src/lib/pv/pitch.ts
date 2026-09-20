@@ -8,7 +8,8 @@
 // doit contenir NI « gratuit » NI « offert » — ces deux mots l'envoyaient en
 // courrier indésirable. « 0 € » et « aucune facturation » passent, et disent la
 // même chose : c'est la variante `texteMail`, utilisée par le paragraphe « On y
-// gagne quoi, nous ? » du mail (cf. src/lib/pv/mail.ts).
+// gagne quoi, nous ? » du mail (cf. src/lib/pv/mail.ts). Elle est aussi PLUS
+// COURTE : le mail se lit en quelques secondes, la page a la place d'expliquer.
 //
 // Le message change selon l'enseigne parce que la RAISON de la gratuité change :
 //
@@ -41,8 +42,9 @@ export interface PvPitch {
   /** Paragraphes d'explication, dans l'ordre. Le premier est mis en avant. */
   texte: string[];
   /**
-   * Les mêmes paragraphes pour le MAIL : sans « gratuit » ni « offert », avec
-   * « 0 € » et « aucune facturation » à la place. Deux entrées, toujours.
+   * Les mêmes idées pour le MAIL, en plus court : sans « gratuit » ni
+   * « offert », avec « 0 € » et « aucune facturation » à la place. Deux
+   * entrées, toujours — une phrase chacune.
    */
   texteMail: [string, string];
   /**
@@ -114,7 +116,7 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
       ],
       texteMail: [
         `Swipelink ${partenariat(n, 'Intermarché')}.`,
-        'Notre objectif : obtenir le référencement au Groupement des Mousquetaires. Pour y arriver, nous faisons tester notre service à tous les magasins, pour 0 € et sans aucune facturation.',
+        'Nous visons le référencement au Groupement des Mousquetaires : chaque magasin peut donc tester, pour 0 €.',
       ],
       etapes: ETAPES,
       contact: contact(),
@@ -125,22 +127,22 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
   if (slug === 'leclerc') {
     const n = configuredCount('PV_PITCH_LECLERC_COUNT', 40);
     const c = contact();
-    // Même texte sur la page et dans le mail : il ne contient aucun des deux
-    // mots interdits en mail.
-    const texte = [
-      `Swipelink est déjà référencé au GALEC, et plus de ${n} centres Leclerc utilisent cette solution pour leurs recrutements les plus difficiles.`,
-      'Pour faire connaître la solution, nous avons décidé de la faire tester à tous les centres Leclerc de France, sans aucune facturation ni engagement.',
-    ] as [string, string];
     return {
       enseigne: slug,
       enseigneNom: 'E.Leclerc',
       badge: BADGE,
       titre: TITRE,
-      texte,
-      texteMail: texte,
+      texte: [
+        `Swipelink est déjà référencé au GALEC, et plus de ${n} centres Leclerc utilisent cette solution pour leurs recrutements les plus difficiles.`,
+        'Pour faire connaître la solution, nous avons décidé de la faire tester à tous les centres Leclerc de France, sans aucune facturation ni engagement.',
+      ],
+      texteMail: [
+        `Swipelink est référencé au GALEC : plus de ${n} centres Leclerc l'utilisent déjà.`,
+        'Nous le faisons tester à tous les centres Leclerc, sans facturation ni engagement.',
+      ],
       etapes: ETAPES,
       contact: c,
-      appelMail: `Ça paraît trop beau pour être vrai\u202F? Appelez ${c.prenom} au ${c.telephone} pour qu'il puisse vous donner plus de détails sur la démarche.`,
+      appelMail: `Trop beau pour être vrai\u202F? Appelez ${c.prenom} au ${c.telephone}.`,
     };
   }
 
@@ -157,7 +159,7 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
       ],
       texteMail: [
         `Swipelink ${partenariat(n, 'Super U et Hyper U')}.`,
-        'Notre objectif : obtenir le référencement à la Coopérative U. Pour y arriver, nous faisons tester notre service à tous les magasins, pour 0 € et sans aucune facturation.',
+        'Nous visons le référencement à la Coopérative U : chaque magasin peut donc tester, pour 0 €.',
       ],
       etapes: ETAPES,
       contact: contact(),
@@ -177,7 +179,7 @@ export function pitchFor(brandName: string | null | undefined): PvPitch {
     ],
     texteMail: [
       `Swipelink ${partenariat(nItm, 'Intermarché')} et est référencé au GALEC (E.Leclerc).`,
-      'Nous vous proposons de tester notre service pour 0 €, sans aucune facturation ni engagement.',
+      'Testez notre service pour 0 €, sans engagement.',
     ],
     etapes: ETAPES,
     contact: contact(),

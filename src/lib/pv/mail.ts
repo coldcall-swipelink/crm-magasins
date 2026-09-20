@@ -66,13 +66,13 @@ function adressePostale(): string {
 
 /**
  * Ce que le mail répond à « On y gagne quoi, nous ? » : le contexte par
- * enseigne (le même que le volet gauche de la page), puis ce qui se passe après
- * le test. Sans « gratuit » ni « offert » : ces mots faisaient tomber le mail en
- * courrier indésirable. « 0 € » et « aucune facturation » passent.
+ * enseigne (le même que le volet gauche de la page, en plus court), puis ce qui
+ * se passe après le test, en une phrase. Sans « gratuit » ni « offert » : ces
+ * mots faisaient tomber le mail en courrier indésirable. « 0 € » et « aucune
+ * facturation » passent. Le « même si vous embauchez » est déjà dit en haut du
+ * mail, on ne le répète pas ici.
  */
-const GAIN_FIN =
-  "Si les profils vous plaisent, vous les embauchez : aucune facturation, même dans ce cas. " +
-  'Si le test vous convainc, on continue ensemble ; sinon, on en reste là.';
+const GAIN_FIN = 'Convaincu, on continue ensemble ; sinon, on en reste là.';
 
 /**
  * Mail d'invitation, modèle rempli.
