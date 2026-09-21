@@ -602,6 +602,22 @@ rejet, le message est marqué rejeté, son ouverture effacée (message, jalon du
 lead et ligne de frise) ; et le pixel d'un message rejeté — ou d'un lead marqué
 « mauvais email » — ne compte plus rien.
 
+Seule l'ouverture DU message rejeté saute : une adresse qui meurt au troisième
+email a pu lire les deux premiers, et ces ouvertures-là sont vraies.
+`lastOpenedAt` est recalculé sur ce qui reste, et la frise ne perd que sa ligne.
+
+**Rattrapage de l'historique.** Les fausses ouvertures enregistrées avant ce
+correctif restent en base : un script les efface, avec la même règle.
+
+```
+npm run opens:backfill              # simulation, n'écrit rien
+npm run opens:backfill -- --run     # applique
+```
+
+Il part des inscriptions arrêtées pour rejet et ne touche que leur dernier
+message parti — celui qui a provoqué le rejet. Idempotent : le rejouer ne
+change plus rien.
+
 ### Traitement lead par lead
 
 Un lead dans une campagne est une **inscription** : c'est l'objet que l'on
