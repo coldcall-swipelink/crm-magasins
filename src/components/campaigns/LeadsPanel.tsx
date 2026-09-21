@@ -327,7 +327,16 @@ export default function LeadsPanel() {
                       <div style={{ fontWeight: 600 }}>
                         {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || '—'}
                       </div>
-                      <div style={{ color: '#6b7283', fontSize: 11.5 }}>{lead.email}</div>
+                      <div style={{ color: '#6b7283', fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {lead.email}
+                        {lead.badEmail && (
+                          <span title="Adresse marquée fausse : ce lead n'est plus inscriptible en campagne"
+                            style={{ padding: '0 6px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                              color: '#f87171', background: 'rgba(239,68,68,.15)', whiteSpace: 'nowrap' }}>
+                            mauvais email
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={td}>{lead.contactCalling || '—'}</td>
                     <td style={td}>{lead.company || '—'}</td>

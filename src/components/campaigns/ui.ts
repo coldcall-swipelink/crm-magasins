@@ -151,6 +151,8 @@ export const STOP_REASONS: Record<string, string> = {
   // Étape « modèle boucher » : sans affaire rattachée, pas de magasin, donc
   // aucun lien de réservation à mettre dans le mail.
   no_deal: 'aucune affaire rattachée',
+  // Case « Mauvais email » cochée sur la fiche du lead.
+  bad_email: 'mauvais email',
 };
 
 /** « 72 » → « 3 jours » : un délai se lit en jours, pas en heures. */

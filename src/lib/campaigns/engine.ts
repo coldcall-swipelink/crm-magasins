@@ -42,9 +42,9 @@ const DEFAULT_BUDGET_MS = 240_000;
  * campagnes. S'il a été touché trop récemment, l'envoi est reporté — jamais
  * annulé : la séquence reprend son cours à la fin du délai.
  *
- * 24 h par défaut ; `CAMPAIGN_LEAD_COOLDOWN_HOURS=0` désactive le garde-fou.
+ * 72 h par défaut ; `CAMPAIGN_LEAD_COOLDOWN_HOURS=0` désactive le garde-fou.
  */
-const DEFAULT_LEAD_COOLDOWN_HOURS = 24;
+const DEFAULT_LEAD_COOLDOWN_HOURS = 72;
 
 function leadCooldownMs(): number {
   const raw = process.env.CAMPAIGN_LEAD_COOLDOWN_HOURS;
@@ -490,9 +490,14 @@ async function sendEnrollmentStep(
 ): Promise<Outcome> {
   const { lead, campaign } = enrollment;
 
-  // Garde-fous côté lead : désinscrit, adresse morte ou écarté à la main.
-  // On ne se fie pas au seul statut de l'inscription : le lead a pu être
-  // désinscrit depuis une autre campagne entre-temps.
+  // Garde-fous côté lead : adresse marquée fausse, désinscrit, adresse morte
+  // ou écarté à la main. On ne se fie pas au seul statut de l'inscription : le
+  // lead a pu être désinscrit, ou son adresse marquée fausse, depuis une autre
+  // campagne entre-temps.
+  if (lead.badEmail) {
+    await stopEnrollment(enrollment.id, 'bad_email');
+    return { kind: 'stopped' };
+  }
   if (lead.unsubscribedAt || BLOCKING_STATUSES.includes(lead.status)) {
     await stopEnrollment(enrollment.id, lead.unsubscribedAt ? 'unsubscribed' : 'manual');
     return { kind: 'stopped' };
@@ -821,6 +826,9 @@ export async function enrollLeads(campaignId: string, leadIds: string[]): Promis
   const firstDelay = campaign.steps[0]?.delayHours ?? 0;
 
   for (const lead of leads) {
+    // Adresse marquée fausse : aucune campagne ne peut la reprendre. C'est le
+    // sens même de la case — sans quoi elle ne serait qu'une note de plus.
+    if (lead.badEmail) { note('Mauvais email'); continue; }
     if (lead.unsubscribedAt) { note('Désinscrit'); continue; }
     if (BLOCKING_STATUSES.includes(lead.status)) { note(`Statut « ${lead.status} »`); continue; }
 

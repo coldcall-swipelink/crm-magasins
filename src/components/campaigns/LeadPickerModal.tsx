@@ -25,6 +25,8 @@ import { btnDef, btnPri, btnXs, inp, modal, overlay } from './ui';
 type Lead = {
   id: string; email: string; civility: string | null; firstName: string | null;
   lastName: string | null; company: string | null; jobTitle: string | null; status: string;
+  /** Adresse marquée fausse : jamais inscriptible. */
+  badEmail?: boolean;
   /** Étape de l'affaire liée, si le lead vient du CRM (telle que la liste la sert). */
   crm: { dealId: string; pipeline: string; column: string; color: string } | null;
 };
@@ -232,7 +234,8 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
           ) : leads.length === 0 ? (
             <div style={{ padding: 16, fontSize: 12.5, color: '#6b7283' }}>Aucun lead ne correspond.</div>
           ) : leads.map(lead => {
-            const already = enrolledIds.has(lead.id);
+            // Adresse fausse : ni cochable ni inscriptible, et on dit pourquoi.
+            const already = enrolledIds.has(lead.id) || Boolean(lead.badEmail);
             return (
               <label key={lead.id} style={{
                 display: 'flex', alignItems: 'center', gap: 9, padding: '7px 11px',
@@ -244,7 +247,9 @@ export default function LeadPickerModal({ campaignId, onClose, onDone }: {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500 }}>
                     {[lead.civility, lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email}
-                    {already && <span style={{ marginLeft: 7, fontSize: 11, color: '#6b7283' }}>déjà dans la campagne</span>}
+                    {lead.badEmail
+                      ? <span style={{ marginLeft: 7, fontSize: 11, color: '#f87171' }}>mauvais email</span>
+                      : already && <span style={{ marginLeft: 7, fontSize: 11, color: '#6b7283' }}>déjà dans la campagne</span>}
                   </div>
                   <div style={{ color: '#6b7283', fontSize: 11.5 }}>
                     {lead.email}{lead.company ? ` · ${lead.company}` : ''}{lead.jobTitle ? ` · ${lead.jobTitle}` : ''}

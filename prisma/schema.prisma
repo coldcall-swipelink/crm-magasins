@@ -922,6 +922,12 @@ model Lead {
   //   unsubscribed · bounced · customer
   status   String    @default("new")
   statusAt DateTime?
+  // « Mauvais email » : l'adresse est fausse, quoi qu'en dise le statut
+  // commercial. Coché à la main depuis la fiche lead ; interdit toute
+  // inscription en campagne et tout envoi, sans écraser le statut — un lead
+  // « Intéressé » dont on a mal noté l'adresse reste intéressé.
+  badEmail   Boolean   @default(false)
+  badEmailAt DateTime?
   // Utilisateur du CRM à qui le lead est attribué (facultatif).
   ownerId  String?
   owner    User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
@@ -1232,6 +1238,12 @@ model CampaignMessage {
   openedAt   DateTime?
   openCount  Int       @default(0)
   repliedAt  DateTime?
+  // Rejeté par le serveur du destinataire (non-remise). Un message rejeté n'a
+  // jamais été lu : son pixel de suivi ne compte plus aucune ouverture, et
+  // celles déjà enregistrées sont effacées — le rapport de non-remise cite
+  // l'email d'origine, pixel compris, et l'ouvrir dans SA propre boîte
+  // déclenchait une fausse ouverture.
+  bouncedAt  DateTime?
 
   sentAt DateTime @default(now())
 
