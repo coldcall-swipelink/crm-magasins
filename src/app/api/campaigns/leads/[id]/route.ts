@@ -96,6 +96,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.owner = body.ownerId ? { connect: { id: String(body.ownerId) } } : { disconnect: true };
   }
 
+  // Case « Mauvais email » : indépendante du statut commercial. Cochée, elle
+  // interdit toute inscription et tout envoi (cf. engine.ts) ; décochée, le
+  // lead redevient contactable sans qu'on ait à toucher à son statut.
+  let badEmailEvent: string | null = null;
+  if (body.badEmail !== undefined && Boolean(body.badEmail) !== existing.badEmail) {
+    const bad = Boolean(body.badEmail);
+    data.badEmail = bad;
+    data.badEmailAt = bad ? new Date() : null;
+    badEmailEvent = bad
+      ? `Adresse marquée fausse : ${existing.email}`
+      : 'Adresse de nouveau considérée valable';
+  }
+
   // Changement de statut : jalons tenus à jour et trace dans la frise.
   let statusEvent: { label: string; from: string; to: string } | null = null;
   if (body.status !== undefined && body.status !== existing.status) {
@@ -133,6 +146,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     },
     ...FULL_LEAD,
   });
+
+  // Marquer une adresse fausse arrête ce qui était en cours : laisser des
+  // inscriptions actives sur une adresse qu'on sait morte, c'est continuer à
+  // écrire dans le vide.
+  if (badEmailEvent) {
+    if (data.badEmail === true) {
+      await prisma.campaignEnrollment.updateMany({
+        where: { leadId: params.id, status: { in: ['active', 'sending', 'paused'] } },
+        data: { status: 'stopped', stopReason: 'bad_email', nextSendAt: null, finishedAt: new Date() },
+      });
+    }
+    await prisma.leadEvent.create({
+      data: { leadId: params.id, type: 'updated', userName, label: badEmailEvent },
+    });
+  }
 
   if (link && linkMode === 'both') {
     const applied = link.impacts.filter(impact => !impact.blocked);

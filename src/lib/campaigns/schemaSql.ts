@@ -309,6 +309,11 @@ END $$;`,
   // ── Ajouts postérieurs à la création initiale ───────────────────────────
   // « Contact calling » repris de la fiche affaire du CRM.
   `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "contactCalling" TEXT;`,
+  // Case « Mauvais email » : adresse fausse, indépendante du statut commercial.
+  `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "badEmail" BOOLEAN NOT NULL DEFAULT false;`,
+  `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "badEmailAt" TIMESTAMP(3);`,
+  // Message rejeté : son pixel ne compte plus d'ouverture.
+  `ALTER TABLE "CampaignMessage" ADD COLUMN IF NOT EXISTS "bouncedAt" TIMESTAMP(3);`,
   // Filtre « pipeline / étape » de l'écran Leads : il cherche les leads d'une
   // liste d'affaires.
   `CREATE INDEX IF NOT EXISTS "Lead_dealId_idx" ON "Lead"("dealId");`,

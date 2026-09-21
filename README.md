@@ -570,17 +570,37 @@ inscriptions dont l'heure est venue, boîte par boîte, dans ces limites.
 **Un seul email à la fois par lead, toutes campagnes confondues.** Un lead peut
 être inscrit dans plusieurs campagnes ; chacune a sa file et sa boîte, et aucune
 ne sait ce que l'autre envoie. Avant chaque envoi, le moteur regarde donc ce que
-ce lead a reçu des AUTRES campagnes : s'il a été touché il y a moins de 24 h,
+ce lead a reçu des AUTRES campagnes : s'il a été touché il y a moins de 72 h,
 l'envoi est **reporté** à la fin du délai (au prochain créneau ouvert de la
 boîte), jamais annulé — la séquence reprend ensuite son cours. Le report est
 décidé avant toute écriture : ni message en base, ni jeton de réservation, ni
 variante A/B tirée. Le compte rendu du passage les liste sous `deferred`,
-séparément des erreurs. Réglage : `CAMPAIGN_LEAD_COOLDOWN_HOURS` (24 par défaut,
+séparément des erreurs. Réglage : `CAMPAIGN_LEAD_COOLDOWN_HOURS` (72 par défaut,
 plafonné à 168 ; `0` désactive le garde-fou). À l'inscription, les écrans
 signalent combien de leads sont déjà en cours dans une autre campagne.
 
 Quotas indicatifs des fournisseurs : ~2 000 destinataires/jour sur Google
 Workspace (500 en compte gratuit). Réglez le quota du CRM en dessous.
+
+### « Mauvais email » : le verrou d'adresse
+
+Une case à cocher sur la fiche d'un lead, **indépendante du statut commercial**.
+Cochée, elle interdit toute inscription en campagne, arrête les séquences en
+cours (motif « mauvais email ») et empêche tout envoi, même si une campagne
+tentait de le reprendre. Le statut, lui, ne bouge pas : un lead « Intéressé »
+dont on a mal noté l'adresse reste intéressé. Décocher la case le rend de
+nouveau contactable. La liste des leads et le sélecteur d'inscription marquent
+ces adresses en rouge et refusent de les cocher.
+
+### Un rejet n'est pas une ouverture
+
+Un rapport de non-remise cite l'email d'origine, **pixel de suivi compris**. En
+lisant ce rapport dans sa propre boîte, on déclenchait le pixel : une adresse
+morte comptait donc une « ouverture » pour un email que personne n'avait reçu,
+et gonflait le taux d'ouverture de la campagne. Désormais, à la détection du
+rejet, le message est marqué rejeté, son ouverture effacée (message, jalon du
+lead et ligne de frise) ; et le pixel d'un message rejeté — ou d'un lead marqué
+« mauvais email » — ne compte plus rien.
 
 ### Traitement lead par lead
 

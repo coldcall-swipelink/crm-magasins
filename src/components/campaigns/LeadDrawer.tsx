@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import LinkConfirmModal, { type LinkMode, type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import { LEAD_STATUSES, statusColor, statusLabel } from '@/lib/campaigns/leadFields';
-import { ENROLLMENT_STATUS, STOP_REASONS, btnDef, btnPri, inp, label } from './ui';
+import { ENROLLMENT_STATUS, STOP_REASONS, T, btnDef, btnPri, inp, label } from './ui';
 
 
 export interface LeadRow {
@@ -21,6 +21,8 @@ export interface LeadRow {
   jobTitle: string | null; company: string | null; phone: string | null; website: string | null;
   city: string | null; country: string | null; customFields: Record<string, string>;
   status: string; source: string | null;
+  /** Adresse marquée fausse à la main : plus aucune campagne ne la reprend. */
+  badEmail?: boolean;
   lastContactedAt: string | null; lastOpenedAt: string | null; lastRepliedAt: string | null;
   createdAt: string;
   /**
@@ -244,6 +246,23 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
             );
           })}
         </div>
+
+        {/* Case « Mauvais email » : elle n'est pas un statut de plus mais un
+            verrou, et se lit comme tel — bandeau rouge quand elle est cochée. */}
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, cursor: 'pointer',
+          background: lead.badEmail ? 'rgba(239,68,68,.13)' : T.surfaceAlt,
+          border: `1px solid ${lead.badEmail ? 'rgba(239,68,68,.38)' : T.border}`,
+          borderRadius: 8, padding: '9px 11px',
+        }}>
+          <input type="checkbox" checked={Boolean(lead.badEmail)} style={{ marginTop: 1 }}
+            onChange={event => patch({ badEmail: event.target.checked })} />
+          <span style={{ fontSize: 12.5, lineHeight: 1.5, color: lead.badEmail ? '#f87171' : T.textMuted }}>
+            <b style={{ color: lead.badEmail ? '#f87171' : T.text }}>Mauvais email</b>
+            {' — '}l&apos;adresse est fausse. Ce lead ne peut plus être inscrit dans une campagne,
+            et ses séquences en cours s&apos;arrêtent. Son statut commercial, lui, ne change pas.
+          </span>
+        </label>
 
         <div style={label}>INFORMATIONS</div>
         {/* Liaison avec le CRM, dite d'avance : on sait AVANT de modifier si

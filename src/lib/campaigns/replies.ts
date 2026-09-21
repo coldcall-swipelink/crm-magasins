@@ -195,9 +195,26 @@ async function handleMessage(
     const target = original ?? await findMessageQuotedIn(parsed.text || '');
     if (!target) { report.unmatched++; return; }
 
+    // Le message est marqué rejeté, et l'« ouverture » qu'il a pu enregistrer
+    // est effacée : elle ne venait pas du destinataire — il n'a rien reçu —
+    // mais de la lecture du rapport de non-remise, qui cite l'email d'origine
+    // avec son pixel. Sans cela, les adresses mortes gonflaient le taux
+    // d'ouverture de chaque campagne.
+    await prisma.campaignMessage.update({
+      where: { id: target.id },
+      data: { bouncedAt: new Date(), openedAt: null, openCount: 0 },
+    }).catch(() => { /* le message a pu être purgé entre-temps */ });
+    await prisma.leadEvent.deleteMany({
+      where: { leadId: target.leadId, type: 'email_opened' },
+    }).catch(() => {});
+
     await prisma.lead.update({
       where: { id: target.leadId },
-      data: { status: 'bounced', statusAt: new Date(), bouncedAt: new Date() },
+      data: {
+        status: 'bounced', statusAt: new Date(), bouncedAt: new Date(),
+        // Une ouverture effacée ne doit pas rester dans les jalons du lead.
+        lastOpenedAt: null,
+      },
     });
     await prisma.leadEvent.create({
       data: {

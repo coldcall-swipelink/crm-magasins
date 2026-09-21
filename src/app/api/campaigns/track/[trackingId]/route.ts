@@ -11,6 +11,12 @@
 // se lit comme une tendance. C'est pourquoi on garde aussi `openCount` : une
 // ouverture unique ressemble souvent à un pré-chargement, plusieurs ouvertures
 // espacées sont un vrai signal.
+//
+// Un cas n'est PAS une limite mais une erreur, et il est écarté ici : le
+// message rejeté. Un rapport de non-remise cite l'email d'origine, pixel
+// compris ; l'ouvrir dans sa propre boîte déclenchait le pixel et comptait une
+// « ouverture » pour un email que personne n'a jamais reçu. Même chose pour une
+// adresse marquée fausse à la main.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -32,10 +38,20 @@ export async function GET(_req: NextRequest, { params }: { params: { trackingId:
   try {
     const message = await prisma.campaignMessage.findUnique({
       where: { trackingId },
-      select: { id: true, leadId: true, openedAt: true, campaignId: true, stepPosition: true },
+      select: {
+        id: true, leadId: true, openedAt: true, campaignId: true, stepPosition: true,
+        bouncedAt: true,
+        lead: { select: { badEmail: true, status: true } },
+      },
     });
 
-    if (message) {
+    // Message rejeté, ou adresse déclarée fausse : ce n'est pas une ouverture,
+    // c'est le rapport de non-remise qu'on est en train de lire soi-même.
+    const undeliverable = Boolean(message?.bouncedAt)
+      || Boolean(message?.lead?.badEmail)
+      || message?.lead?.status === 'bounced';
+
+    if (message && !undeliverable) {
       await prisma.campaignMessage.update({
         where: { id: message.id },
         data: { openCount: { increment: 1 }, ...(message.openedAt ? {} : { openedAt: new Date() }) },
