@@ -25,14 +25,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { libelleMagasin } from '@/lib/pv/bookings';
 import { rejectionMessage, resolvePvInvite } from '@/lib/pv/invites';
 import { pitchFor, pitchHtml } from '@/lib/pv/pitch';
-import { escapeHtml, parcoursTemplate } from '@/lib/pv/templates';
+import { escapeHtml, googleTagHtml, parcoursTemplate, withGoogleTag } from '@/lib/pv/templates';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /** Page du parcours, personnalisée pour un magasin. */
 function renderParcours(magasin: string, nbProfils: number, enseigne: string | null | undefined): string {
-  let html = parcoursTemplate();
+  let html = withGoogleTag(parcoursTemplate());
 
   // Sortie du mode démo : la page appelle le CRM sur le même domaine.
   html = html.replace('API: "",', 'API: "/api",');
@@ -71,6 +71,7 @@ function renderErreur(message: string): string {
 <meta name="theme-color" content="#1A1AD9">
 <meta name="robots" content="noindex">
 <title>Lien expiré – Swipelink</title>
+${googleTagHtml()}
 <style>
   html,body{margin:0;background:#F3F5FD;color:#0B0B3B;
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:1.5}

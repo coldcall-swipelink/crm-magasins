@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPvToken, looksLikePvToken } from '@/lib/pv/token';
-import { escapeHtml } from '@/lib/pv/templates';
+import { escapeHtml, googleTagHtml } from '@/lib/pv/templates';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -56,6 +56,7 @@ function page(titre: string, message: string, status: number): NextResponse {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${escapeHtml(titre)} – Swipelink</title>
+${googleTagHtml()}
 <style>
   html,body{margin:0;background:#F3F5FD;color:#0B0B3B;
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:1.5}
