@@ -660,6 +660,16 @@ async function sendEnrollmentStep(
       },
     });
 
+    // Envoi réussi : la boîte va bien, et l'erreur qu'elle portait n'a plus
+    // lieu d'être. Sans cet effacement, un mot de passe corrigé depuis une
+    // semaine laisse sa boîte en rouge, et le tableau de bord ment.
+    if (mailbox.lastError || mailbox.lastCheckOk === false) {
+      await prisma.mailbox.update({
+        where: { id: mailbox.id },
+        data: { lastCheckOk: true, lastError: null },
+      }).catch(() => { /* l'envoi est parti : le reste est du confort */ });
+    }
+
     // L'invitation n'est « envoyée » qu'une fois le mail réellement expédié :
     // c'est cette date que lit le suivi du pilote.
     if (minted) await markInvitationSent(minted.inviteId, info.messageId || '');

@@ -188,7 +188,15 @@ export async function syncMailboxReplies(mailbox: Mailbox, sinceDays?: number): 
 
     await prisma.mailbox.update({
       where: { id: mailbox.id },
-      data: { imapValidity: uidValidity, imapCursor: highestUid, lastSyncAt: new Date() },
+      data: {
+        imapValidity: uidValidity, imapCursor: highestUid, lastSyncAt: new Date(),
+        // La relève a abouti : l'erreur IMAP précédente n'a plus lieu d'être.
+        // Sans cet effacement, un incident réglé depuis longtemps reste
+        // affiché sur la boîte comme s'il durait encore — et on cherche une
+        // panne qui n'existe plus. On ne touche pas à une erreur d'ENVOI :
+        // l'IMAP qui fonctionne ne dit rien du SMTP.
+        ...(mailbox.lastError && mailbox.lastError.startsWith('IMAP') ? { lastError: null } : {}),
+      },
     });
   } catch (err) {
     report.error = err instanceof Error ? err.message.slice(0, 200) : String(err);
