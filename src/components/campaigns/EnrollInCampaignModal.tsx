@@ -66,6 +66,12 @@ export default function EnrollInCampaignModal({ leadIds, filter, filterTotal, on
       toast(`${data.enrolled} lead(s) inscrit(s)`
         + (data.skipped ? ` · ${data.skipped} écarté(s) : ${reasons}` : '')
         + (data.sent ? ` · ${data.sent} email(s) déjà parti(s)` : ''));
+      // Déjà en cours ailleurs : le moteur espacera leurs emails, donc leur
+      // séquence avancera moins vite. Mieux vaut le savoir maintenant.
+      if (data.alsoRunningElsewhere > 0) {
+        toast(`${data.alsoRunningElsewhere} lead(s) déjà en cours dans une autre campagne : `
+          + 'leurs emails seront espacés pour ne pas arriver le même jour.');
+      }
       onDone();
       onClose();
     } finally {

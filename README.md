@@ -567,6 +567,18 @@ envois, plage horaire et jours autorisés (dans SON fuseau), montée en charge
 progressive. Le moteur ne déroule jamais une campagne d'un bloc : il relève les
 inscriptions dont l'heure est venue, boîte par boîte, dans ces limites.
 
+**Un seul email à la fois par lead, toutes campagnes confondues.** Un lead peut
+être inscrit dans plusieurs campagnes ; chacune a sa file et sa boîte, et aucune
+ne sait ce que l'autre envoie. Avant chaque envoi, le moteur regarde donc ce que
+ce lead a reçu des AUTRES campagnes : s'il a été touché il y a moins de 24 h,
+l'envoi est **reporté** à la fin du délai (au prochain créneau ouvert de la
+boîte), jamais annulé — la séquence reprend ensuite son cours. Le report est
+décidé avant toute écriture : ni message en base, ni jeton de réservation, ni
+variante A/B tirée. Le compte rendu du passage les liste sous `deferred`,
+séparément des erreurs. Réglage : `CAMPAIGN_LEAD_COOLDOWN_HOURS` (24 par défaut,
+plafonné à 168 ; `0` désactive le garde-fou). À l'inscription, les écrans
+signalent combien de leads sont déjà en cours dans une autre campagne.
+
 Quotas indicatifs des fournisseurs : ~2 000 destinataires/jour sur Google
 Workspace (500 en compte gratuit). Réglez le quota du CRM en dessous.
 
