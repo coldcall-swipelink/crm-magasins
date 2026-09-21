@@ -24,10 +24,15 @@ export interface LeadRow {
   lastContactedAt: string | null; lastOpenedAt: string | null; lastRepliedAt: string | null;
   createdAt: string;
   /**
-   * Situation de l'affaire liée dans le CRM, jointe par la liste des leads.
-   * `null` quand le lead ne vient d'aucune affaire (import CSV, saisie).
+   * Situation de l'affaire du CRM, jointe par la liste des leads. `null`
+   * quand aucune affaire ne correspond. `kind` dit comment elle a été
+   * trouvée : « linked » = le lead vient de cette affaire, « matched » = même
+   * enseigne et même ville, donc probablement le même magasin.
    */
-  crm?: { dealId: string; pipeline: string; column: string; color: string } | null;
+  crm?: {
+    dealId: string; pipeline: string; column: string; color: string;
+    kind: 'linked' | 'matched'; store: string; brand: string; city: string; others: number;
+  } | null;
 }
 
 type Enrollment = {
@@ -248,6 +253,18 @@ export default function LeadDrawer({ leadId, userName, onClose, onChanged }: {
             <span style={{ color: '#8fb0ff', fontWeight: 600 }}>Lié à {crmLink.target}</span> dans le CRM.
             Les champs marqués <span style={{ color: '#8fb0ff', fontWeight: 600 }}>CRM</span> se répercutent sur
             la fiche affaire, après confirmation. Prénom, enseigne, ville et site web restent propres au lead.
+          </div>
+        ) : lead.crm?.kind === 'matched' ? (
+          /* Pas de rattachement, mais une affaire du même magasin : on le dit
+             sans prétendre que c'est le même interlocuteur. */
+          <div style={{ fontSize: 11.5, color: '#9aa1b4', background: 'rgba(245,158,11,.10)', border: '1px solid rgba(245,158,11,.30)', borderRadius: 8, padding: '8px 11px', marginBottom: 10, lineHeight: 1.55 }}>
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+              Rapproché de l&apos;affaire {[lead.crm.store || lead.crm.brand, lead.crm.city].filter(Boolean).join(', ')}
+            </span>{' '}
+            — même enseigne et même ville, étape «&nbsp;{lead.crm.column}&nbsp;» du pipeline {lead.crm.pipeline}.
+            {lead.crm.others > 0 && ` ${lead.crm.others} autre${lead.crm.others > 1 ? 's' : ''} affaire${lead.crm.others > 1 ? 's' : ''} correspond${lead.crm.others > 1 ? 'ent' : ''} aussi.`}
+            {' '}Ce n&apos;est pas un rattachement : vérifiez qu&apos;il s&apos;agit du même interlocuteur
+            avant d&apos;écrire. Les modifications restent dans Campagnes.
           </div>
         ) : (
           <div style={{ fontSize: 11.5, color: '#6b7283', marginBottom: 10, lineHeight: 1.55 }}>

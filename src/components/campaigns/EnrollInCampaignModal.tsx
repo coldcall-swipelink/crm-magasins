@@ -16,7 +16,8 @@ type CampaignRow = { id: string; name: string; status: string; enrolled?: number
 
 /** Recherche en cours de la liste, telle que l'API des inscriptions la comprend. */
 export type LeadSearchFilter = {
-  q?: string; status?: string; company?: string; pipelineId?: string; columnIds?: string[];
+  q?: string; status?: string; company?: string; jobTitle?: string;
+  pipelineId?: string; columnIds?: string[];
 };
 
 export default function EnrollInCampaignModal({ leadIds, filter, filterTotal, onClose, onDone }: {
@@ -121,7 +122,7 @@ export default function EnrollInCampaignModal({ leadIds, filter, filterTotal, on
               <input type="radio" name="scope" checked={scope === 'filter'} disabled={filterTotal === 0}
                 onChange={() => setScope('filter')} />
               Tous les {filterTotal} lead{filterTotal > 1 ? 's' : ''} de la recherche en cours
-              <span style={{ color: T.textFaint, fontSize: 11.5 }}>(filtres d&apos;enseigne, de statut et d&apos;étape CRM compris)</span>
+              <span style={{ color: T.textFaint, fontSize: 11.5 }}>(filtres d&apos;enseigne, de poste, de statut et d&apos;étape CRM compris)</span>
             </label>
           </div>
         </div>

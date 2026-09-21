@@ -110,13 +110,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // faire transiter des milliers d'identifiants.
   if (!leadIds.length && body.filter) {
     const filter = body.filter as {
-      q?: string; status?: string; importId?: string; company?: string;
+      q?: string; status?: string; importId?: string; company?: string; jobTitle?: string;
       pipelineId?: string; columnIds?: unknown;
     };
     const where: Prisma.LeadWhereInput = {};
     if (filter.status && isLeadStatus(filter.status)) where.status = filter.status;
     if (filter.importId) where.importId = String(filter.importId);
     if (filter.company) where.company = { equals: String(filter.company), mode: 'insensitive' };
+    if (filter.jobTitle) where.jobTitle = { equals: String(filter.jobTitle), mode: 'insensitive' };
     // Périmètre CRM (pipeline, colonnes) : le même que la liste affichée.
     Object.assign(where, await leadWhereForCrmScope({
       pipelineId: filter.pipelineId ? String(filter.pipelineId) : undefined,

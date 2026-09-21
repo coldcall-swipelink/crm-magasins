@@ -2,9 +2,14 @@
 // src/components/campaigns/LeadsPanel.tsx
 //
 // Écran « Leads » de l'onglet Campagnes : la liste de tous les contacts
-// prospectés, filtrable par statut, par recherche et par situation dans le
-// CRM (pipeline et étape de l'affaire liée), avec ouverture de la fiche sur
-// le côté pour le suivi un par un.
+// prospectés, filtrable par statut, par recherche, par enseigne, par poste et
+// par situation dans le CRM (pipeline et étape de l'affaire), avec ouverture
+// de la fiche sur le côté pour le suivi un par un.
+//
+// La colonne « Étape CRM » distingue deux choses : l'affaire dont le lead
+// VIENT (rattachement explicite) et l'affaire qui lui RESSEMBLE — même
+// enseigne, même ville. La seconde est le garde-fou contre le mail écrit à un
+// magasin qu'on a déjà au téléphone.
 
 import { useCallback, useEffect, useState } from 'react';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -44,6 +49,9 @@ export default function LeadsPanel() {
   // telles que la liste les renvoie.
   const [companies, setCompanies] = useState<Array<{ name: string; count: number }>>([]);
   const [company, setCompany] = useState('');
+  // Poste : mêmes règles que l'enseigne — les valeurs présentes, avec leur volume.
+  const [jobTitles, setJobTitles] = useState<Array<{ name: string; count: number }>>([]);
+  const [jobTitle, setJobTitle] = useState('');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -69,6 +77,7 @@ export default function LeadsPanel() {
       if (status) params.set('status', status);
       if (search) params.set('q', search);
       if (company) params.set('company', company);
+      if (jobTitle) params.set('jobTitle', jobTitle);
       if (pipelineId) params.set('pipelineId', pipelineId);
       if (columnId) params.set('columnId', columnId);
       const res = await fetch(`/api/campaigns/leads?${params}`);
@@ -87,6 +96,7 @@ export default function LeadsPanel() {
       setLeads(data.leads || []);
       setCounts(data.statusCounts || {});
       setCompanies(data.companies || []);
+      setJobTitles(data.jobTitles || []);
       setTotal(data.total || 0);
       setPages(data.pages || 1);
     } catch (err) {
@@ -94,7 +104,7 @@ export default function LeadsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, search, company, pipelineId, columnId]);
+  }, [page, status, search, company, jobTitle, pipelineId, columnId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -205,6 +215,25 @@ export default function LeadsPanel() {
           {company && (
             <button style={btnXs} onClick={() => { setCompany(''); setPage(1); }}>Effacer</button>
           )}
+          <span style={{ fontSize: 11.5, color: '#6b7283', marginLeft: 8 }}>Poste</span>
+          <select style={{ ...inp, width: 180, height: 30, padding: '0 8px', fontSize: 12 }}
+            value={jobTitle}
+            title="Ne garder que les leads occupant ce poste"
+            onChange={event => { setJobTitle(event.target.value); setPage(1); }}>
+            <option value="">Tous les postes</option>
+            {/* Le poste choisi reste listé même si la recherche courante ne le
+                contient plus : sinon le sélecteur afficherait une valeur
+                absente de ses options. */}
+            {jobTitle && !jobTitles.some(item => item.name.toLowerCase() === jobTitle.toLowerCase()) && (
+              <option value={jobTitle}>{jobTitle}</option>
+            )}
+            {jobTitles.map(item => (
+              <option key={item.name} value={item.name}>{item.name} ({item.count})</option>
+            ))}
+          </select>
+          {jobTitle && (
+            <button style={btnXs} onClick={() => { setJobTitle(''); setPage(1); }}>Effacer</button>
+          )}
           <span style={{ fontSize: 11.5, color: '#6b7283', marginLeft: 8 }}>Dans le CRM</span>
           <select style={{ ...inp, width: 200, height: 30, padding: '0 8px', fontSize: 12 }}
             value={pipelineId}
@@ -262,7 +291,7 @@ export default function LeadsPanel() {
           <div style={{ fontSize: 13, color: '#6b7283' }}>Chargement…</div>
         ) : error ? null : leads.length === 0 ? (
           <div style={{ background: '#171a23', border: '1px dashed #333a4a', borderRadius: 12, padding: 28, textAlign: 'center', color: '#9aa1b4', fontSize: 13 }}>
-            {search || status || company || pipelineId || columnId
+            {search || status || company || jobTitle || pipelineId || columnId
               ? 'Aucun lead ne correspond à ce filtre.'
               : 'Aucun lead pour l\'instant — importez un fichier pour commencer.'}
           </div>
@@ -306,10 +335,23 @@ export default function LeadsPanel() {
                     <td style={td}>{lead.city || '—'}</td>
                     <td style={td}>
                       {lead.crm ? (
-                        <span title={lead.crm.pipeline} style={{
-                          padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
-                          color: lead.crm.color, background: `${lead.crm.color}18`,
-                        }}>{lead.crm.column}</span>
+                        <span
+                          title={lead.crm.kind === 'linked'
+                            ? `${lead.crm.pipeline} — le lead vient de cette affaire`
+                            : `${lead.crm.pipeline} — rapproché par enseigne + ville `
+                              + `(${[lead.crm.store || lead.crm.brand, lead.crm.city].filter(Boolean).join(', ')})`
+                              + (lead.crm.others > 0 ? ` · ${lead.crm.others} autre(s) affaire(s)` : '')}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                            color: lead.crm.color, background: `${lead.crm.color}18`,
+                            border: lead.crm.kind === 'matched' ? `1px dashed ${lead.crm.color}66` : '1px solid transparent',
+                          }}>
+                          {lead.crm.column}
+                          {/* Le trait pointillé et le « ~ » disent la même chose :
+                              rapprochement probable, pas rattachement. */}
+                          {lead.crm.kind === 'matched' && <span style={{ fontWeight: 700, opacity: .75 }}>~</span>}
+                        </span>
                       ) : <span style={{ color: '#6b7283' }}>—</span>}
                     </td>
                     <td style={td}>
@@ -365,6 +407,7 @@ export default function LeadsPanel() {
             q: search || undefined,
             status: status || undefined,
             company: company || undefined,
+            jobTitle: jobTitle || undefined,
             pipelineId: pipelineId || undefined,
             columnIds: pipelineId && columnId ? [columnId] : undefined,
           }}

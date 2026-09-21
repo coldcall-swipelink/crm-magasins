@@ -1,14 +1,20 @@
 // src/app/api/campaigns/leads/route.ts
 //
-//   GET  /api/campaigns/leads?q=…&status=…&company=…&pipelineId=…&columnIds=a,b&page=1
-//        → liste filtrée, paginée (`columnId=…` reste accepté pour une seule)
+//   GET  /api/campaigns/leads?q=…&status=…&company=…&jobTitle=…&pipelineId=…
+//        &columnIds=a,b&page=1 → liste filtrée, paginée (`columnId=…` reste
+//        accepté pour une seule étape)
 //   POST /api/campaigns/leads                      → création manuelle
 //   POST /api/campaigns/leads { …, campaignId }    → création PUIS inscription
 //         dans la campagne : c'est la saisie d'un lead depuis une campagne.
 //
 // La liste sert l'écran « Leads » de l'onglet Campagnes. Elle renvoie aussi le
-// décompte par statut et par enseigne, pour que les filtres affichent leur
-// volume sans un second aller-retour.
+// décompte par statut, par enseigne et par poste, pour que les filtres
+// affichent leur volume sans un second aller-retour.
+//
+// Chaque lead porte sa situation dans le CRM (`crm`) : l'affaire dont il vient
+// quand il y est rattaché, sinon l'affaire de même enseigne et même ville
+// (cf. crmMatch.ts) — le garde-fou contre le mail écrit à un magasin qu'on a
+// déjà au téléphone.
 //
 // Filtre par pipeline / étapes : cf. src/lib/campaigns/crmScope.ts. Le même
 // périmètre sert à l'inscription par filtre dans une campagne, pour que ce
@@ -20,6 +26,7 @@ import { prisma } from '@/lib/prisma';
 import { isLeadStatus, isValidEmail, normalizeEmail } from '@/lib/campaigns/leadFields';
 import { enrollLeads } from '@/lib/campaigns/engine';
 import { leadWhereForCrmScope, parseIds } from '@/lib/campaigns/crmScope';
+import { matchDealsForLeads } from '@/lib/campaigns/crmMatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +69,8 @@ async function listLeads(req: NextRequest) {
   // tenir compte de la casse). C'est l'enseigne du magasin pour un lead repris
   // du CRM, la colonne « Enseigne » pour un lead importé d'un fichier.
   const company = (params.get('company') || '').trim();
+  // Poste du contact, tel qu'il est écrit sur le lead (« Directeur », « RH »…).
+  const jobTitle = (params.get('jobTitle') || '').trim();
   const pipelineId = (params.get('pipelineId') || '').trim();
   // Plusieurs étapes à la fois (« a,b,c »), ou une seule par l'ancien paramètre.
   const columnIds = parseIds(params.get('columnIds')) ?? parseIds(params.get('columnId'));
@@ -71,6 +80,7 @@ async function listLeads(req: NextRequest) {
   if (status && isLeadStatus(status)) where.status = status;
   if (importId) where.importId = importId;
   if (company) where.company = { equals: company, mode: 'insensitive' };
+  if (jobTitle) where.jobTitle = { equals: jobTitle, mode: 'insensitive' };
   if (q) {
     // Recherche sur les champs qu'on lit à l'œil dans la liste.
     where.OR = [
@@ -86,7 +96,7 @@ async function listLeads(req: NextRequest) {
 
   Object.assign(where, await leadWhereForCrmScope({ pipelineId: pipelineId || undefined, columnIds }));
 
-  const [rows, total, statusCounts, companyCounts] = await Promise.all([
+  const [rows, total, statusCounts, companyCounts, jobCounts] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -107,16 +117,32 @@ async function listLeads(req: NextRequest) {
     prisma.lead.groupBy({
       by: ['company'],
       _count: { _all: true },
-      where: { ...where, company: { not: null } },
+      where: { ...where, company: { not: null }, jobTitle: undefined },
       orderBy: { _count: { company: 'desc' } },
+      take: 300,
+    }),
+    // Postes présents dans la recherche, filtre de poste exclu — même raison
+    // que pour les enseignes : sinon on ne pourrait plus en changer.
+    prisma.lead.groupBy({
+      by: ['jobTitle'],
+      _count: { _all: true },
+      where: { ...where, jobTitle: { not: null } },
+      orderBy: { _count: { jobTitle: 'desc' } },
       take: 300,
     }),
   ]);
 
-  // Où en est l'affaire de chaque lead affiché. Une seule requête, bornée à la
-  // page en cours : c'est l'information qui manquait pour savoir, depuis
-  // l'écran Leads, si l'on s'apprête à relancer une affaire déjà en démo.
-  const leads = await withCrmStage(rows);
+  // Où en est l'affaire de chaque lead affiché, bornée à la page en cours :
+  // c'est l'information qui manquait pour savoir, depuis l'écran Leads, si
+  // l'on s'apprête à relancer une affaire déjà en démo. Rattachement explicite
+  // d'abord, rapprochement enseigne + ville ensuite.
+  const matches = await matchDealsForLeads(rows);
+  const leads = rows.map(lead => ({
+    ...lead,
+    // `null` distingue « aucune affaire » de « affaire trouvée » — le premier
+    // cas est normal pour un lead importé d'un fichier, hors du périmètre CRM.
+    crm: matches.get(lead.id) ?? null,
+  }));
 
   return NextResponse.json({
     leads,
@@ -128,39 +154,9 @@ async function listLeads(req: NextRequest) {
     companies: companyCounts
       .filter(c => c.company && c.company.trim())
       .map(c => ({ name: c.company as string, count: c._count._all })),
-  });
-}
-
-/** Étape du pipeline de l'affaire liée, ajoutée aux leads d'une page. */
-async function withCrmStage<T extends { dealId: string | null }>(leads: T[]) {
-  const dealIds = Array.from(new Set(leads.map(lead => lead.dealId).filter((id): id is string => !!id)));
-  if (dealIds.length === 0) return leads.map(lead => ({ ...lead, crm: null }));
-
-  const deals = await prisma.deal.findMany({
-    where: { id: { in: dealIds } },
-    select: {
-      id: true,
-      pipeline: { select: { id: true, name: true } },
-      column: { select: { id: true, title: true, color: true } },
-    },
-  });
-  const byId = new Map(deals.map(deal => [deal.id, deal]));
-
-  return leads.map(lead => {
-    const deal = lead.dealId ? byId.get(lead.dealId) : undefined;
-    return {
-      ...lead,
-      // `null` distingue « pas d'affaire liée » de « affaire liée, étape
-      // inconnue » — la première est normale pour un lead importé d'un CSV.
-      crm: deal
-        ? {
-            dealId: deal.id,
-            pipeline: deal.pipeline.name,
-            column: deal.column.title,
-            color: deal.column.color,
-          }
-        : null,
-    };
+    jobTitles: jobCounts
+      .filter(c => c.jobTitle && c.jobTitle.trim())
+      .map(c => ({ name: c.jobTitle as string, count: c._count._all })),
   });
 }
 
