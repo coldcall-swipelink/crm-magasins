@@ -536,6 +536,10 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    Les variables (`{{prenom}}`, `{{enseigne}}`, `{{ville}}`, champs
    personnalisés, avec repli `{{prenom|bonjour}}`) fonctionnent dans le corps
    ET dans le sujet, y compris le sujet d'une étape « Parcours boucher ».
+   Le bouton **Aperçu** d'une étape rend l'email sur un lead réel et permet de
+   **s'envoyer un test** à l'adresse de son choix, par la boîte de la campagne
+   (sujet préfixé `[TEST]`). Un test ne laisse aucune trace : ni historique,
+   ni statistiques, ni quota consommé, ni jeton de réservation créé.
    Depuis la campagne, « + Depuis mes leads » propose le filtre par enseigne
    et le même filtre CRM : pipeline, puis colonnes à retenir (plusieurs à la
    fois) pour n'inscrire que les leads dont l'affaire est à une étape qu'on
