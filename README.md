@@ -533,6 +533,9 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    (ou toute la recherche en cours) s'envoient dans la campagne de son choix
    d'un clic (« Envoyer dans une campagne »).
 5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
+   Les variables (`{{prenom}}`, `{{enseigne}}`, `{{ville}}`, champs
+   personnalisés, avec repli `{{prenom|bonjour}}`) fonctionnent dans le corps
+   ET dans le sujet, y compris le sujet d'une étape « Parcours boucher ».
    Depuis la campagne, « + Depuis mes leads » propose le filtre par enseigne
    et le même filtre CRM : pipeline, puis colonnes à retenir (plusieurs à la
    fois) pour n'inscrire que les leads dont l'affaire est à une étape qu'on

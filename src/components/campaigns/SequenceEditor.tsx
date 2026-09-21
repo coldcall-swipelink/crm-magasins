@@ -564,18 +564,25 @@ function StepEditor({
   // Dernier champ touché : la variable cliquée s'insère là où on écrivait.
   const lastFocus = useRef<'subject' | 'body'>('body');
 
-  /** Insère {{variable}} à l'endroit du curseur, dans le champ actif. */
+  /**
+   * Insère {{variable}} à l'endroit du curseur, dans le champ actif. Sur une
+   * étape à modèle, seul le sujet se rédige : c'est là que la variable va.
+   */
   const insertVariable = (name: string) => {
     const token = `{{${name}}}`;
-    if (lastFocus.current === 'subject' && subjectRef.current) {
-      const field = subjectRef.current;
-      const start = field.selectionStart ?? field.value.length;
-      const next = field.value.slice(0, start) + token + field.value.slice(field.selectionEnd ?? start);
-      changeContent({ subject: next });
+    // Au curseur si le champ a encore le focus ; à la fin sinon — un champ
+    // quitté n'a plus de curseur qui vaille, et « à la fin » est ce qu'on attend.
+    const splice = (field: HTMLInputElement | HTMLTextAreaElement) => {
+      const focused = typeof document !== 'undefined' && document.activeElement === field;
+      const start = focused ? (field.selectionStart ?? field.value.length) : field.value.length;
+      const end = focused ? (field.selectionEnd ?? start) : start;
+      return field.value.slice(0, start) + token + field.value.slice(end);
+    };
+    const toSubject = lastFocus.current === 'subject' || !bodyRef.current;
+    if (toSubject && subjectRef.current) {
+      changeContent({ subject: splice(subjectRef.current) });
     } else if (bodyRef.current) {
-      const field = bodyRef.current;
-      const start = field.selectionStart ?? field.value.length;
-      const next = field.value.slice(0, start) + token + field.value.slice(field.selectionEnd ?? start);
+      const next = splice(bodyRef.current);
       changeContent(content.useHtml ? { bodyHtml: next } : { bodyText: next });
     }
   };
@@ -724,9 +731,13 @@ function StepEditor({
         <input ref={subjectRef} style={inp} value={content.subject}
           onFocus={() => { lastFocus.current = 'subject'; }}
           placeholder={draft.templateKey === 'boucher'
-            ? '2 CV de bouchers pour votre magasin {{Enseigne}} — laissez vide pour celui du modèle'
+            ? '2 CV de bouchers pour votre magasin {{enseigne}} — laissez vide pour celui du modèle'
             : 'Une question sur {{enseigne}}'}
           onChange={event => changeContent({ subject: event.target.value })} />
+        <div style={{ fontSize: 11, color: T.textFaint, marginTop: 4 }}>
+          Les variables fonctionnent aussi dans le sujet : <code>{'{{enseigne}}'}</code>, <code>{'{{ville}}'}</code>,
+          <code>{'{{prenom|bonjour}}'}</code>… Cliquez une variable ci-dessous, le curseur dans le sujet, pour l&apos;insérer.
+        </div>
         {!isFirst && draft.replyToThread && (
           <div style={{ fontSize: 11, color: T.textFaint, marginTop: 4 }}>
             Cette relance part dans le fil du premier email : c&apos;est son sujet, préfixé « Re: », qui sera utilisé.
@@ -781,9 +792,13 @@ function StepEditor({
         </>
       )}
 
-      {draft.templateKey === '' && (variables.standard.length > 0 || variables.custom.length > 0) && (
+      {(variables.standard.length > 0 || variables.custom.length > 0) && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ ...label, marginBottom: 5 }}>Variables (cliquez pour insérer)</div>
+          <div style={{ ...label, marginBottom: 5 }}>
+            {draft.templateKey
+              ? 'Variables du sujet (cliquez pour insérer)'
+              : 'Variables du sujet et du corps (cliquez pour insérer dans le champ où vous écriviez)'}
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {variables.standard.map(variable => (
               <button key={variable.name} title={variable.description} onClick={() => insertVariable(variable.name)}
