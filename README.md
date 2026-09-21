@@ -529,9 +529,22 @@ de détecter les réponses sans dépendre d'un routeur tiers.
    double contact : on laisse de côté les colonnes « en contact » ou « a
    répondu » et l'on ne reprend que les étapes qu'on n'a pas encore jointes.
    Aucune colonne cochée vaut toutes les colonnes.
-   La liste des leads se filtre aussi par **enseigne**, et les leads cochés
-   (ou toute la recherche en cours) s'envoient dans la campagne de son choix
-   d'un clic (« Envoyer dans une campagne »).
+   La liste des leads se filtre aussi par **enseigne** et par **poste**, et les
+   leads cochés (ou toute la recherche en cours) s'envoient dans la campagne de
+   son choix d'un clic (« Envoyer dans une campagne »).
+
+   **Rapprochement avec le CRM.** Un lead importé d'un fichier ne porte pas
+   l'identifiant de son affaire : on n'a que l'enseigne et la ville. Si une
+   affaire du CRM décrit ce même magasin, l'application le signale des deux
+   côtés — colonne « Étape CRM » de la liste des leads (pastille en pointillés
+   suivie d'un « ~ »), bandeau de la fiche lead, et bloc « Leads de campagne »
+   de la fiche affaire. La comparaison ignore casse, accents et ponctuation, et
+   admet qu'une enseigne en contienne une autre (« E.Leclerc » rapproche
+   « Leclerc »). C'est un **signal, pas un rattachement** : même magasin ne veut
+   pas dire même interlocuteur, rien n'est écrit ni lié automatiquement. Le
+   rattachement, lui, vient de « Importer depuis le CRM » ou d'une adresse email
+   commune (cf. `src/lib/campaigns/crmLink.ts`) ; le rapprochement vit dans
+   `src/lib/campaigns/crmMatch.ts`.
 5. **Créer une campagne**, rédiger la séquence, y inscrire des leads, lancer.
    Les variables (`{{prenom}}`, `{{enseigne}}`, `{{ville}}`, champs
    personnalisés, avec repli `{{prenom|bonjour}}`) fonctionnent dans le corps

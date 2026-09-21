@@ -16,6 +16,7 @@ import MeetInviteModal, { reportMeetSync } from '@/components/pipeline/MeetInvit
 import PVModal from '@/components/pipeline/PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry, type ClosingUser } from '@/components/pipeline/ClosingDateModal';
 import FlowWarningModal from '@/components/pipeline/FlowWarningModal';
+import CampaignLeadsBlock from '@/components/deal/CampaignLeadsBlock';
 import { messageClosing } from '@/lib/closingIssue';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
@@ -2348,6 +2349,11 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
 
             {activeTab === 'activite' && (
             <>
+            {/* Prospection par email en cours sur ce magasin : un lead rattaché
+                à l'affaire, ou un lead dont l'enseigne et la ville
+                correspondent. Le bloc ne s'affiche que s'il a trouvé. */}
+            <CampaignLeadsBlock dealId={dealId} />
+
             {/* Trois boutons d'action */}
             <div style={{ display: 'flex', gap: 10, marginBottom: composer ? 14 : 22 }}>
               <button onClick={() => setComposer(composer === 'note' ? null : 'note')} style={composer === 'note' ? { ...btnPri, padding: '10px 16px', fontSize: 13 } : { ...btnDef, padding: '10px 16px', fontSize: 13, background: '#fff' }}>📝 Ajouter une note</button>
