@@ -592,6 +592,22 @@ dont on a mal noté l'adresse reste intéressé. Décocher la case le rend de
 nouveau contactable. La liste des leads et le sélecteur d'inscription marquent
 ces adresses en rouge et refusent de les cocher.
 
+### Une réponse arrive souvent d'une autre adresse
+
+On écrit à `benjamin.marchand@socamaine.fr`, la réponse part de
+`benjamin.marchand@socamaine.leclerc` : même personne, deux extensions. Le
+relevé cherche donc le lead dans cet ordre — les en-têtes du fil, l'adresse
+d'envoi à la lettre, une adresse connue **en copie**, puis la même identité à
+l'extension près (`socamaine.fr` et `socamaine.leclerc` donnent la clé
+`benjamin.marchand@socamaine`, cf. `src/lib/campaigns/emailIdentity.ts`). Ce
+dernier recours ne joue que s'il désigne **un seul** lead : attribuer la
+réponse au mauvais contact serait pire que de ne rien conclure.
+
+Le compteur de réponses d'une campagne se lit sur les messages marqués
+répondus. Quand les en-têtes ne désignent aucun message d'origine, la réponse
+est rattachée au dernier email réellement parti à ce lead — sans quoi une
+réponse bien enregistrée ne comptait nulle part.
+
 ### Un rejet n'est pas une ouverture
 
 Un rapport de non-remise cite l'email d'origine, **pixel de suivi compris**. En

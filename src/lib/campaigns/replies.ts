@@ -24,6 +24,7 @@ import { prisma } from '@/lib/prisma';
 import { clearBouncedOpen } from '@/lib/campaigns/bounceCleanup';
 import { imapCredentials } from '@/lib/campaigns/mailboxes';
 import { normalizeEmail } from '@/lib/campaigns/leadFields';
+import { identityKey } from '@/lib/campaigns/emailIdentity';
 
 /** Messages lus par boîte et par passage : le reste attend le suivant. */
 const MAX_PER_RUN = 200;
@@ -46,6 +47,41 @@ function addresses(field: AddressObject | AddressObject[] | undefined): string[]
   if (!field) return [];
   const list = Array.isArray(field) ? field : [field];
   return list.flatMap(item => (item.value || []).map(value => value.address || '').filter(Boolean));
+}
+
+/**
+ * Le lead derrière une réponse, quand les en-têtes ne l'ont pas donné.
+ *
+ *   1. l'adresse d'envoi, à la lettre — le cas ordinaire ;
+ *   2. une adresse connue en copie : l'interlocuteur répond d'une autre
+ *      adresse mais garde celle qu'on lui a écrite en copie ;
+ *   3. la même identité à l'extension près (« @socamaine.leclerc » pour
+ *      « @socamaine.fr »), et SEULEMENT si elle ne désigne qu'un lead —
+ *      attribuer la réponse au mauvais contact serait pire que de ne rien
+ *      conclure.
+ */
+async function findLead(from: string, recipients: string[]) {
+  const exact = await prisma.lead.findUnique({ where: { email: from } });
+  if (exact) return exact;
+
+  if (recipients.length > 0) {
+    const inCopy = await prisma.lead.findFirst({ where: { email: { in: recipients } } });
+    if (inCopy) return inCopy;
+  }
+
+  const key = identityKey(from);
+  if (!key) return null;
+
+  // La clé n'est pas stockée : on ramène les leads de la même partie locale,
+  // puis on compare les clés en mémoire. La partie locale est discriminante,
+  // donc le lot reste petit.
+  const local = from.slice(0, from.lastIndexOf('@'));
+  const sameLocal = await prisma.lead.findMany({
+    where: { email: { startsWith: `${local}@`, mode: 'insensitive' } },
+    take: 25,
+  });
+  const matches = sameLocal.filter(lead => identityKey(lead.email) === key);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /** Message-ID cités par une réponse, du plus proche au plus lointain. */
@@ -225,7 +261,14 @@ async function handleMessage(
   }
 
   // ─── Réponse d'un lead ──────────────────────────────────────────────────
-  const lead = original?.lead ?? await prisma.lead.findUnique({ where: { email: from } });
+  //
+  // À qui appartient cette réponse ? Quatre pistes, de la plus sûre à la plus
+  // souple. Elles existent parce qu'une réponse arrive souvent d'une AUTRE
+  // adresse que celle qu'on a écrite — un adhérent répond de
+  // « …@socamaine.leclerc » quand on a écrit à « …@socamaine.fr ».
+  const recipients = [...addresses(parsed.to), ...addresses(parsed.cc)]
+    .map(normalizeEmail).filter(Boolean);
+  const lead = original?.lead ?? await findLead(from, recipients);
   if (!lead) { report.unmatched++; return; }
 
   const receivedAt = parsed.date || new Date();
@@ -241,11 +284,22 @@ async function handleMessage(
     if (known) return;
   }
 
+  // Le compteur de réponses d'une campagne se lit sur les MESSAGES marqués
+  // répondus : sans cette marque, une réponse bien enregistrée ne compte
+  // nulle part. Quand les en-têtes ne désignent pas le message d'origine, on
+  // prend le dernier email réellement parti à ce lead — c'est celui auquel il
+  // répond, sauf exception. Il donne aussi sa campagne à la réponse.
+  const answered = original ?? await prisma.campaignMessage.findFirst({
+    where: { leadId: lead.id, status: 'sent' },
+    orderBy: { sentAt: 'desc' },
+    select: { id: true, campaignId: true, enrollmentId: true },
+  });
+
   await prisma.campaignReply.create({
     data: {
       mailboxId: mailbox.id,
       leadId: lead.id,
-      campaignId: original?.campaignId ?? null,
+      campaignId: answered?.campaignId ?? null,
       fromAddress: from,
       subject: (parsed.subject || '').slice(0, 300),
       snippet,
@@ -256,9 +310,9 @@ async function handleMessage(
   });
   report.replies++;
 
-  if (original) {
+  if (answered) {
     await prisma.campaignMessage.update({
-      where: { id: original.id },
+      where: { id: answered.id },
       data: { repliedAt: receivedAt },
     });
   }
@@ -286,8 +340,8 @@ async function handleMessage(
   // Précis quand on sait à quel email le lead répond : seule CETTE campagne
   // s'arrête. Sinon, toutes les séquences en cours de ce lead — un lead qui
   // répond n'a pas à recevoir la relance d'une autre campagne le lendemain.
-  const stopWhere = original
-    ? { id: original.enrollmentId, campaign: { stopOnReply: true } }
+  const stopWhere = answered
+    ? { id: answered.enrollmentId, campaign: { stopOnReply: true } }
     : { leadId: lead.id, campaign: { stopOnReply: true } };
 
   const stopped = await prisma.campaignEnrollment.updateMany({
