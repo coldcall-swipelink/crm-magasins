@@ -21,6 +21,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser, type AddressObject } from 'mailparser';
 import type { Mailbox } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { clearBouncedOpen } from '@/lib/campaigns/bounceCleanup';
 import { imapCredentials } from '@/lib/campaigns/mailboxes';
 import { normalizeEmail } from '@/lib/campaigns/leadFields';
 
@@ -198,23 +199,14 @@ async function handleMessage(
     // Le message est marqué rejeté, et l'« ouverture » qu'il a pu enregistrer
     // est effacée : elle ne venait pas du destinataire — il n'a rien reçu —
     // mais de la lecture du rapport de non-remise, qui cite l'email d'origine
-    // avec son pixel. Sans cela, les adresses mortes gonflaient le taux
-    // d'ouverture de chaque campagne.
-    await prisma.campaignMessage.update({
-      where: { id: target.id },
-      data: { bouncedAt: new Date(), openedAt: null, openCount: 0 },
-    }).catch(() => { /* le message a pu être purgé entre-temps */ });
-    await prisma.leadEvent.deleteMany({
-      where: { leadId: target.leadId, type: 'email_opened' },
-    }).catch(() => {});
+    // avec son pixel. Règle partagée avec le script de rattrapage : seule
+    // l'ouverture du message rejeté saute, les précédentes sont vraies.
+    await clearBouncedOpen(target.id, target.leadId)
+      .catch(() => { /* le message a pu être purgé : le rejet prime */ });
 
     await prisma.lead.update({
       where: { id: target.leadId },
-      data: {
-        status: 'bounced', statusAt: new Date(), bouncedAt: new Date(),
-        // Une ouverture effacée ne doit pas rester dans les jalons du lead.
-        lastOpenedAt: null,
-      },
+      data: { status: 'bounced', statusAt: new Date(), bouncedAt: new Date() },
     });
     await prisma.leadEvent.create({
       data: {

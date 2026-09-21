@@ -17,7 +17,8 @@
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset",
     "demos:backfill": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/backfill-demo-done.ts",
-    "closings:backfill": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/backfill-closing-events.ts"
+    "closings:backfill": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/backfill-closing-events.ts",
+    "opens:backfill": "ts-node -r tsconfig-paths/register --compiler-options '{\"module\":\"CommonJS\"}' scripts/backfill-bounced-opens.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.9.1",
