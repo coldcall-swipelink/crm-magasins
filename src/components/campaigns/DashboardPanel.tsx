@@ -278,8 +278,52 @@ function EngineHeartbeat({ lastRun }: { lastRun: string | null }) {
  * qui a déjà été reçu.
  */
 function ReplySync({ onDone }: { onDone: () => void }) {
-  const [busy, setBusy] = useState<'now' | 'catchup' | null>(null);
+  const [busy, setBusy] = useState<'now' | 'catchup' | 'relink' | null>(null);
   const [result, setResult] = useState<string | null>(null);
+
+  /**
+   * Rattachement des réponses déjà en base.
+   *
+   * Une réponse enregistrée sans marquer de message ne compte nulle part, et
+   * un nouveau relevé ne la reprend pas : la déduplication l'écarte, puisqu'
+   * elle existe déjà. Deux temps — on compte, puis on applique, une fois qu'on
+   * a vu combien.
+   */
+  const relink = async () => {
+    setBusy('relink');
+    setResult(null);
+    try {
+      const count = await fetch('/api/campaigns/sync-replies/relink', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      }).then(res => res.json());
+      if (count.error) { toast(count.error, 'error'); return; }
+
+      if (!count.linked) {
+        setResult(`Aucune réponse à rattacher (${count.examined} examinée(s), `
+          + `${count.alreadyLinked} déjà comptée(s)).`);
+        return;
+      }
+      if (!confirm(
+        `${count.linked} réponse(s) ne comptent dans aucun taux de réponse.\n\n`
+        + 'Les rattacher au dernier email parti au lead avant leur arrivée ?',
+      )) return;
+
+      const done = await fetch('/api/campaigns/sync-replies/relink', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apply: true }),
+      }).then(res => res.json());
+      if (done.error) { toast(done.error, 'error'); return; }
+
+      setResult(`${done.linked} réponse(s) rattachée(s) · ${done.alreadyLinked} déjà comptée(s)`
+        + (done.noMessage ? ` · ${done.noMessage} sans email antérieur` : ''));
+      toast(`${done.linked} réponse(s) rattachée(s)`);
+      onDone();
+    } catch (err) {
+      toast(`Rattachement impossible : ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (mode: 'now' | 'catchup') => {
     setBusy(mode);
@@ -327,6 +371,11 @@ function ReplySync({ onDone }: { onDone: () => void }) {
           title="Relit tout ce qui est arrivé depuis 30 jours, pour rattacher ce qu'un passage précédent n'avait pas su rattacher"
           onClick={() => run('catchup')}>
           {busy === 'catchup' ? 'Rattrapage…' : 'Rattraper 30 jours'}
+        </button>
+        <button style={{ ...btnXs, opacity: busy ? 0.6 : 1 }} disabled={busy !== null}
+          title="Rattache les réponses déjà enregistrées au message auquel elles répondent, pour qu'elles comptent dans les taux"
+          onClick={relink}>
+          {busy === 'relink' ? 'Rattachement…' : 'Recompter les réponses'}
         </button>
       </div>
       {busy && (

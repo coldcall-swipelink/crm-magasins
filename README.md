@@ -619,6 +619,12 @@ raisonnement que la réparation de schéma). Une réponse DÉJÀ enregistrée re
 ignorée par la déduplication : le rattrapage récupère ce qui n'avait pas été
 rattaché, pas ce qui l'avait été à moitié.
 
+Pour celles-là, un troisième bouton — **« Recompter les réponses »**. Il reprend
+les réponses DÉJÀ en base et les rattache au dernier email parti au lead avant
+leur arrivée, pour qu'elles comptent dans les taux. Il compte d'abord et
+demande confirmation avant d'écrire ; un message déjà marqué est laissé tel
+quel, donc l'opération est rejouable sans rien fausser.
+
 ### Un rejet n'est pas une ouverture
 
 Un rapport de non-remise cite l'email d'origine, **pixel de suivi compris**. En
