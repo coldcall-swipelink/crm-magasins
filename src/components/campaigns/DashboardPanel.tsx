@@ -13,7 +13,8 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
 import type { CampaignRow } from '@/lib/campaigns/stats';
-import { CAMPAIGN_STATUS, T, btnXs, card } from './ui';
+import { toast } from '@/components/ui/Toast';
+import { CAMPAIGN_STATUS, T, btnDef, btnXs, card } from './ui';
 
 type Stats = {
   sent: number; contacted: number; opened: number; replied: number;
@@ -73,6 +74,7 @@ export default function DashboardPanel({ onOpenCampaigns }: { onOpenCampaigns: (
       </div>
 
       <EngineHeartbeat lastRun={stats.lastRun} />
+      <ReplySync onDone={load} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label="Emails envoyés" value={stats.sent} hint="depuis le début" />
@@ -262,6 +264,79 @@ function EngineHeartbeat({ lastRun }: { lastRun: string | null }) {
         depuis un planificateur externe (N8N…) toutes les 5 minutes. Les envois déclenchés depuis
         l&apos;interface, eux, ne dépendent pas d&apos;elle.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Relève manuelle des réponses.
+ *
+ * Le planificateur relève les boîtes tout seul, mais il ne revient jamais en
+ * arrière : il ne lit que ce qui est arrivé depuis son dernier passage. Deux
+ * besoins en découlent — forcer un passage sans attendre, et RELIRE une
+ * période écoulée quand une correction du rattachement doit s'appliquer à ce
+ * qui a déjà été reçu.
+ */
+function ReplySync({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState<'now' | 'catchup' | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  const run = async (mode: 'now' | 'catchup') => {
+    setBusy(mode);
+    setResult(null);
+    try {
+      const res = await fetch('/api/campaigns/sync-replies/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mode === 'catchup' ? { sinceDays: 30 } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || 'Relève impossible', 'error'); return; }
+
+      const t = data.total || {};
+      setResult(
+        `${t.scanned ?? 0} message(s) lu(s) · ${t.replies ?? 0} réponse(s) · `
+        + `${t.bounces ?? 0} rejet(s) · ${t.stopped ?? 0} séquence(s) arrêtée(s)`
+        + (t.unmatched ? ` · ${t.unmatched} non rattaché(s)` : ''),
+      );
+      const failed = (data.reports || []).filter((report: { error?: string }) => report.error);
+      if (failed.length > 0) {
+        toast(`${failed.length} boîte(s) en échec : ${failed[0].error}`, 'error');
+      }
+      onDone();
+    } catch (err) {
+      toast(`Relève impossible : ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={{ ...card, padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600 }}>Réponses reçues</div>
+        <div style={{ fontSize: 11.5, color: T.textFaint, flex: 1, minWidth: 220 }}>
+          Le planificateur relève les boîtes tout seul. Ces boutons forcent un passage.
+        </div>
+        <button style={{ ...btnXs, opacity: busy ? 0.6 : 1 }} disabled={busy !== null}
+          onClick={() => run('now')}>
+          {busy === 'now' ? 'Relève…' : 'Relever maintenant'}
+        </button>
+        <button style={{ ...btnDef, padding: '6px 12px', fontSize: 12, opacity: busy ? 0.6 : 1 }}
+          disabled={busy !== null}
+          title="Relit tout ce qui est arrivé depuis 30 jours, pour rattacher ce qu'un passage précédent n'avait pas su rattacher"
+          onClick={() => run('catchup')}>
+          {busy === 'catchup' ? 'Rattrapage…' : 'Rattraper 30 jours'}
+        </button>
+      </div>
+      {busy && (
+        <div style={{ fontSize: 11.5, color: T.textFaint, marginTop: 8 }}>
+          Lecture des boîtes en cours — cela peut prendre une à deux minutes.
+        </div>
+      )}
+      {result && !busy && (
+        <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>{result}</div>
+      )}
     </div>
   );
 }

@@ -608,6 +608,17 @@ répondus. Quand les en-têtes ne désignent aucun message d'origine, la répons
 est rattachée au dernier email réellement parti à ce lead — sans quoi une
 réponse bien enregistrée ne comptait nulle part.
 
+**Relever à la main.** Le planificateur relève les boîtes tout seul, mais il ne
+revient jamais en arrière : il ne lit que ce qui est arrivé depuis son dernier
+passage. L'écran **Vue d'ensemble** porte donc deux boutons — « Relever
+maintenant » pour forcer un passage, et « Rattraper 30 jours » pour relire une
+période écoulée, ce qu'il faut après une correction du rattachement. Ils
+appellent `/api/campaigns/sync-replies/manual`, sans jeton : `CRON_SECRET` est
+confidentiel chez l'hébergeur et n'a rien à faire dans le navigateur (même
+raisonnement que la réparation de schéma). Une réponse DÉJÀ enregistrée reste
+ignorée par la déduplication : le rattrapage récupère ce qui n'avait pas été
+rattaché, pas ce qui l'avait été à moitié.
+
 ### Un rejet n'est pas une ouverture
 
 Un rapport de non-remise cite l'email d'origine, **pixel de suivi compris**. En
