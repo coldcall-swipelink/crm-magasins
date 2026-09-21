@@ -28,6 +28,64 @@ import { pickVariant } from '@/lib/campaigns/variants';
 /** Budget de temps d'un passage, en millisecondes (marge sous maxDuration). */
 const DEFAULT_BUDGET_MS = 240_000;
 
+/**
+ * Délai minimal entre deux emails reçus par UN MÊME LEAD, toutes campagnes
+ * confondues (heures).
+ *
+ * Un lead peut être inscrit dans plusieurs campagnes : bouchers d'un côté,
+ * offre générale de l'autre. Chaque campagne a sa propre file et sa propre
+ * boîte, et aucune ne sait ce que l'autre envoie — deux emails peuvent donc
+ * tomber dans la même minute, depuis deux adresses différentes. Pour le
+ * destinataire, c'est du harcèlement ; pour le domaine, une plainte.
+ *
+ * Le moteur vérifie donc, avant CHAQUE envoi, ce que ce lead a reçu des autres
+ * campagnes. S'il a été touché trop récemment, l'envoi est reporté — jamais
+ * annulé : la séquence reprend son cours à la fin du délai.
+ *
+ * 24 h par défaut ; `CAMPAIGN_LEAD_COOLDOWN_HOURS=0` désactive le garde-fou.
+ */
+const DEFAULT_LEAD_COOLDOWN_HOURS = 24;
+
+function leadCooldownMs(): number {
+  const raw = process.env.CAMPAIGN_LEAD_COOLDOWN_HOURS;
+  const hours = raw === undefined || raw.trim() === '' ? DEFAULT_LEAD_COOLDOWN_HOURS : Number(raw);
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  // Borne haute : au-delà d'une semaine, c'est une erreur de saisie, et des
+  // séquences entières resteraient bloquées sans qu'on comprenne pourquoi.
+  return Math.min(hours, 168) * 3_600_000;
+}
+
+/**
+ * Ce lead a-t-il reçu un email d'une AUTRE campagne trop récemment ?
+ *
+ * Renvoie la date à laquelle l'envoi redevient acceptable, et la campagne qui
+ * a écrit en dernier. `null` quand la voie est libre.
+ *
+ * On ne regarde que les messages réellement partis (`sent`) : un échec n'a
+ * dérangé personne. Et seulement les autres campagnes — à l'intérieur d'une
+ * même séquence, l'espacement est déjà celui des délais d'étape.
+ */
+async function recentOtherCampaignEmail(
+  leadId: string, campaignId: string, cooldownMs: number,
+): Promise<{ freeAt: Date; campaignName: string } | null> {
+  if (cooldownMs <= 0) return null;
+  const last = await prisma.campaignMessage.findFirst({
+    where: {
+      leadId,
+      campaignId: { not: campaignId },
+      status: 'sent',
+      sentAt: { gte: new Date(Date.now() - cooldownMs) },
+    },
+    orderBy: { sentAt: 'desc' },
+    select: { sentAt: true, campaign: { select: { name: true } } },
+  });
+  if (!last?.sentAt) return null;
+  return {
+    freeAt: new Date(last.sentAt.getTime() + cooldownMs),
+    campaignName: last.campaign?.name || 'une autre campagne',
+  };
+}
+
 /** Clés AppSetting où l'on note l'heure des passages du moteur. */
 export const LAST_RUN_KEY = 'campaigns:lastRunAt';
 /**
@@ -65,6 +123,12 @@ export type RunResult = {
   /** Boîtes écartées et pourquoi : la route le renvoie tel quel au superviseur. */
   skipped: Array<{ mailbox: string; reason: string }>;
   errors: Array<{ enrollmentId: string; message: string }>;
+  /**
+   * Envois volontairement reportés : lead touché par une autre campagne trop
+   * récemment, test A/B sans variante envoyable. Ce ne sont PAS des erreurs —
+   * les confondre ferait passer un garde-fou qui fonctionne pour une panne.
+   */
+  deferred: Array<{ enrollmentId: string; message: string }>;
   /** Inscriptions sans boîte d'envoi rendues à une boîte active. */
   reassigned: number;
 };
@@ -93,7 +157,7 @@ export async function runDueSends(
   const deadline = Date.now() + budgetMs;
   const now = options.now ?? new Date();
 
-  const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [], reassigned: 0 };
+  const result: RunResult = { sent: 0, failed: 0, finished: 0, stopped: 0, skipped: [], errors: [], deferred: [], reassigned: 0 };
 
   // Battement de cœur : sans cette trace, un planificateur qui ne tourne pas
   // est invisible — l'interface montre une file qui n'avance pas, sans dire
@@ -262,10 +326,10 @@ async function runMailbox(mailbox: Mailbox, deadline: number, now: Date, result:
         // n'a jamais existé.
         if (outcome.kind === 'finished') result.finished++;
         else if (outcome.kind === 'stopped') result.stopped++;
-        else if (!result.errors.some(item => item.message === outcome.message)) {
-          // Un seul message par cause : vingt leads à la même étape en test
-          // n'ont pas à remplir vingt lignes du compte rendu.
-          result.errors.push({ enrollmentId: enrollment.id, message: outcome.message });
+        else if (result.deferred.length < 50) {
+          // Un report n'est pas une erreur : il a sa propre rubrique. Bornée,
+          // pour qu'un lot de leads reportés ne noie pas le compte rendu.
+          result.deferred.push({ enrollmentId: enrollment.id, message: outcome.message });
         }
         await prisma.mailbox.update({ where: { id: mailbox.id }, data: { nextSendAt: new Date() } });
         continue;
@@ -439,6 +503,29 @@ async function sendEnrollmentStep(
   if (!step) {
     await finishEnrollment(enrollment.id);
     return { kind: 'finished' };
+  }
+
+  // ─── Un seul email à la fois, toutes campagnes confondues ────────────────
+  //
+  // Vérifié ICI, juste avant de composer le message : rien n'a encore été
+  // écrit en base, aucun jeton n'a été créé, aucune variante n'a été tirée.
+  // Reporter plus loin laisserait des traces d'un envoi qui n'a pas eu lieu.
+  const cooldown = leadCooldownMs();
+  const recent = await recentOtherCampaignEmail(lead.id, campaign.id, cooldown);
+  if (recent) {
+    // Reporté, jamais annulé : l'inscription repasse « active » avec une
+    // échéance à la fin du délai, arrondie au prochain créneau ouvert de la
+    // boîte (plage horaire et jours d'envoi compris).
+    await prisma.campaignEnrollment.update({
+      where: { id: enrollment.id },
+      data: { status: 'active', nextSendAt: nextOpenSlot(mailbox, recent.freeAt) },
+    });
+    return {
+      kind: 'deferred',
+      message: `${lead.email} a reçu un email de « ${recent.campaignName} » il y a moins de `
+        + `${Math.round(cooldown / 3_600_000)} h : envoi reporté au `
+        + `${recent.freeAt.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`,
+    };
   }
 
   // ─── Étape « modèle boucher » ────────────────────────────────────────────
@@ -682,7 +769,20 @@ async function finishEnrollment(enrollmentId: string) {
 
 // ─── Inscription de leads dans une campagne ───────────────────────────────
 
-export type EnrollResult = { enrolled: number; skipped: number; reasons: Record<string, number> };
+export type EnrollResult = {
+  enrolled: number;
+  skipped: number;
+  reasons: Record<string, number>;
+  /**
+   * Inscrits ici ALORS QU'ils sont déjà en cours dans une autre campagne.
+   *
+   * Ils ne sont pas écartés — inscrire un lead dans deux séquences est un
+   * choix légitime — mais il faut le dire : le moteur espacera leurs emails
+   * (cf. le délai entre deux campagnes), donc leur séquence avancera moins
+   * vite qu'on ne l'attend.
+   */
+  alsoRunningElsewhere: number;
+};
 
 /**
  * Inscrit des leads dans une campagne.
@@ -707,7 +807,7 @@ export async function enrollLeads(campaignId: string, leadIds: string[]): Promis
   const boxes = campaign.mailboxes.map(link => link.mailbox).filter(box => box.active);
   if (boxes.length === 0) throw new Error("Aucune boîte d'envoi active n'est affectée à cette campagne");
 
-  const result: EnrollResult = { enrolled: 0, skipped: 0, reasons: {} };
+  const result: EnrollResult = { enrolled: 0, skipped: 0, reasons: {}, alsoRunningElsewhere: 0 };
   const note = (reason: string) => {
     result.skipped++;
     result.reasons[reason] = (result.reasons[reason] || 0) + 1;
@@ -729,6 +829,17 @@ export async function enrollLeads(campaignId: string, leadIds: string[]): Promis
       select: { id: true },
     });
     if (exists) { note('Déjà inscrit'); continue; }
+
+    // Déjà en cours ailleurs : on inscrit quand même, on le signale.
+    const elsewhere = await prisma.campaignEnrollment.count({
+      where: {
+        leadId: lead.id,
+        campaignId: { not: campaignId },
+        status: { in: ['active', 'sending'] },
+        campaign: { status: { in: ['running', 'paused'] } },
+      },
+    });
+    if (elsewhere > 0) result.alsoRunningElsewhere++;
 
     const mailbox = boxes[cursor % boxes.length];
     cursor++;
