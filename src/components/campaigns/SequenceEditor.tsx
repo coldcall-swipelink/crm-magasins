@@ -26,6 +26,7 @@
 // « gardant » une variante : elle devient l'étape, les autres disparaissent.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCurrentUser } from '@/lib/currentUser';
 import { toast } from '@/components/ui/Toast';
 import { STANDARD_VARIABLES } from '@/lib/campaigns/render';
 import { T, btnDef, btnPri, btnXs, formatDelay, inp, label, modal, overlay } from './ui';
@@ -101,10 +102,16 @@ export default function SequenceEditor({ campaignId, steps, onChanged }: {
   steps: Step[];
   onChanged: () => void;
 }) {
+  const { user } = useCurrentUser();
   // Les variables du CRM sont connues d'avance ; celles propres aux leads
   // (colonnes personnalisées de l'import) arrivent avec le premier aperçu.
   const [variables, setVariables] = useState<Variables>({ standard: [...STANDARD_VARIABLES], custom: [] });
-  const [preview, setPreview] = useState<{ stepId: string; variantKey: string; subject: string; html: string; missing: string[]; from: string | null; lead: string } | null>(null);
+  const [preview, setPreview] = useState<{
+    stepId: string; variantId?: string; variantKey: string; subject: string; html: string;
+    missing: string[]; from: string | null; lead: string;
+    /** Une boîte d'envoi est affectée : l'envoi de test est possible. */
+    canSend: boolean;
+  } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(steps[0]?.id ?? null);
   // Variante ouverte, par étape : on retrouve B en revenant sur l'étape.
   const [openVariant, setOpenVariant] = useState<Record<string, string>>({});
@@ -307,12 +314,14 @@ export default function SequenceEditor({ campaignId, steps, onChanged }: {
     setVariables(data.variables);
     setPreview({
       stepId: step.id,
+      variantId,
       variantKey: step.variants.find(variant => variant.id === variantId)?.key ?? '',
       subject: data.preview.subject,
       html: data.preview.html,
       missing: data.preview.missing,
       from: data.preview.from,
       lead: data.preview.lead.email,
+      canSend: data.preview.canSend === true,
     });
   };
 
@@ -487,8 +496,78 @@ export default function SequenceEditor({ campaignId, steps, onChanged }: {
             {/* Fond blanc assumé : c'est l'email tel que le lead le recevra. */}
             <div className="camp-email-preview" style={{ border: `1px solid ${T.border}`, padding: 16 }}
               dangerouslySetInnerHTML={{ __html: preview.html }} />
+
+            <TestSend campaignId={campaignId} preview={preview} defaultTo={user?.email || ''} />
+
             <button style={{ ...btnDef, marginTop: 14 }} onClick={() => setPreview(null)}>Fermer</button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Envoi de test depuis l'aperçu.
+ *
+ * L'aperçu montre le rendu dans le CRM ; seul un vrai email montre ce que
+ * verra le destinataire — son client mail, ses images, ses filtres. Le test
+ * part par la boîte de la campagne mais ne laisse aucune trace : ni
+ * historique, ni statistiques, ni jeton.
+ */
+function TestSend({ campaignId, preview, defaultTo }: {
+  campaignId: string;
+  preview: { stepId: string; variantId?: string; canSend: boolean };
+  defaultTo: string;
+}) {
+  const [to, setTo] = useState(defaultTo);
+  const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState('');
+
+  const send = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/preview/send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stepId: preview.stepId, variantId: preview.variantId, to }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || 'Envoi impossible', 'error'); return; }
+      setSentTo(data.to || to);
+      toast(`Email de test envoyé à ${data.to || to}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
+      <div style={{ ...label, marginBottom: 6 }}>S&apos;envoyer cet email pour de vrai</div>
+      {preview.canSend ? (
+        <>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input style={{ ...inp, flex: 1 }} type="email" placeholder="vous@exemple.fr"
+              value={to} onChange={event => { setTo(event.target.value); setSentTo(''); }}
+              onKeyDown={event => { if (event.key === 'Enter' && to.trim() && !busy) send(); }} />
+            <button style={{ ...btnPri, opacity: busy || !to.trim() ? 0.6 : 1 }}
+              disabled={busy || !to.trim()} onClick={send}>
+              {busy ? 'Envoi…' : 'Envoyer un test'}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: T.textFaint, marginTop: 5, lineHeight: 1.5 }}>
+            Part par la boîte de la campagne, sujet préfixé <b style={{ color: T.textMuted }}>[TEST]</b>.
+            N&apos;apparaît ni dans l&apos;historique, ni dans les statistiques, et ne consomme aucun quota.
+          </div>
+          {sentTo && (
+            <div style={{ fontSize: 11.5, color: '#4ade80', marginTop: 6 }}>
+              Envoyé à {sentTo}. S&apos;il n&apos;arrive pas, regardez les indésirables — c&apos;est aussi une information.
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: T.warnText }}>
+          Aucune boîte d&apos;envoi affectée à cette campagne : choisissez-en une dans l&apos;onglet
+          <b> Réglages</b> pour pouvoir s&apos;envoyer un test.
         </div>
       )}
     </div>

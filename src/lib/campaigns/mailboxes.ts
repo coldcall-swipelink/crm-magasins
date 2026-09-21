@@ -89,7 +89,7 @@ export type ConnectionCheck = { ok: boolean; error?: string };
 export type MailboxCheck = { smtp: ConnectionCheck; imap: ConnectionCheck | null };
 
 /** Message d'erreur lisible pour l'utilisateur, à partir d'une exception. */
-function readableError(err: unknown): string {
+export function readableError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   // Les causes les plus fréquentes, traduites une bonne fois pour toutes.
   if (/invalid login|authentication failed|AUTHENTICATIONFAILED|535/i.test(message)) {
