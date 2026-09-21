@@ -35,10 +35,12 @@
        rappels la veille et 1 h avant (e-mail + SMS Twilio), relance J+1 par Hugo si étapes commencées sans réservation
        (se baser sur les events answer_*, JAMAIS sur le simple clic du mail : Safe Links Microsoft).
   PERF (captation en 1 s) : servir la page en HTML statique/edge avec magasin + nombre de profils DÉJÀ injectés côté serveur
-  (pas d'attente de /pv/context), polices en swap, aucun script tiers. Les créneaux sont préchargés dès l'ouverture.
+  (pas d'attente de /pv/context), polices en swap, un seul script tiers : la balise Google (gtag.js), posée par le serveur
+  à la place du repère « gtag » (commentaire HTML juste sous cet en-tête, cf. src/lib/pv/templates.ts) — absente en mode démo. Les créneaux sont préchargés dès l'ouverture.
   La page recharge les créneaux : à l'arrivée sur l'étape 4, toutes les 30 s, au retour sur l'onglet,
   après un 409 et après chaque réservation. Tant que CONFIG.API est vide : MODE DÉMO (données fictives).
 -->
+<!-- gtag -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

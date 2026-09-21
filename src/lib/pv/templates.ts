@@ -62,6 +62,35 @@ export function fillTemplate(template: string, variables: Record<string, string>
   });
 }
 
+/**
+ * Balise Google (gtag.js) posée sur CHAQUE page publique du pilote — le
+ * parcours, la page « lien expiré » et la page de désinscription — pour suivre
+ * le trafic dans Google Analytics. L'identifiant se change sans redéployer
+ * (PV_GA_MEASUREMENT_ID) ; vide, aucune balise n'est émise.
+ *
+ * Le fichier src/pv-assets/parcours-boucher.html porte un repère
+ * <!-- gtag --> que le serveur remplace : ouvert tel quel dans un navigateur
+ * (mode démo), il n'envoie donc rien à Google.
+ */
+export function googleTagHtml(): string {
+  const id = (process.env.PV_GA_MEASUREMENT_ID ?? 'G-W1Y0W8LEQK').trim();
+  if (!/^[A-Z0-9-]+$/i.test(id)) return '';
+  return `<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${id}');
+</script>`;
+}
+
+/** Pose la balise Google à la place du repère <!-- gtag --> d'un modèle. */
+export function withGoogleTag(html: string): string {
+  return html.split('<!-- gtag -->').join(googleTagHtml());
+}
+
 /** Retire le bloc délimité par <!-- nom:start --> … <!-- nom:end -->. */
 export function removeBlock(html: string, nom: string): string {
   const motif = new RegExp(`<!--\\s*${nom}:start\\s*-->[\\s\\S]*?<!--\\s*${nom}:end\\s*-->`, 'g');
