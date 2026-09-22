@@ -127,8 +127,8 @@ export function renderFollowUp(ctx: FollowUpContext): { subject: string; html: s
   const bonjour = ctx.prenom ? `Bonjour ${escapeHtml(ctx.prenom)},` : 'Bonjour,';
   const corps =
     `<p style="margin:0 0 18px">${bonjour}</p>`
-    + `<p style="margin:0 0 6px">Vous avez commencé à nous décrire le poste de boucher `
-    + `de ${escapeHtml(ctx.magasin)}, sans choisir de créneau.</p>`
+    + `<p style="margin:0 0 6px">Vous avez commencé à nous décrire vos critères pour le recrutement `
+    + `de votre boucher, sans choisir de créneau.</p>`
     + `<p style="margin:0 0 6px">Vos réponses sont gardées : il ne reste qu'à choisir l'horaire `
     + `qui vous arrange pour découvrir vos 2 CV.</p>`
     + `<p style="margin:22px 0">${bouton(ctx.lien, 'Choisir mon créneau')}</p>`
