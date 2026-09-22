@@ -10,7 +10,7 @@ import { useCurrentUser } from '@/lib/currentUser';
 import { useProspectionMode } from '@/lib/prospectionMode';
 import { CALL_OUTCOME_STYLES, type CallOutcome } from '@/lib/callOutcomes';
 import RichTextEditor from '@/components/ui/RichTextEditor';
-import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
+import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER, senderForUser } from '@/lib/emailSenders';
 import { PAYMENT_EMAIL_TEMPLATE, paymentRecurrenceLabel } from '@/lib/paymentEmailTemplate';
 import MeetInviteModal, { reportMeetSync } from '@/components/pipeline/MeetInviteModal';
 import PVModal from '@/components/pipeline/PVModal';
@@ -459,6 +459,14 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [selectedTemplate, setSelectedTemplate] = useState('');
   // Adresse d'expéditeur choisie (parmi EMAIL_SENDERS, toutes @swipelink.fr).
   const [emailFrom, setEmailFrom] = useState(DEFAULT_EMAIL_SENDER.email);
+  // L'identité connectée arrive après le premier rendu (localStorage) : caler
+  // l'expéditeur sur le compte connecté tant qu'aucun choix manuel n'a été fait.
+  const emailFromTouched = useRef(false);
+  useEffect(() => {
+    if (emailFromTouched.current) return;
+    const own = senderForUser(currentUser);
+    if (own) setEmailFrom(own.email);
+  }, [currentUser]);
   const [emailTo, setEmailTo] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
@@ -1406,7 +1414,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       </div>
       <div style={{ marginBottom: 10 }}>
         <label style={labelStyle}>Expéditeur</label>
-        <select style={inp} value={emailFrom} onChange={e => setEmailFrom(e.target.value)}>
+        <select style={inp} value={emailFrom} onChange={e => { emailFromTouched.current = true; setEmailFrom(e.target.value); }}>
           {EMAIL_SENDERS.map(s => <option key={s.email} value={s.email}>{s.label} — {s.email}</option>)}
         </select>
       </div>

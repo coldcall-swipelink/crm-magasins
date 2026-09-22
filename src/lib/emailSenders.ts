@@ -22,8 +22,41 @@ export const EMAIL_SENDERS: EmailSender[] = [
   { email: 'luca@swipelink.fr', label: 'Luca', from: 'Luca - Swipelink <luca@swipelink.fr>' },
 ];
 
-/** Expéditeur par défaut : hugo@swipelink.fr (celui déjà en place). */
+/**
+ * Expéditeur par défaut : hugo@swipelink.fr (celui déjà en place). Sert de
+ * repli quand l'utilisateur connecté n'est pas identifiable (voir senderForUser).
+ */
 export const DEFAULT_EMAIL_SENDER = EMAIL_SENDERS[0];
+
+/** Minuscules sans accents, pour comparer prénoms et libellés. */
+function normalizeName(value: string): string {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/**
+ * Résout l'expéditeur correspondant à un utilisateur du CRM (compte connecté) :
+ * par adresse email d'abord (compte qui se connecte directement avec son
+ * adresse @swipelink.fr), sinon par prénom — un mot du nom de l'utilisateur
+ * égal au libellé d'un expéditeur, insensible à la casse et aux accents
+ * (« Bilal Yacouti » → bilal@swipelink.fr). Retourne null si aucun ne
+ * correspond ; l'appelant garde alors DEFAULT_EMAIL_SENDER.
+ */
+export function senderForUser(
+  user?: { name?: string | null; email?: string | null } | null
+): EmailSender | null {
+  if (!user) return null;
+  const email = (user.email || '').trim().toLowerCase();
+  if (email) {
+    const byEmail = EMAIL_SENDERS.find(s => s.email.toLowerCase() === email);
+    if (byEmail) return byEmail;
+  }
+  const words = normalizeName(user.name || '').split(/\s+/).filter(Boolean);
+  if (words.length) {
+    const byName = EMAIL_SENDERS.find(s => words.includes(normalizeName(s.label)));
+    if (byName) return byName;
+  }
+  return null;
+}
 
 /**
  * Résout la valeur `from` (« Nom <email> ») à partir de l'adresse choisie.
