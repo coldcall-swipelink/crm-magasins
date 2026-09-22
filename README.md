@@ -349,21 +349,24 @@ quatre outils disent la même chose :
 - **CA sur la durée du contrat** = panier moyen × durée saisie du contrat.
   Ce n'est pas une LTV (ni churn ni coûts) : la LTV vit dans Brain.
 
-### Page « Objectifs » — suivre les cibles fixées dans Smartlink Brain
+### Objectifs dans la barre du haut — suivre les cibles fixées dans Smartlink Brain
 
 Les objectifs se **fixent** dans Smartlink Brain (onglet Objectifs) ; chaque
-commercial les **suit** ici, dans l'outil qu'il a ouvert toute la journée. La
-page 🎯 Objectifs montre, pour la semaine, le mois, le trimestre ou l'année
-(en cours ou passés) :
+commercial les **suit** ici, dans la **barre globale du CRM**, à côté du mode
+prospection — ils se surveillent pendant qu'on appelle, pas dans un onglet.
+La barre 🎯 résume la période (appels passés, décisionnaires joints avec leur
+taux, démos bookées, closings — chacun face à sa cible, coloré selon le
+rythme) et se rafraîchit toute seule pendant une session d'appels. Un clic
+ouvre le détail :
 
-- **Appels passés**, **démos bookées** et **closings**, chacun face à sa
-  cible, avec une jauge dont le repère marque où il faudrait en être à ce
+- le choix de la période — semaine, mois, trimestre ou année, en cours ou
+  passés ;
+- une jauge par métrique, dont le repère marque où il faudrait en être à ce
   stade de la période (la semaine se juge sur ses jours ouvrés, comme dans
   Brain) ;
-- **Décisionnaires joints** et les taux associés : taux de décisionnaires
-  joints, taux de démo par appel, taux de démo par décisionnaire joint, taux
-  de closing par démo ;
-- la carte **Closings** ne s'affiche que pour ceux qui en portent : un
+- les taux associés : taux de décisionnaires joints, taux de démo par appel,
+  taux de démo par décisionnaire joint, taux de closing par démo ;
+- la ligne **Closings** ne s'affiche que pour ceux qui en portent : un
   objectif de closing non nul dans Brain, ou un closing bien réel sur la
   période.
 
