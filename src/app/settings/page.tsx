@@ -7,7 +7,8 @@ import RichTextEditor from '@/components/ui/RichTextEditor';
 import PhoneLookupPanel from '@/components/settings/PhoneLookupPanel';
 import DealsWithoutPhonePanel from '@/components/settings/DealsWithoutPhonePanel';
 import PaymentLinksPanel from '@/components/settings/PaymentLinksPanel';
-import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER } from '@/lib/emailSenders';
+import { EMAIL_SENDERS, DEFAULT_EMAIL_SENDER, senderForUser } from '@/lib/emailSenders';
+import { useCurrentUser } from '@/lib/currentUser';
 
 const inp: React.CSSProperties = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', fontSize: 13, outline: 'none' };
 const btnPri: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, border: 'none', background: '#4f46e5', color: '#fff', fontWeight: 500, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5 };
@@ -86,6 +87,15 @@ export default function SettingsPage() {
   // « globale » héritée sert de valeur par défaut si un expéditeur n'en a pas.
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [sigSender, setSigSender] = useState(DEFAULT_EMAIL_SENDER.email);
+  // Pré-sélectionner la signature du compte connecté (l'identité arrive après
+  // le premier rendu, via localStorage) tant qu'aucun choix manuel n'a été fait.
+  const { user: currentUser } = useCurrentUser();
+  const sigSenderTouched = useRef(false);
+  useEffect(() => {
+    if (sigSenderTouched.current) return;
+    const own = senderForUser(currentUser);
+    if (own) setSigSender(own.email);
+  }, [currentUser]);
   // Mode d'édition de la signature : éditeur visuel (WYSIWYG) ou code HTML brut.
   const [sigMode, setSigMode] = useState<'visual' | 'html'>('visual');
   const [savingSig, setSavingSig] = useState(false);
@@ -452,7 +462,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', gap: 12, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ minWidth: 220 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Expéditeur</label>
-              <select style={{ ...inp, cursor: 'pointer' }} value={sigSender} onChange={e => setSigSender(e.target.value)}>
+              <select style={{ ...inp, cursor: 'pointer' }} value={sigSender} onChange={e => { sigSenderTouched.current = true; setSigSender(e.target.value); }}>
                 {EMAIL_SENDERS.map(s => <option key={s.email} value={s.email}>{s.label} — {s.email}</option>)}
               </select>
             </div>
