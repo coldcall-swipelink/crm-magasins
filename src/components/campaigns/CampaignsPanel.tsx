@@ -135,8 +135,19 @@ function CampaignCard({ campaign, onOpen }: { campaign: Row; onOpen: () => void 
     }}>
       {/* Nom, date de création, taille de la séquence */}
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {campaign.name}
+        <div style={{ fontSize: 14, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaign.name}</span>
+          {campaign.priority && (
+            <span
+              title="Campagne prioritaire : ses leads passent devant ceux des autres dans la file de chaque boîte d'envoi"
+              style={{
+                flexShrink: 0, padding: '1px 7px', borderRadius: 999, fontSize: 10,
+                fontWeight: 800, letterSpacing: '.04em',
+                color: T.warnText, background: T.warnSoft, border: `1px solid ${T.warn}55`,
+              }}>
+              PRIO
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 11.5, color: T.textFaint, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Créée le {formatCreated(campaign.createdAt)}

@@ -407,7 +407,16 @@ async function claimNextEnrollment(mailboxId: string) {
       nextSendAt: { lte: new Date() },
       campaign: { status: 'running' },
     },
-    orderBy: { nextSendAt: 'asc' },
+    // Les campagnes PRIORITAIRES d'abord, puis l'ordre d'échéance.
+    //
+    // Une boîte a un quota journalier ; trois campagnes qui la partagent
+    // avançaient de front, au rythme de leurs échéances, et aucune n'arrivait
+    // au bout quand le total des leads dépassait ce quota. Marquer une
+    // campagne prioritaire la fait s'écouler EN PREMIER : les autres
+    // reprennent dès qu'elle n'a plus rien à envoyer.
+    //
+    // Le quota, lui, ne bouge pas : c'est l'ordre qui change, pas le volume.
+    orderBy: [{ campaign: { priority: 'desc' } }, { nextSendAt: 'asc' }],
     select: { id: true },
   });
   if (!candidate) return null;

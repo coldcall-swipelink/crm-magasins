@@ -1046,6 +1046,12 @@ model Campaign {
   // Lien de désinscription ajouté en bas de chaque email + en-tête
   // List-Unsubscribe. Vivement conseillé en prospection à froid.
   addUnsubscribe Boolean @default(true)
+  // Campagne prioritaire : ses leads passent devant ceux des autres campagnes
+  // dans la file d'une même boîte. Le quota journalier ne change pas — c'est
+  // l'ORDRE d'écoulement qui change, pas le volume. Utile quand le total des
+  // leads dépasse ce qu'une journée peut envoyer : sans cela, trois campagnes
+  // avancent de front et aucune n'arrive au bout.
+  priority       Boolean @default(false)
 
   steps         CampaignStep[]
   mailboxes     CampaignMailbox[]

@@ -208,6 +208,8 @@ export type CampaignRow = {
   id: string;
   name: string;
   status: string;
+  /** Campagne prioritaire : ses leads passent devant dans la file des boîtes. */
+  priority: boolean;
   /** Date de création, ISO. */
   createdAt: string;
   /** Nombre d'étapes de la séquence. */
@@ -251,7 +253,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
     funnel(),
     prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, status: true, createdAt: true, _count: { select: { steps: true } } },
+      select: { id: true, name: true, status: true, priority: true, createdAt: true, _count: { select: { steps: true } } },
     }),
     prisma.mailbox.findMany({ orderBy: { createdAt: 'asc' } }),
     // Une seule lecture des messages récents : la courbe et les compteurs par
@@ -324,7 +326,7 @@ export async function globalStats(days = 30): Promise<GlobalStats> {
  * en mémoire : le nombre de campagnes reste petit, pas celui des messages.
  */
 export async function campaignRowStats(
-  campaigns: Array<{ id: string; name: string; status: string; createdAt: Date; _count: { steps: number } }>,
+  campaigns: Array<{ id: string; name: string; status: string; priority: boolean; createdAt: Date; _count: { steps: number } }>,
 ): Promise<CampaignRow[]> {
   const sentScope = { status: 'sent' };
   const [sentBy, contactedBy, openedBy, repliedBy, enrollmentsBy, completedBy] = await Promise.all([
@@ -383,7 +385,7 @@ export async function campaignRowStats(
       const opened = openMap.get(campaign.id) || 0;
       const replied = replyMap.get(campaign.id) || 0;
       return {
-        id: campaign.id, name: campaign.name, status: campaign.status,
+        id: campaign.id, name: campaign.name, status: campaign.status, priority: campaign.priority,
         createdAt: campaign.createdAt.toISOString(),
         steps, enrolled: enr.total, contacted, sent, progress,
         completed: completedMap.get(campaign.id) || 0,

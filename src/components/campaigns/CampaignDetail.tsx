@@ -19,7 +19,7 @@ import { CAMPAIGN_STATUS, btnDef, btnPri, btnXs, card, inp, label } from './ui';
 
 type Campaign = {
   id: string; name: string; description: string; status: string;
-  stopOnReply: boolean; trackOpens: boolean; addUnsubscribe: boolean;
+  stopOnReply: boolean; trackOpens: boolean; addUnsubscribe: boolean; priority: boolean;
   startedAt: string | null;
   steps: Step[];
   mailboxes: Array<{ mailboxId: string; mailbox: { id: string; email: string; displayName: string; active: boolean } }>;
@@ -269,6 +269,12 @@ function SettingsTab({ campaign, mailboxes, onPatch, onDelete }: {
           onChange={value => onPatch({ addUnsubscribe: value })}
           title="Ajouter un lien de désinscription"
           hint="Lien en bas de l'email et en-tête List-Unsubscribe. Fortement recommandé en prospection à froid : c'est ce qui évite les plaintes pour spam."
+        />
+        <Toggle
+          checked={campaign.priority}
+          onChange={value => onPatch({ priority: value })}
+          title="Campagne prioritaire"
+          hint="Ses leads passent devant ceux des autres campagnes dans la file de chaque boîte d'envoi. Le quota journalier ne change pas : c'est l'ordre d'écoulement qui change, pas le volume. Utile quand le total des leads dépasse ce qu'une journée peut envoyer — sans cela, les campagnes avancent de front et aucune n'arrive au bout."
         />
       </div>
 

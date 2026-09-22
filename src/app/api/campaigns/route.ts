@@ -18,7 +18,7 @@ export async function GET() {
   // affiche les mêmes chiffres partout, et les actives passent en tête.
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, status: true, createdAt: true, _count: { select: { steps: true } } },
+    select: { id: true, name: true, status: true, priority: true, createdAt: true, _count: { select: { steps: true } } },
   });
   return NextResponse.json({ campaigns: await campaignRowStats(campaigns) });
 }
