@@ -349,6 +349,35 @@ quatre outils disent la même chose :
 - **CA sur la durée du contrat** = panier moyen × durée saisie du contrat.
   Ce n'est pas une LTV (ni churn ni coûts) : la LTV vit dans Brain.
 
+### Page « Objectifs » — suivre les cibles fixées dans Smartlink Brain
+
+Les objectifs se **fixent** dans Smartlink Brain (onglet Objectifs) ; chaque
+commercial les **suit** ici, dans l'outil qu'il a ouvert toute la journée. La
+page 🎯 Objectifs montre, pour la semaine, le mois, le trimestre ou l'année
+(en cours ou passés) :
+
+- **Appels passés**, **démos bookées** et **closings**, chacun face à sa
+  cible, avec une jauge dont le repère marque où il faudrait en être à ce
+  stade de la période (la semaine se juge sur ses jours ouvrés, comme dans
+  Brain) ;
+- **Décisionnaires joints** et les taux associés : taux de décisionnaires
+  joints, taux de démo par appel, taux de démo par décisionnaire joint, taux
+  de closing par démo ;
+- la carte **Closings** ne s'affiche que pour ceux qui en portent : un
+  objectif de closing non nul dans Brain, ou un closing bien réel sur la
+  période.
+
+Le réalisé est calculé **ici, à la source**, avec les conventions de comptage
+de Brain (un appel = une ligne du journal d'appels, une démo à sa date de
+prise de rendez-vous, un closing = un client signé non résilié dédoublonné
+par affaire, crédité au closeur) : le chiffre vu ici et le même chiffre dans
+Brain ne se contredisent jamais. Les cibles, elles, viennent de l'export
+`GET /api/goals/export` de Brain — le rattachement se fait par **nom
+d'utilisateur** (insensible à la casse et aux accents), qui doit donc
+s'écrire pareil des deux côtés. Réglage : `BRAIN_GOALS_URL` +
+`BRAIN_GOALS_TOKEN` (voir `.env.example`) ; sans eux, la page affiche le
+réalisé seul et le dit.
+
 ### Calendrier des appels d'une affaire (semaine type)
 
 Chaque clic sur **« Afficher le numéro »** dans une fiche affaire journalise un

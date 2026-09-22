@@ -37,6 +37,7 @@ export const WORKSPACES: readonly Workspace[] = [
     home: '/pipeline',
     nav: [
       { href: '/dashboard',     label: 'Dashboard',     icon: '📊' },
+      { href: '/objectifs',     label: 'Objectifs',     icon: '🎯' },
       { href: '/paiements',     label: 'Paiements',     icon: '💶' },
       { href: '/pipeline',      label: 'Pipeline',      icon: '📋' },
       { href: '/carte',         label: 'Carte',         icon: '🗺️' },
