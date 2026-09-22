@@ -599,6 +599,15 @@ envois, plage horaire et jours autorisés (dans SON fuseau), montée en charge
 progressive. Le moteur ne déroule jamais une campagne d'un bloc : il relève les
 inscriptions dont l'heure est venue, boîte par boîte, dans ces limites.
 
+**Campagne prioritaire.** Un interrupteur dans les réglages d'une campagne
+(repère **PRIO** dans la liste). Ses leads passent devant ceux des autres
+campagnes dans la file de CHAQUE boîte d'envoi. Le quota journalier ne change
+pas : c'est l'ordre d'écoulement qui change, pas le volume. Sans cela, trois
+campagnes qui partagent une boîte avancent de front et, quand le total des
+leads dépasse ce qu'une journée peut envoyer, aucune n'arrive au bout. Les
+campagnes ordinaires reprennent dès que la prioritaire n'a plus rien à envoyer,
+et entre elles l'ordre reste celui des échéances.
+
 **Un seul email à la fois par lead, toutes campagnes confondues.** Un lead peut
 être inscrit dans plusieurs campagnes ; chacune a sa file et sa boîte, et aucune
 ne sait ce que l'autre envoie. Avant chaque envoi, le moteur regarde donc ce que

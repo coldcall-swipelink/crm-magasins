@@ -54,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.stopOnReply !== undefined) data.stopOnReply = Boolean(body.stopOnReply);
   if (body.trackOpens !== undefined) data.trackOpens = Boolean(body.trackOpens);
   if (body.addUnsubscribe !== undefined) data.addUnsubscribe = Boolean(body.addUnsubscribe);
+  if (body.priority !== undefined) data.priority = Boolean(body.priority);
 
   if (body.status !== undefined) {
     const status = String(body.status);

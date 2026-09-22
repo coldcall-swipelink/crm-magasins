@@ -314,6 +314,8 @@ END $$;`,
   `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "badEmailAt" TIMESTAMP(3);`,
   // Message rejeté : son pixel ne compte plus d'ouverture.
   `ALTER TABLE "CampaignMessage" ADD COLUMN IF NOT EXISTS "bouncedAt" TIMESTAMP(3);`,
+  // Campagne prioritaire : ses leads passent devant dans la file d'une boîte.
+  `ALTER TABLE "Campaign" ADD COLUMN IF NOT EXISTS "priority" BOOLEAN NOT NULL DEFAULT false;`,
   // Filtre « pipeline / étape » de l'écran Leads : il cherche les leads d'une
   // liste d'affaires.
   `CREATE INDEX IF NOT EXISTS "Lead_dealId_idx" ON "Lead"("dealId");`,
