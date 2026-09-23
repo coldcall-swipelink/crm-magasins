@@ -228,6 +228,20 @@ const STATEMENTS: string[] = [
   "ALTER TABLE \"OfferNotification\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
   "CREATE UNIQUE INDEX IF NOT EXISTS \"OfferNotification_dealId_offerId_key\" ON \"OfferNotification\"(\"dealId\",\"offerId\");",
   "CREATE INDEX IF NOT EXISTS \"OfferNotification_dealId_idx\" ON \"OfferNotification\"(\"dealId\");",
+  // Notifications d'ouverture d'email (première ouverture, webhook Resend) :
+  // signal « appeler maintenant » du centre de notifications du pipeline.
+  "CREATE TABLE IF NOT EXISTS \"EmailOpenNotification\" (\"id\" TEXT NOT NULL, CONSTRAINT \"EmailOpenNotification_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"id\" TEXT;",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"emailLogId\" TEXT;",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"dealId\" TEXT;",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"senderEmail\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"subject\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"openedAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"isRead\" BOOLEAN NOT NULL DEFAULT false;",
+  "ALTER TABLE \"EmailOpenNotification\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "CREATE UNIQUE INDEX IF NOT EXISTS \"EmailOpenNotification_emailLogId_key\" ON \"EmailOpenNotification\"(\"emailLogId\");",
+  "CREATE INDEX IF NOT EXISTS \"EmailOpenNotification_dealId_idx\" ON \"EmailOpenNotification\"(\"dealId\");",
+  "CREATE INDEX IF NOT EXISTS \"EmailOpenNotification_senderEmail_isRead_openedAt_idx\" ON \"EmailOpenNotification\"(\"senderEmail\",\"isRead\",\"openedAt\");",
   // Téléphone du contact (saisi sur la fiche affaire) + journal des appels
   // alimenté par les clics sur « Afficher le numéro ».
   "ALTER TABLE \"Deal\" ADD COLUMN IF NOT EXISTS \"contactPhone\" TEXT NOT NULL DEFAULT '';",

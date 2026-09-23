@@ -444,9 +444,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const [subs, setSubs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
-  // Offres créées par les organisations rattachées (Supabase), pour la trace
-  // « Nouvelle offre créée » de l'onglet Activité.
-  const [offerNotifs, setOfferNotifs] = useState<{ id: string; offerTitle: string; offerCreatedAt: string }[]>([]);
 
   // Champs éditables du sous-volet (saisie locale, sauvegarde au blur)
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -546,16 +543,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     if (res.ok) setEmailLogs(await res.json());
   }, [dealId]);
 
-  const fetchOfferNotifs = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/notifications?dealId=${dealId}`);
-      if (!res.ok) return;
-      const d = await res.json();
-      if (d.configured) setOfferNotifs(d.notifications || []);
-    } catch { /* silencieux */ }
-  }, [dealId]);
-
-  useEffect(() => { fetchDeal(); fetchEmailLogs(); fetchOfferNotifs(); }, [fetchDeal, fetchEmailLogs, fetchOfferNotifs]);
+  useEffect(() => { fetchDeal(); fetchEmailLogs(); }, [fetchDeal, fetchEmailLogs]);
 
   // Le numéro se remasque dès qu'on change d'affaire : chaque affaire consultée
   // demande donc un nouveau clic (et compte un nouvel appel).
@@ -1650,7 +1638,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     // Réponse reçue du contact (Resend Inbound) : même donnée, pastille et
     // encadré distincts dans la frise.
     | { kind: 'reply'; date: number; data: EmailLog }
-    | { kind: 'offer'; date: number; data: { id: string; offerTitle: string; offerCreatedAt: string } }
     | { kind: 'move'; date: number; data: DealMove }
     | { kind: 'demo'; date: number; data: DemoBooking }
     | { kind: 'closing'; date: number; data: ClosingEvent };
@@ -1662,7 +1649,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       date: new Date(l.sentAt).getTime(),
       data: l,
     })),
-    ...offerNotifs.map(o => ({ kind: 'offer' as const, date: new Date(o.offerCreatedAt).getTime(), data: o })),
     ...((deal.moves ?? []) as DealMove[]).map(m => ({ kind: 'move' as const, date: new Date(m.movedAt).getTime(), data: m })),
     // Démos bookées : une entrée par ligne DemoBooking, donc un rebooking
     // s'ajoute au flux au lieu de remplacer le booking précédent.
@@ -2589,13 +2575,13 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                   <div key={`${item.kind}-${idx}`} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
                     {/* Pastille + fil */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'offer' || item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'offer' ? '#f1f5f9' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : item.kind === 'closing' ? '#bbf7d0' : item.kind === 'reply' ? '#e0e7ff' : '#dbeafe' }}>
-                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'offer' ? '💼' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : item.kind === 'closing' ? '🤝' : item.kind === 'reply' ? '💬' : '📧'}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: item.kind === 'move' ? 0.7 : 1, background: item.kind === 'note' ? '#fef9c3' : item.kind === 'action' ? '#dcfce7' : item.kind === 'move' ? '#ede9fe' : item.kind === 'demo' ? '#fde68a' : item.kind === 'closing' ? '#bbf7d0' : item.kind === 'reply' ? '#e0e7ff' : '#dbeafe' }}>
+                        {item.kind === 'note' ? '📝' : item.kind === 'action' ? '✅' : item.kind === 'move' ? '↔' : item.kind === 'demo' ? '🎉' : item.kind === 'closing' ? '🤝' : item.kind === 'reply' ? '💬' : '📧'}
                       </div>
                       {idx < feed.length - 1 && <div style={{ flex: 1, width: 2, background: '#e2e8f0', marginTop: 4 }} />}
                     </div>
 
-                    <div style={item.kind === 'offer' || item.kind === 'move'
+                    <div style={item.kind === 'move'
                       ? { flex: 1, minWidth: 0, padding: '4px 2px', alignSelf: 'center' }
                       : item.kind === 'demo'
                       // Ligne festive : encadré ambré, volontairement plus visible
@@ -2613,7 +2599,6 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
                       {item.kind === 'note' && <NoteItem note={item.data as Note} onSave={editNote} onDelete={deleteNote} />}
                       {item.kind === 'action' && <DoneActionItem action={item.data} onReopen={() => reopenAction(item.data.id)} onDelete={() => deleteAction(item.data.id)} />}
                       {(item.kind === 'email' || item.kind === 'reply') && <EmailLogItem log={item.data as EmailLog} onCancel={cancelScheduledEmail} />}
-                      {item.kind === 'offer' && <OfferItem offer={item.data as { offerTitle: string; offerCreatedAt: string }} />}
                       {item.kind === 'move' && <MoveItem move={item.data as DealMove} />}
                       {item.kind === 'demo' && <DemoBookedItem booking={item.data as DemoBooking} onToggleNoShow={toggleNoShow} />}
                       {item.kind === 'closing' && <ClosingItem closing={item.data as ClosingEvent} subscriptions={subs} />}
@@ -2850,19 +2835,6 @@ function EmailLogItem({ log, onCancel }: { log: EmailLog; onCancel?: (id: string
           ? <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', borderLeft: `3px solid ${isReply ? '#4338ca' : '#6366f1'}` }} dangerouslySetInnerHTML={{ __html: log.body }} />
           : <div style={{ marginTop: 6, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#334155', whiteSpace: 'pre-wrap', borderLeft: `3px solid ${isReply ? '#4338ca' : '#6366f1'}` }}>{log.body}</div>
       )}
-    </div>
-  );
-}
-
-function OfferItem({ offer }: { offer: { offerTitle: string; offerCreatedAt: string } }) {
-  // Entrée volontairement discrète (non encadrée, estompée) : information de
-  // contexte à ne pas confondre avec les notes / actions / emails du CRM.
-  return (
-    <div>
-      <p style={{ fontSize: 12, margin: 0, color: '#94a3b8' }}>
-        Nouvelle offre créée : <span style={{ fontWeight: 600, color: '#64748b' }}>{offer.offerTitle || 'Offre'}</span>
-        <span style={{ color: '#cbd5e1' }}> · {formatDate(offer.offerCreatedAt)}</span>
-      </p>
     </div>
   );
 }

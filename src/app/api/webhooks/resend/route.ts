@@ -164,10 +164,38 @@ export async function POST(req: NextRequest) {
 
     if (type === 'email.opened') {
       if (emailId) {
+        // Premières ouvertures : les lignes pas encore marquées ouvertes. Resend
+        // renvoie un événement à CHAQUE ouverture ; seule la première déclenche
+        // une notification « appeler maintenant » pour l'expéditeur.
+        const firstOpens = await prisma.emailLog.findMany({
+          where: { resendId: emailId, direction: 'outbound', openedAt: null },
+          select: { id: true, dealId: true, fromAddress: true, subject: true },
+        });
+
+        const openedAt = new Date();
         await prisma.emailLog.updateMany({
           where: { resendId: emailId },
-          data: { status: 'opened', openedAt: new Date() },
+          data: { status: 'opened', openedAt },
         });
+
+        if (firstOpens.length > 0) {
+          // Tolérant : la notification ne doit jamais faire échouer le webhook
+          // (ex. table EmailOpenNotification absente avant db-sync).
+          try {
+            await prisma.emailOpenNotification.createMany({
+              data: firstOpens.map((log) => ({
+                emailLogId: log.id,
+                dealId: log.dealId,
+                senderEmail: (log.fromAddress || '').toLowerCase(),
+                subject: log.subject,
+                openedAt,
+              })),
+              skipDuplicates: true,
+            });
+          } catch (err) {
+            console.error('[Resend webhook] EmailOpenNotification createMany error:', err);
+          }
+        }
       }
     } else if (type === 'email.sent' || type === 'email.delivered') {
       if (emailId) {
