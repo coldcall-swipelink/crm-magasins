@@ -1173,6 +1173,9 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dealId, templateId: selectedTemplate || null, from: emailFrom, to: emailTo,
+          // Attribution : c'est CE user qui recevra la notification d'ouverture,
+          // quelle que soit la boîte d'expédition choisie dans le sélecteur.
+          userId: currentUser?.id || null,
           cc: emailCc || null, subject: emailSubject, body: emailBody, attachments,
           // Une valeur de <input type="datetime-local"> est une heure LOCALE :
           // on la convertit en instant absolu pour le serveur.
