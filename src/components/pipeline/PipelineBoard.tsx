@@ -56,9 +56,11 @@ export default function PipelineBoard() {
 
   // Notifications d'ouverture d'email : le contact a ouvert un email envoyé
   // depuis le CRM → signal « appeler maintenant » (cloche + alerte + point sur
-  // la carte). Filtrées par la boîte expéditrice de l'utilisateur connecté :
-  // chacun ne voit que les ouvertures de SES emails. Sans correspondance
-  // (compte non rattaché à une boîte @swipelink.fr), tout est visible.
+  // la carte). Chacun ne voit que les ouvertures de SES envois : attribution
+  // par le compte connecté (userId, quelle que soit la boîte d'expédition
+  // choisie), avec repli par sa boîte @swipelink.fr pour les emails d'avant
+  // l'attribution. Sans compte identifiable, tout est visible.
+  const userId = currentUser?.id;
   const senderEmail = senderForUser(currentUser)?.email;
   const [notifications, setNotifications] = useState<EmailOpenNotif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -66,15 +68,18 @@ export default function PipelineBoard() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const params = senderEmail ? `?senderEmail=${encodeURIComponent(senderEmail)}` : '';
-      const res = await fetch(`/api/notifications${params}`);
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      if (senderEmail) params.set('senderEmail', senderEmail);
+      const qs = params.toString();
+      const res = await fetch(`/api/notifications${qs ? `?${qs}` : ''}`);
       if (!res.ok) return;
       const d = await res.json();
       setNotifications(d.notifications || []);
       setUnreadCount(d.unreadCount || 0);
       setDealsWithOpenedEmail(new Set<string>(d.dealIdsWithUnread || []));
     } catch { /* silencieux : les notifications ne doivent pas casser le pipeline */ }
-  }, [senderEmail]);
+  }, [userId, senderEmail]);
 
   // Relevé au montage puis toutes les 30 s : une ouverture d'email doit
   // remonter vite, c'est dans les minutes qui suivent qu'il faut appeler.
@@ -101,9 +106,9 @@ export default function PipelineBoard() {
     setNotifications((prev) => prev.map((n) => (n.dealId === dealId ? { ...n, isRead: true } : n)));
     fetch('/api/notifications', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dealId, senderEmail }),
+      body: JSON.stringify({ dealId, userId, senderEmail }),
     }).catch(() => {});
-  }, [notifications, senderEmail]);
+  }, [notifications, userId, senderEmail]);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -111,9 +116,9 @@ export default function PipelineBoard() {
     setDealsWithOpenedEmail(new Set());
     fetch('/api/notifications', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ all: true, senderEmail }),
+      body: JSON.stringify({ all: true, userId, senderEmail }),
     }).catch(() => {});
-  }, [senderEmail]);
+  }, [userId, senderEmail]);
 
   // Save pipeline selection to localStorage
   useEffect(() => {

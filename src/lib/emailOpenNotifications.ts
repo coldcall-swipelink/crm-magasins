@@ -21,6 +21,7 @@ export const EMAIL_OPEN_NOTIFICATION_SCHEMA_STATEMENTS: string[] = [
     "id" TEXT NOT NULL,
     "emailLogId" TEXT NOT NULL,
     "dealId" TEXT NOT NULL,
+    "senderUserId" TEXT,
     "senderEmail" TEXT NOT NULL DEFAULT '',
     "subject" TEXT NOT NULL DEFAULT '',
     "openedAt" TIMESTAMP(3) NOT NULL,
@@ -28,8 +29,15 @@ export const EMAIL_OPEN_NOTIFICATION_SCHEMA_STATEMENTS: string[] = [
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "EmailOpenNotification_pkey" PRIMARY KEY ("id")
   );`,
+  // Colonnes ajoutées après la première version de la table : rejouées en
+  // ALTER pour les bases où elle existe déjà.
+  'ALTER TABLE "EmailOpenNotification" ADD COLUMN IF NOT EXISTS "senderUserId" TEXT;',
+  // Attribution de l'envoi au user CRM connecté (cf. schema.prisma). Posée ici
+  // aussi car EmailLog est écrite avant que `prisma db push` soit garanti.
+  'ALTER TABLE "EmailLog" ADD COLUMN IF NOT EXISTS "sentByUserId" TEXT;',
   'CREATE UNIQUE INDEX IF NOT EXISTS "EmailOpenNotification_emailLogId_key" ON "EmailOpenNotification"("emailLogId");',
   'CREATE INDEX IF NOT EXISTS "EmailOpenNotification_dealId_idx" ON "EmailOpenNotification"("dealId");',
+  'CREATE INDEX IF NOT EXISTS "EmailOpenNotification_senderUserId_idx" ON "EmailOpenNotification"("senderUserId");',
   'CREATE INDEX IF NOT EXISTS "EmailOpenNotification_senderEmail_isRead_openedAt_idx" ON "EmailOpenNotification"("senderEmail","isRead","openedAt");',
 ];
 
@@ -57,13 +65,14 @@ async function backfillRecentOpens(): Promise<void> {
     const since = new Date(Date.now() - 24 * 3600 * 1000);
     const opened = await prisma.emailLog.findMany({
       where: { direction: 'outbound', openedAt: { gte: since } },
-      select: { id: true, dealId: true, fromAddress: true, subject: true, openedAt: true },
+      select: { id: true, dealId: true, sentByUserId: true, fromAddress: true, subject: true, openedAt: true },
     });
     if (opened.length === 0) return;
     await prisma.emailOpenNotification.createMany({
       data: opened.map((log) => ({
         emailLogId: log.id,
         dealId: log.dealId,
+        senderUserId: log.sentByUserId || null,
         senderEmail: (log.fromAddress || '').toLowerCase(),
         subject: log.subject,
         openedAt: log.openedAt as Date,
@@ -79,6 +88,7 @@ async function backfillRecentOpens(): Promise<void> {
 export interface EmailOpenNotificationInput {
   emailLogId: string;
   dealId: string;
+  senderUserId: string | null;
   senderEmail: string;
   subject: string;
   openedAt: Date;

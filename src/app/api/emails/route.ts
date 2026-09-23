@@ -5,6 +5,24 @@ import { EMAIL_SIGNATURE_KEY, signatureKeyForSender } from '@/lib/appSettings';
 import { resolveSender } from '@/lib/emailSenders';
 import { buildReplyTo, extractAddress } from '@/lib/emailReplies';
 import { sendDueEmailsIfDue } from '@/lib/scheduledEmails';
+import { ensureEmailOpenNotificationTable } from '@/lib/emailOpenNotifications';
+import { Prisma } from '@prisma/client';
+
+/**
+ * Écrit un EmailLog en tolérant une base en retard : si la colonne
+ * sentByUserId n'existe pas encore (le `prisma db push` du build est non
+ * bloquant), on pose le schéma via le module des notifications d'ouverture
+ * puis on rejoue l'écriture. L'envoi ne doit jamais échouer pour ça.
+ */
+async function createEmailLog(data: Prisma.EmailLogUncheckedCreateInput) {
+  try {
+    return await prisma.emailLog.create({ data });
+  } catch (err) {
+    console.warn('[POST /api/emails] écriture EmailLog échouée, tentative de mise à niveau du schéma…', err);
+    await ensureEmailOpenNotificationTable();
+    return await prisma.emailLog.create({ data });
+  }
+}
 
 // Données dynamiques (lecture DB) : jamais de cache statique du Route Handler.
 export const dynamic = 'force-dynamic';
@@ -53,7 +71,10 @@ function parseCc(cc: unknown): { list: string[] } | { invalid: string } {
 
 export async function POST(req: NextRequest) {
   try {
-    const { dealId, templateId, to, cc, subject, body, attachments, from, scheduledAt } = await req.json();
+    const { dealId, templateId, to, cc, subject, body, attachments, from, scheduledAt, userId } = await req.json();
+    // Attribution de l'envoi : le user CRM connecté (quelle que soit la boîte
+    // d'expédition choisie). C'est lui qui recevra la notification d'ouverture.
+    const sentByUserId = typeof userId === 'string' && userId.trim() ? userId.trim() : null;
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'to, subject et body requis' }, { status: 400 });
     }
@@ -104,13 +125,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const programme = await prisma.emailLog.create({
-        data: {
+      const programme = await createEmailLog({
           id: `email-${Date.now()}`,
           dealId,
           templateId: templateId || null,
           direction: 'outbound',
           fromAddress: extractAddress(fromAddress),
+          sentByUserId,
           to,
           cc: ccList.length > 0 ? ccList.join(', ') : null,
           subject,
@@ -120,7 +141,6 @@ export async function POST(req: NextRequest) {
           // La frise se lit par sentAt : un envoi programmé s'y range à
           // l'heure prévue, et non à celle de sa rédaction.
           sentAt: quand,
-        },
       });
       return NextResponse.json(programme, { status: 201 });
     }
@@ -148,13 +168,13 @@ export async function POST(req: NextRequest) {
 
     if (error) throw new Error(error.message);
 
-    const log = await prisma.emailLog.create({
-      data: {
+    const log = await createEmailLog({
         id: `email-${Date.now()}`,
         dealId,
         templateId: templateId || null,
         direction: 'outbound',
         fromAddress: extractAddress(fromAddress),
+        sentByUserId,
         to,
         cc: ccList.length > 0 ? ccList.join(', ') : null,
         subject,
@@ -162,7 +182,6 @@ export async function POST(req: NextRequest) {
         body: finalBody,
         status: 'sent',
         resendId: data?.id || null,
-      },
     });
 
     return NextResponse.json(log, { status: 201 });

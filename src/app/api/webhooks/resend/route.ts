@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import { extractAddress, inboundDomain } from '@/lib/emailReplies';
 import { normalizeMessageId, recordInboundEmail } from '@/lib/inboundEmails';
-import { createEmailOpenNotifications } from '@/lib/emailOpenNotifications';
+import { createEmailOpenNotifications, ensureEmailOpenNotificationTable } from '@/lib/emailOpenNotifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,10 +168,19 @@ export async function POST(req: NextRequest) {
         // Premières ouvertures : les lignes pas encore marquées ouvertes. Resend
         // renvoie un événement à CHAQUE ouverture ; seule la première déclenche
         // une notification « appeler maintenant » pour l'expéditeur.
-        const firstOpens = await prisma.emailLog.findMany({
+        const readFirstOpens = () => prisma.emailLog.findMany({
           where: { resendId: emailId, direction: 'outbound', openedAt: null },
-          select: { id: true, dealId: true, fromAddress: true, subject: true },
+          select: { id: true, dealId: true, sentByUserId: true, fromAddress: true, subject: true },
         });
+        let firstOpens: Awaited<ReturnType<typeof readFirstOpens>>;
+        try {
+          firstOpens = await readFirstOpens();
+        } catch {
+          // Colonne sentByUserId absente (base pas encore synchronisée) : on
+          // pose le schéma puis on relit.
+          await ensureEmailOpenNotificationTable();
+          firstOpens = await readFirstOpens();
+        }
 
         const openedAt = new Date();
         await prisma.emailLog.updateMany({
@@ -187,6 +196,7 @@ export async function POST(req: NextRequest) {
             await createEmailOpenNotifications(firstOpens.map((log) => ({
               emailLogId: log.id,
               dealId: log.dealId,
+              senderUserId: log.sentByUserId || null,
               senderEmail: (log.fromAddress || '').toLowerCase(),
               subject: log.subject,
               openedAt,

@@ -419,6 +419,11 @@ model EmailLog {
   // email sortant, l'adresse @swipelink.fr utilisée. Null sur l'historique
   // antérieur à ce champ.
   fromAddress String?
+  // Utilisateur CRM connecté qui a déclenché l'envoi. Distinct de fromAddress :
+  // on peut envoyer depuis n'importe quelle boîte autorisée (hugo@, mark@…),
+  // c'est CE user qui reçoit la notification d'ouverture. Null pour les envois
+  // hors CRM (automatisations N8N, emails PV) et l'historique antérieur.
+  sentByUserId String?
   to          String
   // Adresses en copie (Cc), séparées par des virgules. Null si aucune.
   cc          String?
@@ -459,22 +464,28 @@ model EmailLog {
 // signal chaud du centre de notifications du pipeline : le contact vient de
 // lire l'email → appeler tout de suite.
 //
-// senderEmail = boîte expéditrice (EmailLog.fromAddress, en minuscules) :
-// chaque commercial ne voit que les ouvertures de SES emails (rapprochement
-// avec l'utilisateur connecté via senderForUser, cf. src/lib/emailSenders.ts).
+// Chaque commercial ne voit que les ouvertures de SES emails. L'attribution se
+// fait d'abord par senderUserId (le user CRM qui a cliqué « Envoyer », quelle
+// que soit la boîte utilisée : hugo@, mark@…), avec repli par senderEmail
+// (boîte expéditrice, EmailLog.fromAddress en minuscules) pour l'historique et
+// les envois hors CRM — rapprochement via senderForUser (src/lib/emailSenders.ts).
 model EmailOpenNotification {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   // Un email = au plus une notification (première ouverture uniquement).
-  emailLogId  String   @unique
-  dealId      String
-  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  senderEmail String   @default("")
-  subject     String   @default("")
-  openedAt    DateTime
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  emailLogId   String   @unique
+  dealId       String
+  deal         Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  // User CRM qui a envoyé l'email (EmailLog.sentByUserId). Null : envoi hors
+  // CRM ou antérieur à l'attribution → on retombe sur senderEmail.
+  senderUserId String?
+  senderEmail  String   @default("")
+  subject      String   @default("")
+  openedAt     DateTime
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
   @@index([dealId])
+  @@index([senderUserId])
   // Lecture du centre de notifications : non-lues d'un expéditeur, récentes en tête.
   @@index([senderEmail, isRead, openedAt])
 }
