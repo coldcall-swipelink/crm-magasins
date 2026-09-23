@@ -16,7 +16,9 @@ const btnDef: React.CSSProperties = { padding: '7px 14px', borderRadius: 7, bord
 const btnXs: React.CSSProperties = { padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f1f5f9', color: '#334155', cursor: 'pointer', fontSize: 11 };
 
 interface Collaborator { id: string; name: string; email: string; color: string; _count?: { deals: number }; }
-interface EmailTemplate { id: string; name: string; subject: string; body: string; }
+/** Déclinaison d'un template pour une ou plusieurs enseignes (ex. « U » = Super U + Hyper U). */
+interface TemplateVariant { id: string; brandIds: string[]; subject: string; body: string; }
+interface EmailTemplate { id: string; name: string; subject: string; body: string; variants?: TemplateVariant[]; }
 interface Pipeline { id: string; name: string; position: number; color: string; columns: PipelineColumn[]; }
 interface SubscriptionType { id: string; name: string; position: number; }
 
@@ -24,12 +26,134 @@ const VARIABLES = ['{{civilite}}', '{{nom_famille}}', '{{email}}', '{{enseigne}}
 
 interface TemplateFormProps {
   value: EmailTemplate | { name: string; subject: string; body: string };
+  brands: Brand[];
   onChange: (field: string, val: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  /** Rechargement des templates après création/modif/suppression d'une déclinaison. */
+  onVariantsChanged: () => Promise<void> | void;
 }
 
-function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) {
+/**
+ * Déclinaisons par enseigne d'un template enregistré : liste des déclinaisons
+ * existantes + formulaire d'ajout/édition. Chaque déclinaison couvre une ou
+ * plusieurs enseignes et porte son propre sujet/corps ; à l'application du
+ * template depuis une affaire, la déclinaison de l'enseigne du magasin prime.
+ */
+function VariantsSection({ template, brands, onChanged }: {
+  template: EmailTemplate;
+  brands: Brand[];
+  onChanged: () => Promise<void> | void;
+}) {
+  const [form, setForm] = useState<{ id?: string; brandIds: string[]; subject: string; body: string } | null>(null);
+  const variants = template.variants || [];
+  const brandName = (id: string) => brands.find(b => b.id === id)?.name || 'Enseigne supprimée';
+  const toggleBrand = (id: string) => setForm(f => f
+    ? { ...f, brandIds: f.brandIds.includes(id) ? f.brandIds.filter(x => x !== id) : [...f.brandIds, id] }
+    : f);
+
+  const save = async () => {
+    if (!form) return;
+    if (!form.brandIds.length) { toast('Choisissez au moins une enseigne', 'error'); return; }
+    const url = form.id
+      ? `/api/email-templates/${template.id}/variants/${form.id}`
+      : `/api/email-templates/${template.id}/variants`;
+    const res = await fetch(url, {
+      method: form.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brandIds: form.brandIds, subject: form.subject, body: form.body }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(data.error || 'Enregistrement impossible', 'error'); return; }
+    const wasEdit = !!form.id;
+    setForm(null);
+    await onChanged();
+    toast(wasEdit ? 'Déclinaison mise à jour' : 'Déclinaison ajoutée');
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Supprimer cette déclinaison ?')) return;
+    await fetch(`/api/email-templates/${template.id}/variants/${id}`, { method: 'DELETE' });
+    if (form?.id === id) setForm(null);
+    await onChanged();
+    toast('Déclinaison supprimée');
+  };
+
+  return (
+    <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: 12, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Déclinaisons par enseigne</div>
+        {!form && (
+          // Nouvelle déclinaison pré-remplie avec le sujet/corps de base : on
+          // part du texte commun et on n'adapte que ce qui change.
+          <button style={btnXs} onClick={() => setForm({ brandIds: [], subject: template.subject, body: template.body })}>
+            + Décliner pour une enseigne
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>
+        Depuis une affaire, la déclinaison dont l&apos;enseigne correspond au magasin remplace automatiquement
+        le sujet et le corps de base du template.
+      </div>
+
+      {variants.map(v => form?.id === v.id ? null : (
+        <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', marginBottom: 6 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {v.brandIds.map(id => (
+                <span key={id} style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: '#eef2ff', color: '#4338ca' }}>{brandName(id)}</span>
+              ))}
+            </div>
+            {v.subject && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{v.subject.slice(0, 60)}{v.subject.length > 60 ? '…' : ''}</div>}
+          </div>
+          <button style={btnXs} onClick={() => setForm({ id: v.id, brandIds: [...v.brandIds], subject: v.subject, body: v.body })}>✎</button>
+          <button style={btnXs} onClick={() => remove(v.id)}>🗑</button>
+        </div>
+      ))}
+      {!variants.length && !form && (
+        <div style={{ fontSize: 12, color: '#cbd5e1' }}>Aucune déclinaison : toutes les affaires reçoivent la version de base.</div>
+      )}
+
+      {form && (
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Enseignes couvertes</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {brands.map(b => {
+              const on = form.brandIds.includes(b.id);
+              return (
+                <button key={b.id} type="button" onClick={() => toggleBrand(b.id)}
+                  style={{
+                    padding: '3px 10px', borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                    border: on ? '1px solid #4f46e5' : '1px solid #e2e8f0',
+                    background: on ? '#eef2ff' : '#fff', color: on ? '#4338ca' : '#64748b',
+                  }}>
+                  {b.name}
+                </button>
+              );
+            })}
+            {!brands.length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Créez d&apos;abord des enseignes (section « Enseignes » ci-dessous).</span>}
+          </div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Sujet</label>
+          <input style={{ ...inp, marginBottom: 10 }} value={form.subject}
+            onChange={e => setForm(f => f ? { ...f, subject: e.target.value } : f)} />
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Corps du message</label>
+          <RichTextEditor
+            value={form.body}
+            onChange={html => setForm(f => f ? { ...f, body: html } : f)}
+            variables={VARIABLES}
+            minHeight={160}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button style={btnPri} onClick={save}>{form.id ? 'Enregistrer la déclinaison' : 'Ajouter la déclinaison'}</button>
+            <button style={btnDef} onClick={() => setForm(null)}>Annuler</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplateForm({ value, brands, onChange, onSave, onCancel, onVariantsChanged }: TemplateFormProps) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, marginBottom: 12, boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12, marginBottom: 12 }}>
@@ -57,6 +181,13 @@ function TemplateForm({ value, onChange, onSave, onCancel }: TemplateFormProps) 
           Mise en forme (gras, police, listes…) via la barre d'outils. Cliquez une variable pour l'insérer au curseur ; elle sera remplacée à l'envoi.
         </div>
       </div>
+      {'id' in value ? (
+        <VariantsSection template={value} brands={brands} onChanged={onVariantsChanged} />
+      ) : (
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 14 }}>
+          Enregistrez le template pour pouvoir le décliner par enseigne (Leclerc, U, Intermarché…).
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         <button style={btnPri} onClick={onSave}>Enregistrer</button>
         <button style={btnDef} onClick={onCancel}>Annuler</button>
@@ -183,6 +314,21 @@ export default function SettingsPage() {
   }, [selectedPipelineId]);
   
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Recharge les templates après une opération sur les déclinaisons, en
+  // rafraîchissant aussi la copie en cours d'édition — sans toucher au nom,
+  // sujet et corps de base que l'utilisateur est peut-être en train de modifier.
+  const refreshTemplateVariants = useCallback(async () => {
+    const res = await fetch('/api/email-templates');
+    if (!res.ok) return;
+    const fresh: EmailTemplate[] = await res.json();
+    setTemplates(fresh);
+    setEditTemplate(prev => {
+      if (!prev) return prev;
+      const updated = fresh.find(t => t.id === prev.id);
+      return updated ? { ...prev, variants: updated.variants } : prev;
+    });
+  }, []);
 
   const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
   const columns = (currentPipeline?.columns || []).sort((a, b) => a.position - b.position);
@@ -423,9 +569,11 @@ export default function SettingsPage() {
           {showNewTemplate && (
             <TemplateForm
               value={newTemplate}
+              brands={brands}
               onChange={(field, val) => setNewTemplate(t => ({ ...t, [field]: val }))}
               onSave={addTemplate}
               onCancel={() => { setShowNewTemplate(false); setNewTemplate({ name: '', subject: '', body: '' }); }}
+              onVariantsChanged={refreshTemplateVariants}
             />
           )}
 
@@ -433,15 +581,22 @@ export default function SettingsPage() {
             <TemplateForm
               key={t.id}
               value={editTemplate}
+              brands={brands}
               onChange={(field, val) => setEditTemplate(x => x ? { ...x, [field]: val } : null)}
               onSave={saveTemplate}
               onCancel={() => setEditTemplate(null)}
+              onVariantsChanged={refreshTemplateVariants}
             />
           ) : (
             <div key={t.id} style={row}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>📧 {t.name}</div>
                 {t.subject && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{t.subject.slice(0, 60)}{t.subject.length > 60 ? '…' : ''}</div>}
+                {(t.variants?.length ?? 0) > 0 && (
+                  <div style={{ fontSize: 10.5, color: '#4338ca', marginTop: 2 }}>
+                    Décliné pour : {t.variants!.flatMap(v => v.brandIds).map(id => brands.find(b => b.id === id)?.name).filter(Boolean).join(', ') || '—'}
+                  </div>
+                )}
               </div>
               <button style={btnXs} onClick={() => { setEditTemplate({ ...t }); setShowNewTemplate(false); }}>✎</button>
               <button style={btnXs} onClick={() => deleteTemplate(t.id)}>🗑</button>

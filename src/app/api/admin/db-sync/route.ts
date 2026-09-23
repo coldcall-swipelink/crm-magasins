@@ -357,6 +357,16 @@ const STATEMENTS: string[] = [
   // Elle n'est pas supprimée ici (cette route reste strictement additive) ; elle
   // peut être retirée à la main si elle existe.
 
+  // Déclinaisons par enseigne des templates d'email (Paramètres → templates).
+  "CREATE TABLE IF NOT EXISTS \"EmailTemplateVariant\" (\"id\" TEXT NOT NULL, CONSTRAINT \"EmailTemplateVariant_pkey\" PRIMARY KEY (\"id\"));",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"templateId\" TEXT;",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"brandIds\" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"subject\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"body\" TEXT NOT NULL DEFAULT '';",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"createdAt\" TIMESTAMP(3);",
+  "ALTER TABLE \"EmailTemplateVariant\" ADD COLUMN IF NOT EXISTS \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+  "CREATE INDEX IF NOT EXISTS \"EmailTemplateVariant_templateId_idx\" ON \"EmailTemplateVariant\"(\"templateId\");",
+
   // Tables de l'outil Campagnes (boîtes d'envoi, leads, séquences). Engendrées
   // depuis le schéma Prisma, cf. src/lib/campaigns/schemaSql.ts.
   ...CAMPAIGN_SCHEMA_STATEMENTS,

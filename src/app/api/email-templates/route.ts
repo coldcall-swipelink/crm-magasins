@@ -5,7 +5,10 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const templates = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } });
+  const templates = await prisma.emailTemplate.findMany({
+    orderBy: { name: 'asc' },
+    include: { variants: { orderBy: { createdAt: 'asc' } } },
+  });
   return NextResponse.json(templates);
 }
 
