@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncRepliesIfDue } from '@/lib/emailInbox';
+import { ensureEmailOpenNotificationTable } from '@/lib/emailOpenNotifications';
 
 // Centre de notifications : ouvertures d'emails (EmailOpenNotification, créées
 // par le webhook Resend à la PREMIÈRE ouverture d'un email sortant). Objectif :
@@ -25,12 +26,12 @@ export async function GET(req: NextRequest) {
     console.error('syncRepliesIfDue error:', err);
   }
 
-  try {
-    const where = {
-      ...(dealId ? { dealId } : {}),
-      ...(senderEmail ? { senderEmail } : {}),
-    };
+  const where = {
+    ...(dealId ? { dealId } : {}),
+    ...(senderEmail ? { senderEmail } : {}),
+  };
 
+  const read = async () => {
     const notifications = await prisma.emailOpenNotification.findMany({
       where,
       orderBy: { openedAt: 'desc' },
@@ -53,15 +54,21 @@ export async function GET(req: NextRequest) {
     });
     const dealIdsWithUnread = Array.from(new Set(unread.map((u: { dealId: string }) => u.dealId)));
 
-    return NextResponse.json({
-      notifications,
-      unreadCount: unread.length,
-      dealIdsWithUnread,
-    });
+    return { notifications, unreadCount: unread.length, dealIdsWithUnread };
+  };
+
+  try {
+    return NextResponse.json(await read());
   } catch (err) {
-    // Table manquante (avant db-sync) : on renvoie un état vide exploitable.
-    console.error('EmailOpenNotification fetch error (table manquante ?):', err);
-    return NextResponse.json({ notifications: [], unreadCount: 0, dealIdsWithUnread: [] });
+    // Table manquante (base jamais synchronisée par le build) : on la crée
+    // puis on relit — la première consultation répare la base.
+    try {
+      await ensureEmailOpenNotificationTable();
+      return NextResponse.json(await read());
+    } catch (err2) {
+      console.error('EmailOpenNotification fetch error:', err, err2);
+      return NextResponse.json({ notifications: [], unreadCount: 0, dealIdsWithUnread: [] });
+    }
   }
 }
 
