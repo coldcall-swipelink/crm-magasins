@@ -74,7 +74,8 @@ function SegToggle({ value, options, onChange }: {
 
 interface Collaborator { id: string; name: string; color: string; email: string; }
 interface User { id: string; name: string; color: string; }
-interface EmailTemplate { id: string; name: string; subject: string; body: string; }
+interface TemplateVariant { id: string; brandIds: string[]; subject: string; body: string; }
+interface EmailTemplate { id: string; name: string; subject: string; body: string; variants?: TemplateVariant[]; }
 interface EmailLog { id: string; direction?: 'outbound' | 'inbound'; fromAddress?: string | null; to: string; cc?: string | null; subject: string; body: string; sentAt: string; status: string; scheduledAt?: string | null; openedAt?: string; resendId?: string; template?: { name: string }; }
 /** Un changement d'étape journalisé (table DealMove). */
 interface DealMove {
@@ -1148,6 +1149,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const getVars = (d: any) => ({
     civilite,
     nom_famille: d?.contactLastName || '',
+    email: d?.dealEmail || '',
     enseigne: d?.store?.brand?.name || '',
     nom_magasin: d?.store?.name || '',
     ville: d?.store?.city || '',
@@ -1157,13 +1159,25 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
     prenom_expediteur: '',
     '2mag': twoMag,
   });
+  // Sujet/corps effectifs d'un template pour CETTE affaire : la déclinaison
+  // couvrant l'enseigne du magasin (Paramètres → templates → « Déclinaisons
+  // par enseigne ») prime sur la version de base du template.
+  const resolveTemplate = (tpl: EmailTemplate) => {
+    const brandId = deal?.store?.brand?.id || deal?.store?.brandId || '';
+    const variant = brandId ? (tpl.variants || []).find(v => v.brandIds.includes(brandId)) : undefined;
+    return variant
+      ? { subject: variant.subject, body: variant.body, isVariant: true }
+      : { subject: tpl.subject, body: tpl.body, isVariant: false };
+  };
   const applyTemplate = (templateId: string) => {
     const tpl = templates.find(t => t.id === templateId);
     if (!tpl || !deal) return;
     const vars = getVars(deal);
-    setEmailSubject(replaceVars(tpl.subject, vars));
-    setEmailBody(replaceVars(tpl.body, vars));
+    const resolved = resolveTemplate(tpl);
+    setEmailSubject(replaceVars(resolved.subject, vars));
+    setEmailBody(replaceVars(resolved.body, vars));
     setSelectedTemplate(templateId);
+    if (resolved.isVariant) toast(`Déclinaison ${deal?.store?.brand?.name || 'enseigne'} appliquée`);
   };
   const sendEmail = async () => {
     if (!emailTo || !emailSubject || !emailBody) { toast('Destinataire, sujet et corps requis', 'error'); return; }
@@ -1296,7 +1310,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
       .map(([k, v]) => `<li>${k} : ${v}</li>`)
       .join('');
     const tplCrm = templates.find(t => /paiement/i.test(t.name));
-    const base = tplCrm ? { subject: tplCrm.subject, body: tplCrm.body } : PAYMENT_EMAIL_TEMPLATE;
+    const base = tplCrm ? resolveTemplate(tplCrm) : PAYMENT_EMAIL_TEMPLATE;
     const vars = {
       ...getVars(deal),
       offre,

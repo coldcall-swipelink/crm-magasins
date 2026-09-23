@@ -11,6 +11,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  // Suppression explicite des déclinaisons : la base synchronisée par db-sync
+  // n'a pas de contrainte de clé étrangère, le cascade Prisma n'y suffit pas.
+  await prisma.emailTemplateVariant.deleteMany({ where: { templateId: params.id } });
   await prisma.emailTemplate.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });
 }

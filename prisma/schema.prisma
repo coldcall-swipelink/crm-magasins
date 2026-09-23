@@ -394,13 +394,33 @@ model Note {
 }
 
 model EmailTemplate {
-  id        String     @id @default(cuid())
+  id        String                 @id @default(cuid())
   name      String
-  subject   String     @default("")
-  body      String     @default("")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  subject   String                 @default("")
+  body      String                 @default("")
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
   emailLogs EmailLog[]
+  variants  EmailTemplateVariant[]
+}
+
+// Déclinaison d'un template par enseigne(s). À l'application d'un template sur
+// une affaire, la déclinaison dont une enseigne correspond au magasin remplace
+// le sujet et le corps de base. Une déclinaison peut couvrir plusieurs
+// enseignes (ex. « U » pour Super U et Hyper U), d'où la liste brandIds.
+// Pas de relation Prisma vers Brand : une enseigne supprimée laisse simplement
+// un id orphelin dans la liste, sans jamais bloquer le template.
+model EmailTemplateVariant {
+  id         String        @id @default(cuid())
+  templateId String
+  template   EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  brandIds   String[]      @default([])
+  subject    String        @default("")
+  body       String        @default("")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([templateId])
 }
 
 // Journal des emails d'une affaire, dans les DEUX sens :
