@@ -1148,6 +1148,7 @@ export default function DealDrawer({ dealId, onClose, onUpdated, onNavigate }: P
   const getVars = (d: any) => ({
     civilite,
     nom_famille: d?.contactLastName || '',
+    email: d?.dealEmail || '',
     enseigne: d?.store?.brand?.name || '',
     nom_magasin: d?.store?.name || '',
     ville: d?.store?.city || '',
