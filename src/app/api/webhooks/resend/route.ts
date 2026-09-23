@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Resend } from 'resend';
 import { extractAddress, inboundDomain } from '@/lib/emailReplies';
 import { normalizeMessageId, recordInboundEmail } from '@/lib/inboundEmails';
+import { createEmailOpenNotifications } from '@/lib/emailOpenNotifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,21 +180,19 @@ export async function POST(req: NextRequest) {
         });
 
         if (firstOpens.length > 0) {
-          // Tolérant : la notification ne doit jamais faire échouer le webhook
-          // (ex. table EmailOpenNotification absente avant db-sync).
+          // Tolérant : la notification ne doit jamais faire échouer le webhook.
+          // createEmailOpenNotifications crée la table si elle manque (base
+          // jamais synchronisée par le build) puis rejoue l'insertion.
           try {
-            await prisma.emailOpenNotification.createMany({
-              data: firstOpens.map((log) => ({
-                emailLogId: log.id,
-                dealId: log.dealId,
-                senderEmail: (log.fromAddress || '').toLowerCase(),
-                subject: log.subject,
-                openedAt,
-              })),
-              skipDuplicates: true,
-            });
+            await createEmailOpenNotifications(firstOpens.map((log) => ({
+              emailLogId: log.id,
+              dealId: log.dealId,
+              senderEmail: (log.fromAddress || '').toLowerCase(),
+              subject: log.subject,
+              openedAt,
+            })));
           } catch (err) {
-            console.error('[Resend webhook] EmailOpenNotification createMany error:', err);
+            console.error('[Resend webhook] EmailOpenNotification create error:', err);
           }
         }
       }
