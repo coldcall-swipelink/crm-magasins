@@ -245,6 +245,7 @@ model Deal {
   closingEvents             ClosingEvent[]
   organizationLinks         DealOrganization[]
   offerNotifications        OfferNotification[]
+  emailOpenNotifications    EmailOpenNotification[]
   // Abonnements rattachés (1 à 3 par affaire). Les champs subscription* /
   // paymentMode / closingDate / dealValue ci-dessus sont conservés comme miroir
   // dénormalisé de l'abonnement principal (position 0) et de la somme des
@@ -453,6 +454,31 @@ model EmailLog {
   @@index([status, scheduledAt])
 }
 
+// Notification « email ouvert » : créée à la PREMIÈRE ouverture d'un email
+// sortant (webhook Resend `email.opened`, cf. /api/webhooks/resend). C'est le
+// signal chaud du centre de notifications du pipeline : le contact vient de
+// lire l'email → appeler tout de suite.
+//
+// senderEmail = boîte expéditrice (EmailLog.fromAddress, en minuscules) :
+// chaque commercial ne voit que les ouvertures de SES emails (rapprochement
+// avec l'utilisateur connecté via senderForUser, cf. src/lib/emailSenders.ts).
+model EmailOpenNotification {
+  id          String   @id @default(cuid())
+  // Un email = au plus une notification (première ouverture uniquement).
+  emailLogId  String   @unique
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  senderEmail String   @default("")
+  subject     String   @default("")
+  openedAt    DateTime
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([dealId])
+  // Lecture du centre de notifications : non-lues d'un expéditeur, récentes en tête.
+  @@index([senderEmail, isRead, openedAt])
+}
+
 // Suivi CRM des appels aux candidats affichés dans l'onglet « Recrutement ».
 // candidateId = id du Candidate dans la base produit Supabase. La présence
 // d'une ligne signifie « candidat appelé » pour ce deal (case cochée).
@@ -644,13 +670,12 @@ model DealOrganization {
   @@unique([dealId, organizationId])
 }
 
-// Trace CRM des offres créées côté produit (Supabase) par les Organizations
-// rattachées à une affaire. Alimentée en LECTURE SEULE depuis Supabase (rien
-// n'y est écrit) : à chaque relevé, les nouvelles offres de la table Offer
-// (id, title, organization_id, created_at) sont enregistrées ici. Sert à trois
-// usages : trace « Nouvelle offre créée » dans l'onglet Activité, point bleu sur
-// la carte de l'affaire, et centre de notifications du pipeline. isRead distingue
-// une offre nouvellement apparue (point bleu) d'une offre déjà acquittée.
+// HÉRITAGE (fonctionnalité retirée) — Trace CRM des offres créées côté produit
+// (Supabase) par les Organizations rattachées à une affaire. Le relevé Supabase
+// et les usages UI (centre de notifications, point bleu, trace d'activité) ont
+// été remplacés par les notifications d'ouverture d'email
+// (EmailOpenNotification). Le modèle et la table sont conservés tels quels
+// (db push additif : on ne supprime pas de table en production).
 model OfferNotification {
   id             String   @id @default(cuid())
   dealId         String

@@ -9,10 +9,12 @@ import PVModal from './PVModal';
 import ClosingDateModal, { type ClosingTarget, type ClosingDateEntry } from './ClosingDateModal';
 import FlowWarningModal from './FlowWarningModal';
 import MeetInviteModal, { reportMeetSync } from './MeetInviteModal';
-import NotificationCenter, { type OfferNotification } from './NotificationCenter';
+import NotificationCenter, { type EmailOpenNotif } from './NotificationCenter';
+import EmailOpenAlert from './EmailOpenAlert';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, exportDealsToCsv } from '@/lib/utils';
 import { useCurrentUser } from '@/lib/currentUser';
+import { senderForUser } from '@/lib/emailSenders';
 import { messageClosing } from '@/lib/closingIssue';
 import {
   CLOSING_DEMO_TITLE, CLOSING_PIPELINE_NAME, PROSPECTION_DEMO_TITLE,
@@ -52,34 +54,41 @@ export default function PipelineBoard() {
   const [meetInvite, setMeetInvite] = useState<{ dealId: string; targetColId: string; originColId: string; storeName?: string; demoDate?: string | null; dealEmail?: string | null } | null>(null);
   const dragDeal = useRef<Deal | null>(null);
 
-  // Notifications d'offres (offres créées par les organisations rattachées).
-  const [notifications, setNotifications] = useState<OfferNotification[]>([]);
+  // Notifications d'ouverture d'email : le contact a ouvert un email envoyé
+  // depuis le CRM → signal « appeler maintenant » (cloche + alerte + point sur
+  // la carte). Filtrées par la boîte expéditrice de l'utilisateur connecté :
+  // chacun ne voit que les ouvertures de SES emails. Sans correspondance
+  // (compte non rattaché à une boîte @swipelink.fr), tout est visible.
+  const senderEmail = senderForUser(currentUser)?.email;
+  const [notifications, setNotifications] = useState<EmailOpenNotif[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [dealsWithNewOffer, setDealsWithNewOffer] = useState<Set<string>>(new Set());
+  const [dealsWithOpenedEmail, setDealsWithOpenedEmail] = useState<Set<string>>(new Set());
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/notifications');
+      const params = senderEmail ? `?senderEmail=${encodeURIComponent(senderEmail)}` : '';
+      const res = await fetch(`/api/notifications${params}`);
       if (!res.ok) return;
       const d = await res.json();
-      if (!d.configured) return;
       setNotifications(d.notifications || []);
       setUnreadCount(d.unreadCount || 0);
-      setDealsWithNewOffer(new Set<string>(d.dealIdsWithUnread || []));
+      setDealsWithOpenedEmail(new Set<string>(d.dealIdsWithUnread || []));
     } catch { /* silencieux : les notifications ne doivent pas casser le pipeline */ }
-  }, []);
+  }, [senderEmail]);
 
-  // Relevé au montage puis toutes les 60 s (le relevé lit Supabase côté serveur).
+  // Relevé au montage puis toutes les 30 s : une ouverture d'email doit
+  // remonter vite, c'est dans les minutes qui suivent qu'il faut appeler.
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
   useEffect(() => {
-    const interval = setInterval(fetchNotifications, 60000);
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  // Ouvre une affaire et acquitte ses offres non lues (retire le point bleu).
+  // Ouvre une affaire et acquitte ses ouvertures non lues (retire le point et
+  // l'alerte). L'acquittement reste limité à la boîte de l'utilisateur.
   const openDeal = useCallback((dealId: string) => {
     setOpenDealId(dealId);
-    setDealsWithNewOffer((prev) => {
+    setDealsWithOpenedEmail((prev) => {
       if (!prev.has(dealId)) return prev;
       const next = new Set(prev);
       next.delete(dealId);
@@ -92,19 +101,19 @@ export default function PipelineBoard() {
     setNotifications((prev) => prev.map((n) => (n.dealId === dealId ? { ...n, isRead: true } : n)));
     fetch('/api/notifications', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dealId }),
+      body: JSON.stringify({ dealId, senderEmail }),
     }).catch(() => {});
-  }, [notifications]);
+  }, [notifications, senderEmail]);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    setDealsWithNewOffer(new Set());
+    setDealsWithOpenedEmail(new Set());
     fetch('/api/notifications', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ all: true }),
+      body: JSON.stringify({ all: true, senderEmail }),
     }).catch(() => {});
-  }, []);
+  }, [senderEmail]);
 
   // Save pipeline selection to localStorage
   useEffect(() => {
@@ -602,7 +611,7 @@ export default function PipelineBoard() {
               <div style={{ flex: 1, overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 5, minHeight: 50 }}>
                 {colDeals.map(deal => (
                   <DealCard key={deal.id} deal={deal} isDragging={draggingId === deal.id}
-                    hasNewOffer={dealsWithNewOffer.has(deal.id)}
+                    hasOpenedEmail={dealsWithOpenedEmail.has(deal.id)}
                     onDragStart={e => onDragStart(e, deal)} onDragEnd={onDragEnd} onSelect={() => openDeal(deal.id)} />
                 ))}
               </div>
@@ -610,6 +619,10 @@ export default function PipelineBoard() {
           );
         })}
       </div>
+
+      {/* Alerte impossible à rater dès qu'un contact ouvre un email : masquée
+          quand la fiche d'une affaire est ouverte (on est déjà en action). */}
+      {!openDealId && <EmailOpenAlert notifications={notifications} onOpenDeal={openDeal} />}
 
       {openDealId && <DealDrawer dealId={openDealId} onClose={() => setOpenDealId(null)} onUpdated={fetchDeals} onNavigate={openDeal} />}
       {showCreate && <CreateDealModal columns={pipelineColumns} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); fetchDeals(); }} />}

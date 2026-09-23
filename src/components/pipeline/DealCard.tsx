@@ -4,9 +4,9 @@ import type { Deal } from '@/types';
 interface Props {
   deal: Deal;
   isDragging: boolean;
-  // Vrai quand l'Organization rattachée a créé une nouvelle offre non acquittée
-  // (→ petit point bleu en haut à droite de la carte).
-  hasNewOffer?: boolean;
+  // Vrai quand le contact a ouvert un email non encore acquitté
+  // (→ point orange en bas à droite de la carte : à appeler).
+  hasOpenedEmail?: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onSelect: () => void;
@@ -54,7 +54,7 @@ function getActionBackgroundColor(actions?: any[]): string {
   return '#ffffff'; // Blanc par défaut
 }
 
-export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, onDragEnd, onSelect }: Props) {
+export default function DealCard({ deal, isDragging, hasOpenedEmail, onDragStart, onDragEnd, onSelect }: Props) {
   const store = deal.store;
   const brand = store?.brand;
   const borderColor = getBrandBorderColor(brand?.name);
@@ -197,13 +197,13 @@ export default function DealCard({ deal, isDragging, hasNewOffer, onDragStart, o
         </div>
       )}
 
-      {hasNewOffer && (
+      {hasOpenedEmail && (
         <span
-          title="Nouvelle offre publiée par l'organisation"
+          title="Email ouvert par le contact — à appeler maintenant"
           style={{
             position: 'absolute', bottom: 7, right: 7,
             width: 9, height: 9, borderRadius: '50%',
-            background: '#3b82f6', boxShadow: '0 0 0 2px #fff, 0 0 0 3px #bfdbfe',
+            background: '#ea580c', boxShadow: '0 0 0 2px #fff, 0 0 0 3px #fed7aa',
           }}
         />
       )}
