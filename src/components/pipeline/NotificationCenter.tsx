@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { formatRelativeDate, formatDate } from '@/lib/utils';
+import { formatRelativeDate, formatDateTime } from '@/lib/utils';
 
 export interface EmailOpenNotif {
   id: string;
@@ -121,7 +121,7 @@ export default function NotificationCenter({ notifications, unreadCount, onOpenD
                       {[brandName, n.subject].filter(Boolean).join(' · ')}
                     </span>
                     <span style={{ display: 'block', fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>
-                      {formatRelativeDate(n.openedAt)} · {formatDate(n.openedAt)}
+                      {formatRelativeDate(n.openedAt)} · Ouvert le {formatDateTime(n.openedAt)}
                     </span>
                     {!n.isRead && (
                       <span style={{ display: 'inline-block', marginTop: 5, fontSize: 10.5, fontWeight: 700, color: '#c2410c', background: '#ffedd5', padding: '2px 8px', borderRadius: 999 }}>

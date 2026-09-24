@@ -1,7 +1,7 @@
 'use client';
 import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Action, Note, Priority } from '@/types';
-import { formatDate, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
+import { formatDate, formatDateTime, isOverdue, formatRelativeDate, addMonths, formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
 import LinkConfirmModal, { type LinkMode, type LinkPreview } from '@/components/ui/LinkConfirmModal';
 import AvailabilityModal from '@/components/deal/AvailabilityModal';
@@ -2837,7 +2837,7 @@ function EmailLogItem({ log, onCancel }: { log: EmailLog; onCancel?: (id: string
       {log.template && <div style={{ fontSize: 10, color: '#94a3b8' }}>Template : {log.template.name}</div>}
       <div style={{ fontSize: 10, color: isScheduled ? '#92400e' : '#94a3b8', marginTop: 2 }}>
         {isScheduled ? `Départ prévu le ${formatDate(log.scheduledAt || log.sentAt)}` : formatDate(log.sentAt)}
-        {!isReply && log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDate(log.openedAt)}</span>}
+        {!isReply && log.openedAt && <span style={{ color: '#1d4ed8' }}> · 👁 Ouvert le {formatDateTime(log.openedAt)}</span>}
       </div>
       <button onClick={() => setExpanded(!expanded)} style={{ fontSize: 11, color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}>
         {expanded ? 'Masquer' : isReply ? 'Voir la réponse' : 'Voir le contenu'}

@@ -91,6 +91,16 @@ export function formatDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/** Formate une date avec l'heure en français : « 24/09/2026 à 09:12 » */
+export function formatDateTime(date: Date | string | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '—';
+  const jour = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${jour} à ${heure}`;
+}
+
 /** Formate un montant en euros (€), arrondi au centime. Chaîne vide si pas de valeur. */
 export function formatCurrency(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return '';
