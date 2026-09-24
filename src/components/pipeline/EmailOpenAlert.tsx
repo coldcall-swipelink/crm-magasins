@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { formatRelativeDate } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import type { EmailOpenNotif } from './NotificationCenter';
 
 interface Props {
@@ -116,7 +116,7 @@ export default function EmailOpenAlert({ notifications, onOpenDeal }: Props) {
               <div style={{ fontSize: 12.5, color: '#334155', marginTop: 4, lineHeight: 1.4 }}>
                 {contact ? <><strong>{contact}</strong> vient d&apos;ouvrir votre email</> : <>Votre contact vient d&apos;ouvrir votre email</>}
                 {n.subject ? <> « {n.subject} »</> : null}
-                <span style={{ color: '#94a3b8' }}> · {formatRelativeDate(n.openedAt)}</span>
+                <span style={{ color: '#94a3b8' }}> · le {formatDateTime(n.openedAt)}</span>
               </div>
               <div style={{ fontSize: 11.5, color: '#9a3412', marginTop: 6, fontWeight: 600 }}>
                 Il pense à vous en ce moment même : un appel dans les 5 minutes multiplie vos chances de le joindre.
