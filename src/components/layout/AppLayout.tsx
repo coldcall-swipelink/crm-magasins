@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import ProspectionModeToggle from './ProspectionModeToggle';
 import ObjectivesBar from './ObjectivesBar';
+import PrimesPocket from './PrimesPocket';
 import { workspaceOf } from '@/lib/workspace';
 import Toast from '@/components/ui/Toast';
 import NewOffersModal from '@/components/import/NewOffersModal';
@@ -17,10 +18,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Barre globale du CRM : à gauche, les objectifs du commercial
             (cibles Smartlink Brain face au réalisé — ils se surveillent
-            pendant qu'on appelle, pas dans un onglet) ; à droite,
-            l'interrupteur « Mode prospection », à activer avant une session
-            d'appels et à couper dès qu'on passe à autre chose. Les deux
-            concernent les appels téléphoniques du CRM : l'outil Campagnes
+            pendant qu'on appelle, pas dans un onglet) et, pour les Sales
+            primés, leur cagnotte de primes (projetée par Smartlink Brain) ;
+            à droite, l'interrupteur « Mode prospection », à activer avant une
+            session d'appels et à couper dès qu'on passe à autre chose. Tout
+            cela concerne les appels téléphoniques du CRM : l'outil Campagnes
             (emails) n'en a pas l'usage, la barre n'y est pas affichée. */}
         {!dark && (
           <div style={{
@@ -29,6 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             background: '#fff', borderBottom: '1px solid #e2e8f0',
           }}>
             <ObjectivesBar />
+            <PrimesPocket />
             {/* marginLeft:auto : l'interrupteur reste à droite même quand la
                 barre d'objectifs s'efface (pas d'identité, API en erreur). */}
             <div style={{ marginLeft: 'auto' }}>
