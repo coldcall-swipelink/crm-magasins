@@ -381,6 +381,24 @@ s'écrire pareil des deux côtés. Réglage : `BRAIN_GOALS_URL` +
 `BRAIN_GOALS_TOKEN` (voir `.env.example`) ; sans eux, la page affiche le
 réalisé seul et le dit.
 
+### Cagnotte de primes — à côté des objectifs, pour les Sales primés
+
+Juste à côté du suivi des objectifs, chaque Sale primé (la liste `PRIME_SALES`
+de Brain — Luca Ayme et Mark Bongoy à la rentrée 2026) voit sa **cagnotte de
+primes** : ce que la période de primes en cours lui a déjà rapporté, et ce qui
+attend (démos calées pas encore faites). Un clic ouvre le détail : démos
+payées par format de magasin, affaires devenues clientes (bonus compris),
+no-shows non rattrapés, l'état de la prime d'équipe (le palier de MRR de
+décembre 2026) et les périodes déjà versées.
+
+Tout le **calcul vit dans Brain** (règles, seuils, versements — son onglet
+Primes fait foi et garde le détail par démo) : le CRM lit la projection sur
+`GET /api/primes/export`, par la même liaison que les objectifs
+(`BRAIN_GOALS_URL` + `BRAIN_GOALS_TOKEN`), et rattache l'utilisateur par nom
+replié, comme les objectifs. La pastille sait disparaître : utilisateur non
+primé, Brain injoignable ou API en erreur = rien, plutôt qu'un zéro qui se
+lirait comme « rien gagné ».
+
 ### Calendrier des appels d'une affaire (semaine type)
 
 Chaque clic sur **« Afficher le numéro »** dans une fiche affaire journalise un
